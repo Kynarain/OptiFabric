@@ -71,7 +71,7 @@ mods/OptiFine_1.20.6_HD_U_I9.jar
 | 映射表 | 构建期把 mappings 打进 jar | 同样:构建期把 `net.fabricmc:intermediary:1.20.6:v2` 的 `mappings/mappings.tiny` 打进去 |
 | 每 mod 兼容 mixin | 数十个(`compat/**`,针对 fabric-api / architectury / apoli …) | **未包含**(它们依赖 MM 的 early riser 机制) |
 | contextual mapping | 有:人工维护的硬编码表,按版本手写(`this$0`/`this$1`/`field_3835` 等) | **改为规则推导**:`OptifineMappings` 按字段名形状 + 描述符匹配,自动对齐名字、类型与构造器里存入的值 |
-| 版本特定补丁修正 | 面向 1.20.4 等 | **11 个 fixer**(`patcher/fixes`,其中 3 个为本移植新增),已用离线验证器(JVM + ASM 双向)与真机逐项验证 |
+| 版本特定补丁修正 | 面向 1.20.4 等 | **11 个 fixer**(`patcher/fixes`,其中 4 个为本移植新增,见下),已用离线验证器(JVM + ASM 双向)与真机逐项验证 |
 
 新增或重写的文件(其余文件为逐行移植,仅改包名与必要的 API 适配;凡不在上游存在的文件,其文件头都会注明 "New in this 1.20.6 port"):
 
@@ -82,6 +82,7 @@ kynarain/cn/optifabric/mod/GameTransformerHook.java   把补丁类注入 Loader 
 kynarain/cn/optifabric/mod/OptifineMappings.java      取代上游硬编码 contextual mapping 的规则推导
 kynarain/cn/optifabric/mod/OptifineRuntime.java       准备结果(remapped jar + ClassCache)
 kynarain/cn/optifabric/mod/OptifabricSetup.java       仅保留 optifineRuntimeJar(供崩溃报告用)
+kynarain/cn/optifabric/patcher/fixes/RestoreVanillaMethodsFix.java    把 OptiFine 重编译时丢掉的原版方法体补回来
 kynarain/cn/optifabric/patcher/fixes/DelegatingConstructorFix.java    重写 OptiFine 的委托构造器
 kynarain/cn/optifabric/patcher/fixes/SyntheticFieldFix.java           this$0/this$1 → 真实字段名
 kynarain/cn/optifabric/patcher/fixes/ObjectCreationPointFix.java      补回被换掉的 NEW 注入点

@@ -1,6 +1,6 @@
 /*
- * Ported from OptiFabric (https://github.com/Chocohead/OptiFabric), MPL-2.0.
- * Adapted for Minecraft 1.20.6 / Fabric Loader 0.19.x.
+ * New in this 1.20.6 port of OptiFabric (which is MPL-2.0, see LICENSE.txt). This file has no upstream
+ * counterpart.
  *
  * Replaces the hand written "contextual mapping" entries upstream added for a handful of known cases with
  * a check that derives the same information from the mappings themselves.

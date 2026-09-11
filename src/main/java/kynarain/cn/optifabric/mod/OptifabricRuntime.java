@@ -1,6 +1,6 @@
 /*
- * Ported from OptiFabric (https://github.com/Chocohead/OptiFabric), MPL-2.0.
- * Adapted for Minecraft 1.20.6 / Fabric Loader 0.19.x.
+ * New in this 1.20.6 port of OptiFabric (which is MPL-2.0, see LICENSE.txt). This file has no upstream
+ * counterpart.
  */
 package kynarain.cn.optifabric.mod;
 
