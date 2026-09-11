@@ -79,7 +79,9 @@ abstract class CrashReportMixin {
 			})
 		;
 
-	@Inject(method = "addStackTrace", at = @At("RETURN"))
+	// 1.20.6 called this addStackTrace; 1.21.11 renamed it to addDetails. The intermediary name (method_555)
+	// and the descriptor are unchanged, so only the mapped name differs.
+	@Inject(method = "addDetails", at = @At("RETURN"))
 	private void addStackTrace(StringBuilder builder, CallbackInfo info) {
 		optifine.addStackTrace(builder.append("\n\n"));
 	}
