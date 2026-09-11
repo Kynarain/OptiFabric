@@ -679,9 +679,11 @@ java.lang.NoClassDefFoundError: net/minecraft/class_778
 | 物品渲染 | ✅ | `Unable to bake item model` 归零;用户确认"贴图已全部恢复" |
 | 光影 | ✅ | `[Shaders] Loaded shaderpack: ComplementaryReimagined_r5.9.1.zip` |
 | 运行时错误 | ✅ | 单人会话 `[ERROR]` 0 条、注入失败 0 条、无崩溃报告 |
-| 多人 | ⏳ 待复测 | 上一次崩在第 7 类(已修,修复版尚未实测) |
-| F3 调试屏 | ⏳ 待复测 | 第 8 类的修复已就位;它第一版引入了第 9 类,已改掉 |
+| 多人 | ✅ | 23:41:54 `Connecting to 8.148.31.159, 25565`,随后同会话进单人世界 `logged in with entity id 520`,23:44:45 正常 `Stopping!`;`[ERROR]` 0 条、无新崩溃报告 |
+| F3 调试屏 | ✅ | 用户实测不再崩溃(`Renderer:` 一行显示 `OptifineRendererPlaceholder`,见第 8 类) |
 | 早期类加载(第 9 类) | ✅ 已修 | 离线证据:`FapiRendererFallbackTest` 在**不带 Minecraft jar** 的 classpath 上全绿(旧写法在该条件下直接 `NoClassDefFoundError: net/minecraft/class_778`) |
+
+最终一轮复测(2026-09-11 23:41:35 → 23:44:45,jar 843,017 字节 / SHA256 `DEA3CF19…02BC3BB`):启动、主界面、连接多人服务器、单人世界、区块与物品渲染、光影全部正常,`[ERROR]` 0 条,无崩溃报告;此前的第 7、8、9 类各修一次后均未复现。
 
 修复器清单(本次移植新增,均可复用):`InjectionCallPointFix`(保留 OptiFine 方法体、插回惰性调用点)、`RegionSectionPosFix`(给 OptiFine 的区域构造器补 section 位置)、`StubInjectionTargetFix`(改名 + 留完整副本,让语义不兼容的钩子失效而非崩溃)、`CallSiteRedirectFix`(把**跨类**的调用点也改到改名后的方法上,否则副本照样被调用)、以及扩展的 `SyntheticFieldFix`(按声明位置配对同类型合成字段);另加运行时组件 `RendererApiFallback` / `RendererApiStubGenerator`(注册惰性占位渲染器,挡住 Fabric API 对 `Renderer.get()` 的查找)。
 
