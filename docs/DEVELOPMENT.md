@@ -523,6 +523,29 @@ Mixin 按**名字 + 描述符**找注入目标,名字和形状都对不上 → `
 
 另外一个真机日志里的**非致命**警告:`Failed to locate initialiser injection point in <init>(Lnet/minecraft/class_2591;Lnet/minecraft/class_2338;Lnet/minecraft/class_2680;)V, initialiser was not mixed in.` —— 这是第 5 轮把 OptiFine 的 BlockEntity 应用回来(修 5 处悬空引用)的代价:Fabric 的方块实体初始化钩子找不到注入点而失效(warn,不崩)。
 
+### 第二次真机启动(ModelBakery)与第三次预防
+
+第二次启动已经走得很远:补丁管线冷启动 7.3 秒全成功、OptiFine 初始化、着色器子系统起来、`[Indigo] Different rendering plugin detected; not applying Indigo`(让位按预期生效)—— `class_761` 崩溃消失。新崩溃在 `fabric-model-loading-api-v1`:
+
+```
+@WrapOperation wrapBlockModelBake 找不到 class_1088.method_68018(...)Lnet/minecraft/class_1087;
+```
+
+| 处理 | 对象 |
+|---|---|
+| 补回原版方法体 | `class_1088.method_68018`、`class_1088.method_68019`(ModelBakeryMixin) |
+| **保留 OptiFine 方法体**、插回惰性调用点(新修复器 `InjectionCallPointFix`) | `class_775.method_3347` 里 `class_1163.method_4961` 那次调用(fabric-rendering-fluids-v1 要 wrap 它) |
+
+`InjectionCallPointFix` 与 `ObjectCreationPointFix` 同思路:OptiFine 的方法体不动,在方法开头用**方法自己的参数**装载实参、调用目标方法并丢弃返回值。被调的是纯 getter,行为不变,mixin 又能找到注入点 —— 比"整段换回原版"更保守(那种做法会丢掉 OptiFine 的液体渲染)。
+
+**扫描器第 4 个盲区**(这次崩溃被漏报的原因):`RefmapScan` 只从 `org.spongepowered` 注解里收集成员引用,`@WrapOperation`/`@ModifyExpressionValue` 这些 MixinExtras 注解整个被跳过,而 Fabric API 客户端大量使用(22 个模块用 `@ModifyExpressionValue`)。修完引用解析数 147 → **725**,并如实报出上述两处。
+
+### 尚未标定的工具:`LocalSugarScan`
+
+MixinExtras 的 `@Local` 是 FAPI 现在替代 `LocalCapture` 的写法(70 个类在用),解析失败是致命的 `LocalResolutionException`。新增了 `LocalSugarScan` 来离线检查:32 个处理器 / 44 个 `@Local` 参数;过滤掉注入管路参数(`CallbackInfo`/`Operation`/`LocalRef` 等,它们不是局部变量)后剩 7 条候选。
+
+**但这 7 条目前不构成结论**:其中一条(`class_1088.method_68019` 缺 `class_10439$class_10441`)与事实矛盾 —— Fabric API 在原版上必须能正常工作,而 `javap -l` 显示该方法**根本没有 LocalVariableTable**,说明 MixinExtras 在这些方法上是**按字节码推断**而非查 LVT 来解析 `@Local` 的。所以工具目前的 LVT/ordinal 模型只在部分情况下成立,**未经真机错误信息标定前不应据此修代码**。下一次真机日志若出现 `LocalResolutionException`,就用它的原文标定这套规则。
+
 ### 补上"OptiFine 自己的 874 个类"的校验
 
 之前只校验被补丁的 568 个类,OptiFine 自己的类只是挂在 classpath 上"供解析" —— 但它们同样会被加载、同样在调游戏,出问题一样是崩。新增 `VerifyPatched --verify-jar`:
