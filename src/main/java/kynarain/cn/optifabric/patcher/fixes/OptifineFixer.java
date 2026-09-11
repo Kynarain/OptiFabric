@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,6 +23,7 @@ public class OptifineFixer {
 	private final Map<String, List<ClassFixer>> classFixes = new HashMap<>();
 	private final List<ClassFixer> globalFixes = new ArrayList<>();
 	private final Set<String> skippedClass = new HashSet<>();
+	private final Set<String> extraClasses = new LinkedHashSet<>();
 
 	private OptifineFixer() {
 		//Applies to every class: members OptiFine kept under a name of its own, which neither the mappings nor a
@@ -141,6 +143,12 @@ public class OptifineFixer {
 		//model fails to bake and all item textures disappear. Same repair as class_4603 above.
 		registerFix("class_10430", new RestoreVanillaMethodsFix(true, "method_65584"));
 
+		//net/minecraft/client/render/block/entity/... the moving-block path: with contains_renderer declared (OptiFine is
+		//the renderer) Fabric's RendererManager stays empty, and this hook calls Renderer.get() and throws.
+		//OptiFine does not patch class_11681, so it is taken over on our own (see registerExtraClass).
+		registerExtraClass("class_11681", new StubInjectionTargetFix("method_72998",
+				"(Lnet/minecraft/class_11788;Lnet/minecraft/class_4597$class_4598;Lnet/minecraft/class_776;Lnet/minecraft/class_4618;)V", "optifabric$movingBlocks"));
+
 		//fabric-rendering-v1's BEFORE_BLOCK_OUTLINE hook reads a world render context that OptiFine's pass
 		//structure never fills in, and dies with a NullPointerException (see StubInjectionTargetFix).
 		registerFix("class_761", new StubInjectionTargetFix("method_62210",
@@ -154,6 +162,17 @@ public class OptifineFixer {
 
 	private void registerFix(String className, ClassFixer classFixer) {
 		classFixes.computeIfAbsent(RemappingUtils.getClassName(className), s -> new ArrayList<>()).add(classFixer);
+	}
+
+	/** A class OptiFine does not patch, but that still needs one of our fixers (Fabric API injects into it). */
+	private void registerExtraClass(String className, ClassFixer fixer) {
+		String name = RemappingUtils.getClassName(className);
+		classFixes.computeIfAbsent(name, s -> new ArrayList<>()).add(fixer);
+		extraClasses.add(name);
+	}
+
+	public Set<String> getExtraClasses() {
+		return extraClasses;
 	}
 
 	private void registerGlobalFix(ClassFixer classFixer) {

@@ -81,6 +81,26 @@ public class OptifineInjector {
 			}
 		}
 
+		//classes OptiFine does not patch but that Fabric API injects into anyway: take them over ourselves, so the
+		//same fixers can keep those injections from failing the class (see OptifineFixer#registerExtraClass)
+		for (String extra : OptifineFixer.INSTANCE.getExtraClasses()) {
+			if (classes.containsKey(extra)) continue;
+
+			try {
+				byte[] bytes = net.fabricmc.loader.impl.launch.FabricLauncherBase.getLauncher()
+						.getClassByteArray(extra.replace('/', '.'), false);
+
+				if (bytes == null) {
+					System.err.println("[OptiFabric] No bytes for the extra class " + extra + ", leaving it to the game");
+					continue;
+				}
+
+				classes.put(extra, readClass(bytes));
+				System.out.println("[OptiFabric] Took over " + extra + " on our own (OptiFine does not patch it)");
+			} catch (Throwable t) {
+				System.err.println("[OptiFabric] Could not take over the extra class " + extra + ": " + t);
+			}
+		}
 		//OptiFine's patches declare a few Minecraft fields under their obfuscated name with a descriptor that
 		//differs from the mappings, so the remapper could not rename them; put the real names back first
 		List<OptifineMappings.FieldRename> renames = OptifineMappings.findFieldRenames(classes);

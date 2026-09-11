@@ -242,7 +242,7 @@ public class OptifineSetup {
 	 * 7: the vanilla bodies Fabric API injects into are restored again (three more of them).
 	 * 8: ModelBakery's two wrap targets are restored, and LiquidBlockRenderer gets its call site back.
 	 */
-	private static final int CACHE_FORMAT = 12;
+	private static final int CACHE_FORMAT = 13;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {
