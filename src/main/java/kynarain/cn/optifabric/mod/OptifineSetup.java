@@ -236,8 +236,11 @@ public class OptifineSetup {
 	/**
 	 * Bumped whenever the cached artifacts would come out different, so stale caches regenerate themselves.
 	 * 3: the remap class path now contains the game, so members inherited from a supertype keep their name.
+	 * 4: the game is also an input of the remap, so references to inherited members keep their mapped name too.
+	 * 5: references to a renamed field are matched through the subclass that names it as their owner.
+	 * 6: OptiFine's BlockEntity is applied instead of skipped, so its callers find what they call.
 	 */
-	private static final int CACHE_FORMAT = 3;
+	private static final int CACHE_FORMAT = 6;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {
@@ -294,6 +297,18 @@ public class OptifineSetup {
 			Path minecraftJar = getMinecraftJar();
 			if (Files.isRegularFile(minecraftJar) && Arrays.stream(libraries).noneMatch(minecraftJar::equals)) {
 				remapper.readClassPathAsync(minecraftJar);
+			}
+
+			// The game also has to be an *input*, not only class path: a reference to an inherited member is
+			// written with the subclass as its owner (BlockModelRenderer$AmbientOcclusionCalculator reads the
+			// field its superclass declares), and resolving those is what the input pass does - with the class
+			// path alone the declaration was renamed while its 19 references kept the official name, which is a
+			// NoSuchFieldError waiting for the first ambient occlusion pass. Nothing of this tag is written;
+			// apply() only consumes the tag of the classes we came for.
+			InputTag gameTag = remapper.createInputTag();
+
+			if (Files.isRegularFile(minecraftJar)) {
+				remapper.readInputsAsync(gameTag, minecraftJar);
 			}
 
 			remapper.apply(outputConsumer, tag);

@@ -12,12 +12,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -172,6 +176,11 @@ public final class OptifineMappings {
 					if (!(insn instanceof FieldInsnNode fieldInsn)) continue;
 
 					FieldRename rename = byOwnerAndName.get(fieldInsn.owner + '.' + fieldInsn.name);
+
+					if (rename == null) {
+						rename = inherited(patchedClasses, fieldInsn, byOwnerAndName);
+					}
+
 					if (rename == null) continue;
 
 					fieldInsn.name = rename.to();
@@ -189,6 +198,42 @@ public final class OptifineMappings {
 
 		return applied;
 	}
+
+	/**
+	 * The same repair for a reference whose owner is a <em>subclass</em> of the class that declares the field.
+	 *
+	 * <p>javac writes the subclass as the owner when the receiver has that static type, so
+	 * {@code BlockModelRenderer$AmbientOcclusionCalculator} reads the {@code LightCacheOF} field its superclass
+	 * declares as {@code getfield class_778$class_780.h}, while the declaration - and therefore the rename table
+	 * - lives under {@code class_778$class_10931}. Matching the reference against the declaring class only left
+	 * those 19 references under the official name, which is a NoSuchFieldError on the first ambient occlusion
+	 * pass: the field is gone from the class that is asked for it and no supertype has it either. Vanilla
+	 * classes need no walk - their own reference was remapped by the remapper already.</p>
+	 */
+	private static FieldRename inherited(Map<String, ClassNode> patchedClasses, FieldInsnNode reference,
+			Map<String, FieldRename> byOwnerAndName) {
+		Set<String> seen = new HashSet<>();
+		Deque<String> queue = new ArrayDeque<>();
+		queue.add(reference.owner);
+
+		while (!queue.isEmpty()) {
+			String type = queue.poll();
+			if (!seen.add(type)) continue;
+
+			FieldRename rename = byOwnerAndName.get(type + '.' + reference.name);
+			if (rename != null) return rename;
+
+			ClassNode node = patchedClasses.get(type);
+			if (node == null) continue; //a vanilla ancestor keeps the name the game already has
+
+			if (node.superName != null) queue.add(node.superName);
+			if (node.interfaces != null) queue.addAll(node.interfaces);
+		}
+
+		return null;
+	}
+
+	/** Retyping a stored value is only sound when the reference itself is the one the check approved. */
 
 	/** @return whether every value OptiFine stores into the field can be turned into the game's type */
 	private static boolean canRetype(ClassNode node, String fieldName, String desc) {

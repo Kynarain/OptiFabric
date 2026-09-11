@@ -434,17 +434,34 @@ OptiFine 的补丁类是**用它自己的源码重编译**出来的,再经过它
 
 | 工具 | 结果 |
 |---|---|
-| `VerifyPatched` | 567/567 通过(1 个按设计跳过),0 失败,ASM 0 |
-| `RuntimeContractScan` | 契约 0 / 覆写 0 / 引用 0 |
+| `VerifyPatched` | 568/568 通过(0 跳过、0 失败),ASM 0;缓存复用第二次启动 1.8 秒 |
+| `RuntimeContractScan` | 契约 0 / 覆写 0 / 引用 0(见下"扫描器自身的三处修正") |
 | `RefmapScan` | 430 个 mixin 类,147 条引用,MISSING 0 |
-| `AtTargetScan` | 显式 `@At` 目标 79 条,PROBLEMS 0 |
+| `AtTargetScan` | 显式 `@At` 目标 81 条,PROBLEMS 0 |
 | `LocalsScan` | 需要局部捕获的处理 0 条 |
-| `UnsetFieldScan` | 567 个类,3598 个字段,读而未初始化 0 |
-| `ShadowScan` | 检查 60 条,真实缺失 0 |
+| `UnsetFieldScan` | 568 个类,3608 个字段,读而未初始化 0 |
+| `ShadowScan` | 检查 64 条,缺失 0,描述符不符 0 |
 
 `ShadowScan` 一开始还在打印 16 条"缺失",逐条核对后**全是假阳性**,根因是扫描器自己的建模缺口:`@Accessor`/`@Invoker` 的目标写在**注解值**里(`@Accessor("field_18242")`、`@Invoker("method_71138")`、记录组件的 `comp_4049`),而且该值在发布 jar 里**已经是 intermediary 名**(构建时被 remap 过);扫描器却只看 Java 方法名(`getEntityTrackers`、`fabric$pipeline`),去原版类里找一个从来不存在的成员。
 
-已修:① 读注解值,没有值时按 Mixin 的推导规则(`getX`/`setX`/`isX`/`callX` → `x`);② Accessor 查**字段**(描述符取返回类型,setter 取参数类型),Invoker 查**方法**;③ 名字在但描述符不同时单独记成"描述符不符",不再算缺失。修完:**检查 60 条,缺失 0,描述符不符 0**。
+已修:① 读注解值,没有值时按 Mixin 的推导规则(`getX`/`setX`/`isX`/`callX` → `x`);② Accessor 查**字段**(描述符取返回类型,setter 取参数类型),Invoker 查**方法**;③ 名字在但描述符不同时单独记成"描述符不符",不再算缺失。修完:**检查 64 条,缺失 0,描述符不符 0**。
 
-下一步待办:① 真机实测(1.21.11 实例:主界面 / 单人 / 多人 / 模型 / 区块 / 光影);② `class_2586`(BlockEntity)按设计跳过这一条应在真机上复核。
+### 扫描器自身的三处修正(改完才敢信它的结论)
+
+`RuntimeContractScan` 最初报"引用 0",其实是被自己的逻辑**压掉了所有发现**,三处都改过:
+
+1. **"层次里有未知类就当不可判定"太粗**:每个类层次最后都到 `java/lang/Object`,于是*任何*缺失都被吞掉。改为只把 `java/lang/Object`/`Enum`/`Record` 视为"成员集合已知"(它们的成员在 `platformMember` 里枚举),其它游戏之外的类(DataFixerUpper、joml、`java/util/*`、`Throwable`)只让结论变成"不可判定",不再误报 —— 这一条把 1269 条误报降到 0。
+2. **接口的抽象声明**:对"调用点能否解析"它**算数**(`invokeinterface class_7833.rotation` 就靠接口自己的声明解析),对"这个类有没有实现契约"它**不算数**。之前两者混用,前者误报 13,300 条,后者漏报。
+3. **必须把 OptiFine 自己的类也纳入扫描**(`Optifine-mapped.jar` 里 874 个类,包括 `net/optifine/**`):它们同样在跑、同样在调游戏。只扫被补丁的 567 个类时,下面两个真实缺陷都看不见。
+
+### 修正后扫出的两个真实缺陷(都会在真机上变成 Error)
+
+| 缺陷 | 症状 | 根因 | 修复 |
+|---|---|---|---|
+| `class_778$class_780`(AO 计算器)里 19 处 `getfield h:Lnet/optifine/render/LightCacheOF;` 无对应字段 | 第一次环境光遮蔽计算时 `NoSuchFieldError` | `OptifineMappings.applyFieldRenames` 只按**声明类**匹配引用(`class_778$class_10931.h`),而 javac 对继承字段写的是**子类**做 owner(`class_778$class_780.h`);声明被改名成 `field_58166`,引用留在 `h` | 匹配时沿"引用 owner 的父类/接口链"找声明类(只走被补丁的类,原版祖先的名字本来就是对的) |
+| `class_757`(被补丁)调 `class_2586.hasCustomOutlineRendering()Z`、`net/optifine/RandomTileEntity` 读 `class_2586.nbtTag/nbtTagUpdateMs` | 渲染方块实体 / 随机实体时 `NoSuchMethodError`、`NoSuchFieldError` | 我们沿用上游**跳过** OptiFine 的 BlockEntity,但它加了这些方法/字段,而调用方(OptiFine 自己重编译过的类和它自己的类)并不会跟着跳过 | 不再跳过,直接应用 OptiFine 的 BlockEntity;扫描确认 Fabric API 落到它上面的 mixin 目标仍然齐全(Refmap/AtTarget/Shadow 的检查条数还因此从 122/79/60 升到 122/81/64,全部通过) |
+
+顺带:重映射现在把**游戏本体也当作 input**(不只是 classpath)。
+
+下一步待办:① 真机实测(1.21.11 实例:主界面 / 单人 / 多人 / 模型 / 区块 / 光影);② 若要更贴近真机,可再给扫描器加"模拟 Mixin 注入点解析"这一层(目前 `@At` 的指令级匹配只做了显式 target 的 81 条)。
 

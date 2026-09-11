@@ -99,7 +99,10 @@ public class OptifineFixer {
 		registerFix("class_1092$1", new SyntheticFieldFix());
 
 		//net/minecraft/block/entity/BlockEntity
-		skipClass("class_2586");
+		//Upstream skips OptiFine's BlockEntity, and skipping it leaves five references dangling: OptiFine adds
+		//hasCustomOutlineRendering (from its Forge compatibility interface) and the nbtTag/nbtTagUpdateMs fields,
+		//and both its own RandomTileEntity and the recompiled class_757 call them - a NoSuchMethodError waiting
+		//for the first block entity render. The class is applied here; the scanners check what that costs.
 	}
 
 	private void registerFix(String className, ClassFixer classFixer) {
