@@ -465,6 +465,25 @@ OptiFine 的补丁类是**用它自己的源码重编译**出来的,再经过它
 
 下一步待办:① 真机实测(1.21.11 实例:主界面 / 单人 / 多人 / 模型 / 区块 / 光影);② 若要更贴近真机,可再给扫描器加"模拟 Mixin 注入点解析"这一层(目前 `@At` 的指令级匹配只做了显式 target 的 81 条)。
 
+### `AtTargetScan` 曾经"什么都没查"却报 0 问题
+
+给扫描器加上"按种类统计"之后才暴露出来:81 个落在被补丁类上的处理器全部进了统计,但 `call sites counted: 0` —— 也就是说 `@At` 那一层**一个都没真正校验**,之前的 "PROBLEMS: 0" 是**空结论**。
+
+根因:Mixin 的 `method=` 引用是**不带 owner** 的写法(`method="method_4046(Lnet/minecraft/class_3887;)Z"`),而 `RefmapScan.parseRef` 要求 `Lowner;member` 前缀、`parseBareRef` 要求 `owner.member` 形式,两者都返回 null,于是每个处理器都被静默跳过 —— **Fabric API 不发布 refmap,所有 `method=` 都是这种无 owner 写法**,所以是"全军覆没"而不是个别漏网。
+
+已修:新增 `resolveAgainst(...)`,先按老规矩解析,失败则按 Mixin 的规则把无 owner 引用**挂到该 mixin 的 `@Mixin` 目标类**上(多目标则逐个),再做 yarn 翻译。修完 `call sites counted: 26`,并立刻报出 **4 处真实缺失**:
+
+| 缺失的注入点 | 来自 |
+|---|---|
+| `class_776.method_23071` 无 `INVOKE_ASSIGN class_773.method_3335` | `indigo.BlockRenderDispatcherMixin.afterGetModel` |
+| `class_776.method_3353` 无 `INVOKE class_778.method_3367` | `indigo.BlockRenderDispatcherMixin.renderProxy` |
+| `class_9810.method_60904` 无 `INVOKE class_2338.method_10097` | `indigo.SectionCompilerMixin.hookBuild` |
+| `class_9810.method_60904` 无 `INVOKE class_2680.method_26217` | `indigo.SectionCompilerMixin.hookBuildRenderBlock` |
+
+**四处全部来自 `fabric-renderer-indigo`**,而 indigo 正是本项目用 `fabric-renderer-api-v1:contains_renderer` 让位的那个模块(OptiFine 自己就是渲染器),它的 mixin 根本不会被应用 —— 所以不是问题,但这下**是有证据的"不是问题"**,而不是假设。扫描器现在会在报告里直接标注 `[indigo: disabled by ...]`。
+
+同时补上:`@ModifyConstant`(没有 `@At` 时 Mixin 自己在目标方法里找常量,找不到就整类失败)现在也会被检查 —— 实测 Fabric API 落在被补丁类上的 81 个处理器**全部带显式 `@At`**,`@ModifyConstant` 命中 0 个,所以这一层暂时没有缺口。
+
 ### 补上"OptiFine 自己的 874 个类"的校验
 
 之前只校验被补丁的 568 个类,OptiFine 自己的类只是挂在 classpath 上"供解析" —— 但它们同样会被加载、同样在调游戏,出问题一样是崩。新增 `VerifyPatched --verify-jar`:
