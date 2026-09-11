@@ -56,6 +56,8 @@ git push origin v1.0.0+mc1.21.11
 
 然后在 GitHub 网页上基于该 tag 建 Release(`Target` 记得选 `mc1.21.11` 分支),把 `OptiFabric-1.0.0+mc1.21.11.jar` 作为附件上传。
 
+> Release 的说明文案已经写好了:[`docs/RELEASE_NOTES.md`](RELEASE_NOTES.md) —— 把两条 `---` 之间的内容整段粘进说明框(第一行作标题),末尾自带中文摘要;里面的 SHA-256 与 `dist/` 里那份 jar 是核对过的。
+
 **仓库里不该出现的东西**(`.gitignore` 已经排除,提交前可再确认一次):
 
 - OptiFine 的 jar(许可不允许再分发)
