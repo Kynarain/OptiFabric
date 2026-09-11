@@ -4,9 +4,9 @@
   "version": "${version}",
 
   "name": "OptiFabric",
-  "description": "Loads OptiFine into Fabric. Put the OptiFine jar for 1.20.6 into the mods folder next to this mod; OptiFabric patches, remaps and applies it at runtime. OptiFine itself is not bundled or redistributed.",
+  "description": "Loads OptiFine into Fabric. Put the OptiFine jar for 1.21.11 into the mods folder next to this mod; OptiFabric patches, remaps and applies it at runtime. OptiFine itself is not bundled or redistributed.",
   "authors": [
-    "kynarain (1.20.6 port)",
+    "kynarain (1.21.11 port)",
     "Modmuss50",
     "Chocohead"
   ],

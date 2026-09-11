@@ -442,10 +442,9 @@ OptiFine 的补丁类是**用它自己的源码重编译**出来的,再经过它
 | `UnsetFieldScan` | 567 个类,3598 个字段,读而未初始化 0 |
 | `ShadowScan` | 检查 60 条,真实缺失 0 |
 
-`ShadowScan` 仍会打印 16 条,已逐条核对**全是假阳性**,分两类,都是扫描器自身的建模缺口(不影响游戏):
+`ShadowScan` 一开始还在打印 16 条"缺失",逐条核对后**全是假阳性**,根因是扫描器自己的建模缺口:`@Accessor`/`@Invoker` 的目标写在**注解值**里(`@Accessor("field_18242")`、`@Invoker("method_71138")`、记录组件的 `comp_4049`),而且该值在发布 jar 里**已经是 intermediary 名**(构建时被 remap 过);扫描器却只看 Java 方法名(`getEntityTrackers`、`fabric$pipeline`),去原版类里找一个从来不存在的成员。
 
-* `fabric$...`、`fabric_getDynamicDisplayGlintConsumer` 之类:这些方法**是 Fabric API 自己的 mixin 加进去的**(mixin→mixin 引用),原版里本来就没有;
-* `getEntityTrackers`/`getDirectoryName`/`getPlayersTracking`/`getParticleTextureSheets`/`getBlockColors`:accessor 接口的**方法名**与目标字段名不同,真正的目标写在 `@Accessor("...")` 的值里(该值在发布 jar 中已是 intermediary 名),扫描器目前只看方法名。
+已修:① 读注解值,没有值时按 Mixin 的推导规则(`getX`/`setX`/`isX`/`callX` → `x`);② Accessor 查**字段**(描述符取返回类型,setter 取参数类型),Invoker 查**方法**;③ 名字在但描述符不同时单独记成"描述符不符",不再算缺失。修完:**检查 60 条,缺失 0,描述符不符 0**。
 
-下一步待办:① 真机实测(1.21.11 实例:主界面 / 单人 / 多人 / 模型 / 区块 / 光影);② `ShadowScan` 读 `@Accessor`/`@Invoker` 注解值,把这 16 条噪音消掉;③ `class_2586`(BlockEntity)按设计跳过这一条也应在真机上复核。
+下一步待办:① 真机实测(1.21.11 实例:主界面 / 单人 / 多人 / 模型 / 区块 / 光影);② `class_2586`(BlockEntity)按设计跳过这一条应在真机上复核。
 
