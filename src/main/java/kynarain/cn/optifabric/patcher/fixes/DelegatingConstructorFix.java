@@ -1,6 +1,7 @@
 /*
- * Ported from OptiFabric (https://github.com/Chocohead/OptiFabric), MPL-2.0.
- * Adapted for Minecraft 1.20.6 / Fabric Loader 0.19.x.
+ * New in this 1.20.6 port of OptiFabric (which is MPL-2.0, see LICENSE.txt). This file has no upstream
+ * counterpart: Minecraft 1.20.6 is the first version where OptiFine's convenience constructor overload
+ * broke a Fabric API injection, so the fix was written for this port.
  *
  * Rewrites OptiFine's convenience constructor overload back into the shape the game has, so that other
  * mods' Injectors still apply to it.

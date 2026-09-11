@@ -63,24 +63,28 @@ mods/OptiFine_1.20.6_HD_U_I9.jar
 
 ## 3. 与上游 OptiFabric 的差异
 
-| 方面 | 上游 (≤1.20.4, Loader 0.15) | 本移植 (1.20.6, Loader 0.19.5) |
+| 方面 | 上游 (≤1.20.4, Loader 0.15) | 本移植 (1.20.6, Loader 0.19.3) |
 |---|---|---|
 | 类替换挂钩 | Fabric-ASM / Manningham Mills(`mm:early_risers` 入口 + `ClassTinkerers` + 运行时生成 stub mixin) | **自实现**:注入 Loader 的 `GameTransformer.patchedClasses`(`GameTransformerHook`),全程不碰 Mixin API |
 | OptiFine jar 上 classpath | Fabric-ASM 反射式 `addURL` | Fabric Loader 自带 API `FabricLauncherBase.getLauncher().addToClassPath(...)` |
 | 重映射器 | 自己依赖 `net.fabricmc:tiny-remapper:0.8.11` | 直接用 **Loader 内嵌的 tiny-remapper**(`net.fabricmc.loader.impl.lib.tinyremapper`,0.14 API),不额外打包依赖 |
 | 映射表 | 构建期把 mappings 打进 jar | 同样:构建期把 `net.fabricmc:intermediary:1.20.6:v2` 的 `mappings/mappings.tiny` 打进去 |
 | 每 mod 兼容 mixin | 数十个(`compat/**`,针对 fabric-api / architectury / apoli …) | **未包含**(它们依赖 MM 的 early riser 机制) |
-| contextual mapping | 有(解决 `this$0`/`this$1`/`field_3835` 等名字冲突,以及 dev 命名空间) | **未包含** |
-| 版本特定补丁修正 | 面向 1.20.4 等 | 保留 7 个 fixer(`patcher/fixes`),但**未针对 1.20.6 校验过** |
+| contextual mapping | 有:人工维护的硬编码表,按版本手写(`this$0`/`this$1`/`field_3835` 等) | **改为规则推导**:`OptifineMappings` 按字段名形状 + 描述符匹配,自动对齐名字、类型与构造器里存入的值 |
+| 版本特定补丁修正 | 面向 1.20.4 等 | **11 个 fixer**(`patcher/fixes`,其中 3 个为本移植新增),已用离线验证器(JVM + ASM 双向)与真机逐项验证 |
 
-新增/重写的文件(其余为逐行移植,仅改包名与必要的 API 适配):
+新增或重写的文件(其余文件为逐行移植,仅改包名与必要的 API 适配;凡不在上游存在的文件,其文件头都会注明 "New in this 1.20.6 port"):
 
 ```
-kynarain/cn/optifabric/Optifabric.java              入口(preLaunch)
-kynarain/cn/optifabric/mod/OptifabricRuntime.java   总调度:找 jar → 打补丁 → 挂 classpath → 注册替换
-kynarain/cn/optifabric/mod/GameTransformerHook.java  把补丁类注入 Loader 的游戏 transformer(按字段类型反射定位)
-kynarain/cn/optifabric/mod/OptifineRuntime.java          准备结果(remapped jar + ClassCache)
-kynarain/cn/optifabric/mod/OptifabricSetup.java          仅保留 optifineRuntimeJar(供崩溃报告用)
+kynarain/cn/optifabric/Optifabric.java                入口(preLaunch)
+kynarain/cn/optifabric/mod/OptifabricRuntime.java     总调度:找 jar → 打补丁 → 挂 classpath → 注册替换
+kynarain/cn/optifabric/mod/GameTransformerHook.java   把补丁类注入 Loader 的游戏 transformer(按字段类型反射定位)
+kynarain/cn/optifabric/mod/OptifineMappings.java      取代上游硬编码 contextual mapping 的规则推导
+kynarain/cn/optifabric/mod/OptifineRuntime.java       准备结果(remapped jar + ClassCache)
+kynarain/cn/optifabric/mod/OptifabricSetup.java       仅保留 optifineRuntimeJar(供崩溃报告用)
+kynarain/cn/optifabric/patcher/fixes/DelegatingConstructorFix.java    重写 OptiFine 的委托构造器
+kynarain/cn/optifabric/patcher/fixes/SyntheticFieldFix.java           this$0/this$1 → 真实字段名
+kynarain/cn/optifabric/patcher/fixes/ObjectCreationPointFix.java      补回被换掉的 NEW 注入点
 ```
 
 ---

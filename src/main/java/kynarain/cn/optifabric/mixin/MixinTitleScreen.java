@@ -70,7 +70,7 @@ public abstract class MixinTitleScreen extends Screen {
 			helpButtonText = "Open help";
 			action = help -> {
 				if (help) {
-					Util.getOperatingSystem().open("https://github.com/Chocohead/OptiFabric/blob/master/README.md");
+					Util.getOperatingSystem().open("https://github.com/Kynarain/OptiFabric/blob/main/README.md");
 				} else {
 					Util.getOperatingSystem().open(new File(FabricLoader.getInstance().getGameDirectory(), "mods"));
 				}
@@ -84,7 +84,7 @@ public abstract class MixinTitleScreen extends Screen {
 			helpButtonText = "Open issues";
 			action = help -> {
 				if (help) {
-					Util.getOperatingSystem().open("https://github.com/Chocohead/OptiFabric/issues");
+					Util.getOperatingSystem().open("https://github.com/Kynarain/OptiFabric/issues");
 				} else if (stack != null) {
 					client.keyboard.setClipboard(stack);
 				} else {
