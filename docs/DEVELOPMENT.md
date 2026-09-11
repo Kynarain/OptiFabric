@@ -465,3 +465,31 @@ OptiFine 的补丁类是**用它自己的源码重编译**出来的,再经过它
 
 下一步待办:① 真机实测(1.21.11 实例:主界面 / 单人 / 多人 / 模型 / 区块 / 光影);② 若要更贴近真机,可再给扫描器加"模拟 Mixin 注入点解析"这一层(目前 `@At` 的指令级匹配只做了显式 target 的 81 条)。
 
+### 补上"OptiFine 自己的 874 个类"的校验
+
+之前只校验被补丁的 568 个类,OptiFine 自己的类只是挂在 classpath 上"供解析" —— 但它们同样会被加载、同样在调游戏,出问题一样是崩。新增 `VerifyPatched --verify-jar`:
+
+```
+java -cp ... VerifyPatched --verify-jar <Optifine-mapped.jar> <vanilla intermediary jar> <final 目录> <libraries>
+```
+
+它把补丁后的类先定义进加载器(这样 OptiFine 的类看到的就是被补丁的游戏,和真机一致),再逐个定义+链接它们自己的类,然后跑 ASM 数据流校验。只对 Forge / launchwrapper 专用的类放行(那些 API 在 Fabric 上根本不存在)。
+
+结果:**874/874 通过,0 失败,ASM 0**。加上被补丁的 568 个类,这次移植共有 **1442 个类**通过 JVM 与 ASM 双向校验。
+
+### 全新安装模拟(与用户操作一致)
+
+在一个空目录里只放两个 jar(`OptiFabric-1.0.0+mc1.21.11.jar` + 官方命名的 `OptiFine_1.21.11_HD_U_J9.jar`),跑完整补丁管线:
+
+```
+首次补丁耗时 6.7 秒
+[OptiFabric] Prepared 568 patched classes (0 skipped, 0 failed)
+verified OK: 568 / FAILED: 0 / ASM verifier problems: 0
+生成 .optifine/OptiFine_1.21.11_HD_U_J9/{cache-format.txt, Optifine-mapped.jar, Optifine.classes.gz}
+```
+
+第二次启动走缓存:1.8 秒(`Found existing patched OptiFine jar`)。也就是说首次启动不会长时间卡住。
+
+安装位置注意:这台机器的启动器(PCL)对版本目录做了**版本隔离**,该实例的 mods 目录是
+`%APPDATA%\.minecraft\versions\1.21.11-Fabric 0.19.5\mods\`,而不是 `.minecraft\mods\`;要启动的是 **Fabric 0.19.5** 那个版本(不是 `1.21.11-OptiFine_J9`)。
+
