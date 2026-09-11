@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "optifabric",
+  "version": "${version}",
+
+  "name": "OptiFabric",
+  "description": "Loads OptiFine into Fabric. Put the OptiFine jar for 1.20.6 into the mods folder next to this mod; OptiFabric patches, remaps and applies it at runtime. OptiFine itself is not bundled or redistributed.",
+  "authors": [
+    "kynarain (1.20.6 port)",
+    "Modmuss50",
+    "Chocohead"
+  ],
+  "contact": {
+    "homepage": "https://www.curseforge.com/minecraft/mc-mods/optifabric",
+    "sources": "https://github.com/Chocohead/OptiFabric"
+  },
+  "license": "MPL-2.0",
+  "icon": "assets/optifabric/icon.png",
+  "environment": "client",
+
+  "entrypoints": {
+    "preLaunch": [
+      "kynarain.cn.optifabric.Optifabric"
+    ]
+  },
+
+  "mixins": [
+    {
+      "config": "optifabric.mixins.json",
+      "environment": "client"
+    }
+  ],
+
+  "custom": {
+    "_comment": "OptiFine is a terrain renderer, so Indigo must step aside. Fabric's own hook for that (Sodium declares the same value): IndigoMixinConfigPlugin.shouldApplyMixin returns false for every fabric-renderer-indigo mixin, and Indigo skips registering its renderer. Without it ChunkBuilderBuiltChunkRebuildTaskMixin fails fatally, because its @Inject targets BlockPos.iterate inside ChunkBuilder.BuiltChunk.RebuildTask.render and OptiFine's rewrite of that loop removes the call.",
+    "fabric-renderer-api-v1:contains_renderer": true
+  },
+
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "minecraft": "${minecraft_version}"
+  },
+
+  "conflicts": {
+    "sodium": "*"
+  },
+
+  "breaks": {
+    "no_fog": "*",
+    "thallium": "*",
+    "xradiation": "*",
+    "ryoamiclights": "*"
+  }
+}

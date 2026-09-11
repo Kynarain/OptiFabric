@@ -1,0 +1,76 @@
+plugins {
+    id 'fabric-loom' version '1.17-SNAPSHOT'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    // Loom already adds the repositories needed for Minecraft, Fabric Loader and the mapping artifacts.
+}
+
+configurations {
+    // OptiFine is remapped from the official (obfuscated) namespace to intermediary at runtime, so the
+    // intermediary mappings have to be available inside the built jar. Upstream OptiFabric did the same.
+    intermediaryMappings
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    intermediaryMappings "net.fabricmc:intermediary:${project.minecraft_version}:v2"
+
+    // All of these are provided at runtime by Fabric Loader / its launch libraries:
+    // ASM and Mixin are launch libraries, and tiny-remapper + mapping-io are shaded inside the loader jar
+    // (net.fabricmc.loader.impl.lib.tinyremapper / ...mappingio). Nothing is bundled into this mod.
+    compileOnly "org.ow2.asm:asm:${project.asm_version}"
+    compileOnly "org.ow2.asm:asm-tree:${project.asm_version}"
+    compileOnly "org.ow2.asm:asm-commons:${project.asm_version}"
+    compileOnly "org.ow2.asm:asm-analysis:${project.asm_version}"
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "loader_version", project.loader_version
+    filteringCharset "UTF-8"
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version,
+                "minecraft_version": project.minecraft_version,
+                "loader_version": project.loader_version
+    }
+
+    // Bundle the official -> intermediary mappings taken from the intermediary artifact
+    from({ zipTree(configurations.intermediaryMappings.singleFile) }) {
+        include "mappings/mappings.tiny"
+    }
+}
+
+def targetJavaVersion = 21
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = "UTF-8"
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+        it.options.release.set(targetJavaVersion)
+    }
+}
+
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+    withSourcesJar()
+}
+
+jar {
+    from("LICENSE.txt") {
+        rename { "${it}_${project.archives_base_name}" }
+    }
+}

@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "kynarain.cn.optifabric.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MixinTitleScreen",
+    "CrashReportMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}
