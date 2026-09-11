@@ -12,7 +12,7 @@
 | 使用者文档 | `README.md` | 原理、安装、已知问题、排查 |
 | 开发记录 | `docs/DEVELOPMENT.md` | 逐轮排查与可复现的离线校验工具 |
 | 更新日志 | `CHANGELOG.md` | 首个发布版 |
-| CurseForge 页面文案 | `docs/CURSEFORGE.md` | 可直接粘贴到项目描述 |
+| 页面文案 | `docs/DESCRIPTION.md` | 简要描述 + 详细描述,中英双语,可直接粘贴 |
 | 模组图标 | `src/main/resources/assets/optifabric/icon.png` | 128×128,已接进 `fabric.mod.json`;想换风格直接替换这个文件 |
 
 ## 二、构建发布包
@@ -63,7 +63,8 @@ git push origin v1.0.0+mc1.20.6
    - 许可:**MPL-2.0**(与上游一致,必须一致)
    - 分类建议:Optimization / Miscellaneous
 2. **上传文件**:把 `OptiFabric-1.0.0+mc1.20.6.jar` 作为 release 上传,版本名填 `1.0.0+mc1.20.6`。
-3. **项目描述**:粘贴 `docs/CURSEFORGE.md` 的内容(它是给玩家看的版本)。
+3. **项目描述**:`docs/DESCRIPTION.md` 里给了成套文案 —— "简介"栏粘贴**简要描述**(中文或英文),项目正文粘贴**详细描述**(有中文和英文两版,CF 支持 Markdown)。
+   GitHub 仓库的 About 也可以直接用那句简要描述;如果以后加了英文 README,再补一版英文详细描述即可。
 4. **项目图标**:CurseForge 的图标要在网页上单独上传(`src/main/resources/assets/optifabric/icon.png` 是给游戏内模组列表用的,两者可以同图)。图标建议 400×400 或以上。
 5. **依赖关系设置**:把 **Fabric API** 标为可选依赖(Optional dependency);**不要**把 OptiFine 列为依赖项 —— CurseForge 不允许分发 OptiFine,依赖项里也不要指向它的下载。
 6. 提交后等审核。
