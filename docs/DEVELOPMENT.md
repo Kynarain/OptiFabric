@@ -546,6 +546,21 @@ MixinExtras 的 `@Local` 是 FAPI 现在替代 `LocalCapture` 的写法(70 个�
 
 **但这 7 条目前不构成结论**:其中一条(`class_1088.method_68019` 缺 `class_10439$class_10441`)与事实矛盾 —— Fabric API 在原版上必须能正常工作,而 `javap -l` 显示该方法**根本没有 LocalVariableTable**,说明 MixinExtras 在这些方法上是**按字节码推断**而非查 LVT 来解析 `@Local` 的。所以工具目前的 LVT/ordinal 模型只在部分情况下成立,**未经真机错误信息标定前不应据此修代码**。下一次真机日志若出现 `LocalResolutionException`,就用它的原文标定这套规则。
 
+### 真机实测进度(1.21.11 实例,逐次崩溃逐个修)
+
+| 次 | 症状 | 根因 | 修复 |
+|---|---|---|---|
+| 1 | 启动崩:`Mixin transformation of class_761 failed` | OptiFine 把 lambda 体编成 `lambda$addMainPass$1` 且**多一个参数**,Mixin 按名字+描述符找不到 `method_62214` | 补回原版方法体(另两处同类:`class_3898.method_60440`、`class_1092.method_65750`) |
+| 2 | 启动崩:`class_1088` | 同类,`method_68018/68019` 在补丁后消失 | 补回原版方法体;另新增 `InjectionCallPointFix` 修 `class_775.method_3347` 里被干掉的调用点 |
+| 3 | 启动崩:`@Local class_2338$class_2339` 校验失败 | 原版在 `ARETURN` 处作用域内有 `MutableBlockPos`,补丁后没有(MixinExtras 在**注入点**上判别局部变量) | `RestoreVanillaMethodsFix(true, "method_24225")` |
+| 4 | **进入世界成功**,约 4 秒后崩:`ChunkCacheOF.renderStart() ... regionIn is null` | OptiFine 的 `RenderChunkRegion` 只有**六参数**构造器会写 section 位置,而 `class_6850`(我们早就把 `build()` 换回原版方法体)调用的是五参数那个 → 字段恒为 null | 新增 `RegionSectionPosFix`:在原版方法体里改调六参数构造器,用该方法本就收到的**打包 long** 经 `ChunkSectionPos.from(long)` 生成第六个参数 |
+| 5 | 进入世界约 4 秒后崩:`WorldRenderContextImpl.worldState()` 为 null | `beforeRender` 是 `@Inject(method_22710, at=HEAD)`,而 `beforeDrawBlockOutline` 读它准备的上下文;OptiFine 用 `RenderPass` + 自己的 `lambda$addMainPass$1` 替换了传入渲染状态的 `method_74923` 流程 → 上下文未填充。**这是 FAPI 与 OptiFine 渲染流程的语义不兼容,不是字节码形状问题** | 新增 `StubInjectionTargetFix`:把 `class_761` 的私有 `method_62210` 改名为 `optifabric$blockOutline`(4 处调用跟进)并留同名同描述符的空桩 → Mixin 注入进**没人调用**的桩,钩子失效但不再崩,描边仍由改名后的方法绘制 |
+
+**代价与遗留**:`BEFORE_BLOCK_OUTLINE` 事件不再触发(非原版功能);`class_10444.update` 上 `fabric-renderer-api-v1` 的 `BlockModelWrapperMixin.onReturnUpdate` 仍是 `require = 0` 的**非致命**警告(1427 条),同样可用 `InjectionCallPointFix` 处理。
+
+**已实测达成的目标项**:启动 → 主界面 → 创建存档 → 进入单人世界(`Preparing spawn area` → `Time elapsed` → `logged in with entity id` → 音效引擎与渲染运行)。
+**未测**:多人、光影;以及第 5 项修复后的稳定性。
+
 ### 补上"OptiFine 自己的 874 个类"的校验
 
 之前只校验被补丁的 568 个类,OptiFine 自己的类只是挂在 classpath 上"供解析" —— 但它们同样会被加载、同样在调游戏,出问题一样是崩。新增 `VerifyPatched --verify-jar`:
