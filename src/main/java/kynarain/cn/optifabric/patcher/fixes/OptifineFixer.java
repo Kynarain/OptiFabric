@@ -20,9 +20,14 @@ public class OptifineFixer {
 	public static final OptifineFixer INSTANCE = new OptifineFixer();
 
 	private final Map<String, List<ClassFixer>> classFixes = new HashMap<>();
+	private final List<ClassFixer> globalFixes = new ArrayList<>();
 	private final Set<String> skippedClass = new HashSet<>();
 
 	private OptifineFixer() {
+		//Applies to every class: members OptiFine kept under a name of its own, which neither the mappings nor a
+		//contextual entry can resolve, are bridged to the name the game calls them by (see MissingOverrideFix).
+		registerGlobalFix(new MissingOverrideFix());
+
 		//net/minecraft/client/render/chunk/ChunkBuilder$ChunkData
 		registerFix("class_846$class_849", new ChunkDataFix());
 
@@ -33,7 +38,10 @@ public class OptifineFixer {
 		registerFix("class_778$class_780", new AmbientOcclusionCalculatorFix());
 
 		//net/minecraft/client/Keyboard
-		registerFix("class_309", new KeyboardFix());
+		//1.21.11 rewrote the key dispatch: the methods upstream reverted (method_1454/1458/1473 and the
+		//five argument method_1466) no longer exist in the game at all, so there is nothing left to revert.
+		//OptiFine's Keyboard is applied as it comes; the scanners check that Fabric API's Keyboard mixins still
+		//find their targets in it.
 
 		//net/minecraft/client/texture/SpriteAtlasTexture
 		registerFix("class_1059", new SpriteAtlasTextureFix());
@@ -84,12 +92,22 @@ public class OptifineFixer {
 		registerFix("class_1088$class_7778", new SyntheticFieldFix()); //ModelLoader$BakerImpl.this$0
 		registerFix("class_846$class_851$class_4578", new SyntheticFieldFix()); //ChunkBuilder$BuiltChunk$RebuildTask.this$1
 
+		//net/minecraft/client/resources/model/ModelManager$1 (fabric-renderer-api-v1 ModelManager1Mixin)
+		//The anonymous SpriteGetter keeps the fields javac synthesised for the two captured SpriteLoader
+		//preparations, and both have the same type, so only their position identifies them. Fabric API shadows
+		//field_61871 and field_64469, and a shadow it cannot locate fails the whole mixin.
+		registerFix("class_1092$1", new SyntheticFieldFix());
+
 		//net/minecraft/block/entity/BlockEntity
 		skipClass("class_2586");
 	}
 
 	private void registerFix(String className, ClassFixer classFixer) {
 		classFixes.computeIfAbsent(RemappingUtils.getClassName(className), s -> new ArrayList<>()).add(classFixer);
+	}
+
+	private void registerGlobalFix(ClassFixer classFixer) {
+		globalFixes.add(classFixer);
 	}
 
 	@SuppressWarnings("SameParameterValue") //Might be useful in future
@@ -102,6 +120,15 @@ public class OptifineFixer {
 	}
 
 	public List<ClassFixer> getFixers(String className) {
-		return classFixes.getOrDefault(className, Collections.emptyList());
+		List<ClassFixer> specific = classFixes.get(className);
+
+		if (globalFixes.isEmpty()) {
+			return specific == null ? Collections.emptyList() : specific;
+		}
+
+		List<ClassFixer> fixers = new ArrayList<>(specific == null ? Collections.emptyList() : specific);
+		fixers.addAll(globalFixes);
+
+		return fixers;
 	}
 }

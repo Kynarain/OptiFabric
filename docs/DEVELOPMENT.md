@@ -388,3 +388,64 @@ Unable to bake model: 0       Mixin transformation: 0      InjectionError: 0
 | `NamedResolver` | 具名→intermediary 解析(供上面几个工具用) | yarn 映射驱动 |
 
 扫描器自身踩过的坑也记录在案:`@Mixin(targets = "...")` 与 `@At(target = "...")` 里的目标是**具名字符串**、NEW 点的目标是**裸类名**、以及 `INVOKE_ASSIGN`/`CONSTANT` 等注入类型不建模 —— 这些都会导致**静默跳过**,让真实冲突藏起来。
+
+## 1.21.11 移植(Minecraft 1.21.11 + Fabric Loader 0.19.5 + OptiFine HD_U J9)
+
+1.21.11 的 OptiFine 换成 **xdelta 差分包**(`patch/**/*.class.xdelta` + `.md5`,2748 对),但 `optifine.Patcher.process(File, File, File)` 的签名和用法与 1.20.6 完全一样,所以补丁管线不用改。真正需要改的是**重映射**,而且问题一开始被"类名都映射对了"这个假象掩盖了。
+
+### 关键发现:重映射必须能看见游戏类层次
+
+OptiFine 的补丁类是**用它自己的源码重编译**出来的,再经过它自己的混淆器。混淆器对有映射表的成员会改回官方名,没有映射表的成员就保留 OptiFine 源码里的名字(`codec`、`val$prepBlocksIn`)。TinyRemapper 的成员映射是**按声明类记录**的:一个成员只在声明它的那个类下面有词条,子类里覆写它的方法要靠**类的继承关系**去继承这条映射。
+
+原管线只把"启动类路径"喂给 remapper。真机上启动类路径**包含游戏本体**,所以看不出来;但一旦类路径里没有游戏(TinyRemapper 只看到被补丁的那几个类),它就看不见 `chn extends chl`,于是把子类里覆写的方法留成了 OptiFine 的名字。实测代价:
+
+| 指标 | 修复前 | 修复后 |
+|---|---|---|
+| `class_1308` 里没映射上的方法 | 35 | 0 |
+| 破坏的接口/抽象契约 | 281 | 0 |
+| 丢失的虚方法覆写 | 254 | 0 |
+| 无法解析的成员引用 | 0 | 0 |
+
+修复:`remapOptifine` 在喂完启动类路径后,**显式把游戏本体也加进 classpath**(重复也无害),并把 `CACHE_FORMAT` 提到 3,让旧缓存自动失效重生成。
+
+### 关键发现:同名同类型的合成字段只能按位置配对
+
+`SyntheticFieldFix` 原来要求"同类型字段唯一"才能重命名。`ModelManager$1` 有两个同类型(`SpriteLoader$Preparations`)的捕获字段,于是两个都被判为"歧义"而跳过 —— 而 Fabric API 的 `ModelManager1Mixin` 正是 shadow `field_61871`/`field_64469` 这两个字段,shadow 找不到就会让整个 mixin 失败。OptiFine 重编译时**保留字段声明顺序**,所以改为优先按**同位置**配对,唯一性匹配作为兜底。
+
+### 新增:`RuntimeContractScan`(唯一能抓到上面这类问题的手段)
+
+`@Shadow` 扫描只看 mod 侧,refmap 扫描只看注入点,而"类不再实现它声明的接口"是**类型层面的契约破坏**:类加载不会报错,第一次走接口调用才抛 `AbstractMethodError`。这个扫描器把三件事一次算清:
+
+1. **抽象契约**:补丁类是具体类时,它实现的所有接口/抽象父类的抽象方法是否都还在(找不到实现才报,抽象类/接口本身跳过 —— 否则全是假阳性);
+2. **虚方法覆写**:原版声明过、补丁类丢掉的方法(调用会静默走父类实现);
+3. **成员引用**:全游戏扫描(含未打补丁的类)对被补丁类的引用能否解析,并区分"调用方也被补丁"和"调用方是原版类"。
+
+结果:`broken abstract contracts: 0`,`lost virtual overrides: 0`,`unresolvable member references: 0`。
+
+### 新增:`MissingOverrideFix`(按规则补桥接方法)
+
+对"原版有、补丁类没有、且被补丁类里有唯一同描述符实现"的可见方法,补一个**转发方法**(用游戏的名字调用 OptiFine 自己那个名字的实现)。它是**纯增量**的:OptiFine 自己的调用点用旧名字,照旧工作。1.21.11 上补了 10 个(全是 `SimpleOption` 系列 record 的 `comp_675()`/`comp_674()` —— OptiFine 把它叫 `codec()`/`valueSetter`)。歧义(同描述符多个候选)时**不猜**,只报告。
+
+### `KeyboardFix` 在 1.21.11 停用
+
+上游这个修复要把 OptiFine 改坏的键盘分发方法换回原版。1.21.11 的原版把分发重写了:`method_1454`/`method_1458`/`method_1473` 已不存在,`method_1466` 变成 `(JIclass_11908)V` —— 没有可以换回去的东西了。停用后 OptiFine 的 Keyboard 直接应用,`RefmapScan`/`AtTargetScan` 确认 Fabric API 的键盘 mixin 目标仍然存在(无缺失)。
+
+### 1.21.11 扫描结果
+
+| 工具 | 结果 |
+|---|---|
+| `VerifyPatched` | 567/567 通过(1 个按设计跳过),0 失败,ASM 0 |
+| `RuntimeContractScan` | 契约 0 / 覆写 0 / 引用 0 |
+| `RefmapScan` | 430 个 mixin 类,147 条引用,MISSING 0 |
+| `AtTargetScan` | 显式 `@At` 目标 79 条,PROBLEMS 0 |
+| `LocalsScan` | 需要局部捕获的处理 0 条 |
+| `UnsetFieldScan` | 567 个类,3598 个字段,读而未初始化 0 |
+| `ShadowScan` | 检查 60 条,真实缺失 0 |
+
+`ShadowScan` 仍会打印 16 条,已逐条核对**全是假阳性**,分两类,都是扫描器自身的建模缺口(不影响游戏):
+
+* `fabric$...`、`fabric_getDynamicDisplayGlintConsumer` 之类:这些方法**是 Fabric API 自己的 mixin 加进去的**(mixin→mixin 引用),原版里本来就没有;
+* `getEntityTrackers`/`getDirectoryName`/`getPlayersTracking`/`getParticleTextureSheets`/`getBlockColors`:accessor 接口的**方法名**与目标字段名不同,真正的目标写在 `@Accessor("...")` 的值里(该值在发布 jar 中已是 intermediary 名),扫描器目前只看方法名。
+
+下一步待办:① 真机实测(1.21.11 实例:主界面 / 单人 / 多人 / 模型 / 区块 / 光影);② `ShadowScan` 读 `@Accessor`/`@Invoker` 注解值,把这 16 条噪音消掉;③ `class_2586`(BlockEntity)按设计跳过这一条也应在真机上复核。
+

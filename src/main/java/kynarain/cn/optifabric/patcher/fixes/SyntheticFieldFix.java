@@ -15,6 +15,9 @@
  */
 package kynarain.cn.optifabric.patcher.fixes;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -24,26 +27,51 @@ import org.objectweb.asm.tree.MethodNode;
 public class SyntheticFieldFix implements ClassFixer {
 	@Override
 	public void fix(ClassNode optifine, ClassNode minecraft) {
-		for (FieldNode field : optifine.fields) {
+		Set<String> claimed = new HashSet<>();
+
+		for (int index = 0; index < optifine.fields.size(); index++) {
+			FieldNode field = optifine.fields.get(index);
 			if (!field.name.startsWith("this$") && !field.name.startsWith("val$")) continue;
 
 			FieldNode match = null;
-			int candidates = 0;
 
-			for (FieldNode vanilla : minecraft.fields) {
-				if (!vanilla.desc.equals(field.desc)) continue;
-				if (has(optifine, vanilla.name, vanilla.desc)) continue; //already there under its real name
+			// A recompiled class keeps the declaration order of its fields, so the field at the same position is
+			// the same field - and that is the only way to tell two captured locals of the same type apart
+			// (ModelManager$1 has two SpriteLoader.Preparations fields, so the type alone is ambiguous).
+			if (index < minecraft.fields.size()) {
+				FieldNode positional = minecraft.fields.get(index);
 
-				match = vanilla;
-				candidates++;
+				if (positional.desc.equals(field.desc) && !has(optifine, positional.name, positional.desc)
+						&& !claimed.contains(positional.name)) {
+					match = positional;
+					System.out.println("[OptiFabric] Synthetic field " + optifine.name + '.' + field.name
+							+ " matches the field at the same position");
+				}
 			}
 
-			if (candidates != 1) {
+			if (match == null) {
+				int candidates = 0;
+
+				for (FieldNode vanilla : minecraft.fields) {
+					if (!vanilla.desc.equals(field.desc)) continue;
+					if (has(optifine, vanilla.name, vanilla.desc)) continue; //already there under its real name
+					if (claimed.contains(vanilla.name)) continue;
+
+					match = vanilla;
+					candidates++;
+				}
+
+				if (candidates > 1) match = null;
+			}
+
+			if (match == null) {
 				System.err.println("[OptiFabric] Cannot resolve the synthetic field " + optifine.name + '.' + field.name
-						+ field.desc + ": " + candidates + " candidate(s) in the game's class");
+						+ field.desc + ": no unique field of that type is left in the game's class");
 
 				continue;
 			}
+
+			claimed.add(match.name);
 
 			String synthetic = field.name;
 			field.name = match.name;

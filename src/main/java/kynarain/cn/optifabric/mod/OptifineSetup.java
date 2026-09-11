@@ -233,8 +233,11 @@ public class OptifineSetup {
 		return new OptifineRuntime(remappedJar.toPath(), generated);
 	}
 
-	/** Bumped whenever the cached artifacts would come out different, so stale caches regenerate themselves. */
-	private static final int CACHE_FORMAT = 2;
+	/**
+	 * Bumped whenever the cached artifacts would come out different, so stale caches regenerate themselves.
+	 * 3: the remap class path now contains the game, so members inherited from a supertype keep their name.
+	 */
+	private static final int CACHE_FORMAT = 3;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {
@@ -258,6 +261,16 @@ public class OptifineSetup {
 		}
 	}
 
+	/**
+	 * Remaps OptiFine's patched classes from the official namespace into the runtime one.
+	 *
+	 * <p>The class path given to the remapper is not optional detail: a member mapping is recorded for the class
+	 * that <em>declares</em> the member, so a class that overrides it - very often an anonymous class implementing
+	 * an interface, as {@code ModelManager$1} implements {@code SpriteGetter} - can only be named correctly while
+	 * the supertype is visible. Without the game on the class path tiny-remapper cannot see the hierarchy and
+	 * leaves those members under OptiFine's own name, which breaks the interface contract (AbstractMethodError),
+	 * makes mods unable to shadow them and, in the 1.21.11 port, cost 281 broken contracts.</p>
+	 */
 	private static void remapOptifine(File input, Path[] libraries, File output, IMappingProvider mappings) throws IOException {
 		Files.deleteIfExists(output.toPath());
 
@@ -275,6 +288,13 @@ public class OptifineSetup {
 			outputConsumer.addNonClassFiles(input.toPath(), NonClassCopyMode.UNCHANGED, remapper);
 			remapper.readInputsAsync(tag, input.toPath());
 			remapper.readClassPathAsync(libraries);
+
+			// The launcher class path normally contains the game already; adding it explicitly keeps the hierarchy
+			// complete when it does not (and costs nothing when it does).
+			Path minecraftJar = getMinecraftJar();
+			if (Files.isRegularFile(minecraftJar) && Arrays.stream(libraries).noneMatch(minecraftJar::equals)) {
+				remapper.readClassPathAsync(minecraftJar);
+			}
 
 			remapper.apply(outputConsumer, tag);
 		} catch (Exception e) {
