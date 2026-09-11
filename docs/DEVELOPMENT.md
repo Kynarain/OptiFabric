@@ -620,24 +620,54 @@ java.lang.UnsupportedOperationException: Attempted to retrieve active rendering 
 
 根因是 `contains_renderer = true` 这个声明本来含义是"渲染器由别的 mod 提供"(Sodium 声明它,并确实注册了一个),而 OptiFine 不实现 Fabric 的渲染器 API —— 这个声明在我们这里只完成了"让 Indigo 退场"这一半。
 
-**修复**:`RendererApiFallback` 在 preLaunch 阶段(早于任何 mod 初始化器)注册一个惰性占位渲染器:
+**修复**:`RendererApiFallback` 注册一个惰性占位渲染器 —— 但**它第一版把这个项目自己踩进了第 9 类**(见下),现在的要求是:
 
-- 类由 `RendererApiStubGenerator` 在**运行时用 ASM 生成**。本 mod 刻意不依赖 Fabric API(连 compileOnly 都没有),所以没法在编译期实现那个接口;改为反射读出接口的抽象方法再生成实现体,类名 `OptifineRendererPlaceholder`,F3 里显示成 `Renderer: OptifineRendererPlaceholder`;
+- 类由 `RendererApiStubGenerator` 在**运行时用 ASM 生成**。本 mod 刻意不依赖 Fabric API(连 compileOnly 都没有),所以没法在编译期实现那个接口;生成时**只读那个接口自己的 class 文件**(`ClassReader` 解析,按名字+描述符**原样抄**抽象方法),**绝不用反射去看方法类型** —— 原因见第 9 类。注意同名重载(`Renderer.render` 有两个)必须按 `名字 → 描述符列表` 收集,否则会漏掉一个,生成的类仍是 abstract。类名 `OptifineRendererPlaceholder`,F3 里显示成 `Renderer: OptifineRendererPlaceholder`;
 - 真被调用到的每个方法都抛 `UnsupportedOperationException` 并附一句说明(而不是让 NPE 出现在更深的地方);
-- 只在那个渲染器接口存在时注册(直接 `Class.forName`,不查 `isModLoaded`):没有 Fabric API 时连问都不会问,更不会报错;若已有别的渲染器注册过,则原样保留并只打一行日志(`RendererManager` 拒绝第二个)。
+- 注册调用用 `MethodHandles.publicLookup().findStatic(...)`,不用 `Class.getMethod(...)`(后者会解析该接口**所有**方法的签名,等于把游戏类全拉进来);
+- 只在那个渲染器接口存在时注册(直接 `Class.forName`,不查 `isModLoaded`):没有 Fabric API 时连问都不会问,更不会报错;若已有别的渲染器注册过,则原样保留并只打一行日志(`RendererManager` 拒绝第二个);
+- 注册时机放在**补丁类注入之后**(`ensureSetup` 的 finally 里):万一还有别的东西解析了游戏类,也要经过我们的补丁集,而不是绕过它。
 
-生成的字节码由 `test-downloads/RendererStubTest.java` 离线验证:用一个假接口覆盖 对象返回 / void / 多宽度参数(long、double)/ 布尔返回 / 默认方法 / 静态方法 各种形状,全部通过。再用 `test-downloads/FapiRendererFallbackTest.java` 对**真实** `fabric-renderer-api-v1` + 构建产物 jar 跑一遍端到端:
+生成的字节码由 `test-downloads/RendererStubTest.java` 离线验证:用一个假接口覆盖 对象返回 / void / 多宽度参数(long、double)/ 布尔返回 / 默认方法 / 静态方法 各种形状,全部通过。再用 `test-downloads/FapiRendererFallbackTest.java` 对**真实** `fabric-renderer-api-v1` + 构建产物 jar 跑一遍端到端,**而且故意不把 Minecraft jar 放进 classpath** —— 只要有任何一步去解析 `net.minecraft.*` 就会在这里以 NoClassDefFoundError 失败(这正是第 9 类的复现条件):
 
 ```
-[OptiFabric] Generated kynarain/cn/optifabric/mod/OptifineRendererPlaceholder, implementing 6 method(s) of net.fabricmc.fabric.api.renderer.v1.Renderer
+[OptiFabric] Generated kynarain/cn/optifabric/mod/OptifineRendererPlaceholder, implementing 6 method(s) of net.fabricmc.fabric.api.renderer.v1.Renderer without resolving any of their argument types
 [OptiFabric] Registered OptifineRendererPlaceholder as Fabric's rendering plug-in: …
 Renderer.get()          -> kynarain.cn.optifabric.mod.OptifineRendererPlaceholder
 F3 shows                -> Renderer: OptifineRendererPlaceholder
-mutableMesh() explains  -> java.lang.UnsupportedOperationException: OptiFine is the active terrain renderer: …
+  ok   the F3 line shows the placeholder: OptifineRendererPlaceholder
+  ok   no game class was loaded: false          ← net.minecraft.class_2680 连加载都没有发生
 second registration     -> refused as expected (Attempted to register a second rendering plug-in. Multiple rendering plug-ins are not supported.)
 ```
 
 (其中"第二次注册被拒绝"正好证明第一次注册真的生效了。)
+
+### 第 9 类:补丁类被"提前加载"成原版(`class_2680.getBlockStateBaseCacheClass` 找不到)
+
+第 8 类的第一版注册占位渲染器时,直接在 preLaunch 里调了 `Class.getMethods()` 去读 `Renderer` 接口的抽象方法。于是下一次启动变成:
+
+```
+[OptiFabric] Ready: 569 patched classes taken over by Fabric Loader in 0.6 seconds
+java.lang.NoSuchMethodError: 'java.lang.Class net.minecraft.class_2680.getBlockStateBaseCacheClass()'
+	at net.optifine.reflect.Reflector.<clinit>(Reflector.java:401)
+	at net.minecraft.class_128.method_557(class_128.java:138)
+	...
+[23:35:39] [main/ERROR]: Minecraft has crashed! (NoClassDefFoundError: Could not initialize class net.optifine.reflect.Reflector)
+```
+
+**根因**:`Renderer` 的方法签名里全是游戏类型(`BlockState`、`BakedModel`、`BlockRenderManager`、`MatrixStack`……),而 `Class.getMethods()` 会**解析每一个方法的参数与返回类型** —— 也就是**加载**这些游戏类。这件事发生在 preLaunch,发生在 `GameTransformerHook` 把补丁类交给 Fabric Loader **之前**,于是这些类是按**原版**classpath 加载的;类一旦加载就不会再查转换器,**整局游戏都停在那份原版类上**。OptiFine 的 `Reflector.<clinit>` 第一个用到 OptiFine 给 `class_2680`(BlockState)加的方法 `getBlockStateBaseCacheClass()`,自然报 NoSuchMethodError,而 `Reflector` 初始化失败又把崩溃报告本身也带崩了(所以这次连 crash-report 都没生成)。
+
+定位它的证据链(全部离线可复现):`out/final` 里 `class_2680` **有** `public static java.lang.Class getBlockStateBaseCacheClass()`;`Optifine-mapped.jar` 里 `Reflector` 的 bootstrap method 是 `REF_invokeStatic net/minecraft/class_2680.getBlockStateBaseCacheClass:()Ljava/lang/Class;` —— 两边完全一致,所以缺的只能是"运行时那个 class_2680 不是补丁版"。而把 `FapiRendererFallbackTest` 的 Minecraft jar 拿掉后,旧写法立刻复现同一机制:
+
+```
+java.lang.NoClassDefFoundError: net/minecraft/class_778
+	at java.base/java.lang.Class.getMethodsRecursive(Class.java:3146)
+	at java.base/java.lang.Class.getMethod(Class.java:2164)
+```
+
+**修复**:`RendererApiStubGenerator` 改为用 ASM **读接口自己的 class 文件**(不解析任何类型),注册改用 `MethodHandles.findStatic`(只解析 `register` 一个签名),并把注册时机移到补丁类注入之后。修好后同一个测试在**没有 Minecraft jar** 的 classpath 上也全绿 —— 证明了这条路径确实一个游戏类都不碰。
+
+**教训(这一条最值钱)**:**在把补丁类交给 Fabric Loader 之前,任何一次对游戏类的反射解析都会把它永久钉成原版。** 本项目其余代码都是拿字节(`getClassByteArray` / ASM)而不是拿 `Class` 对象,只有这一处越界了。以后凡是"在 preLaunch 阶段碰 Fabric API / 其他 mod 的类型"的代码,都要按这条检查:接口方法签名里有没有 `net.minecraft.*`。
 
 ### 最终真机状态(1.21.11,2026-09-11)
 
@@ -650,7 +680,8 @@ second registration     -> refused as expected (Attempted to register a second r
 | 光影 | ✅ | `[Shaders] Loaded shaderpack: ComplementaryReimagined_r5.9.1.zip` |
 | 运行时错误 | ✅ | 单人会话 `[ERROR]` 0 条、注入失败 0 条、无崩溃报告 |
 | 多人 | ⏳ 待复测 | 上一次崩在第 7 类(已修,修复版尚未实测) |
-| F3 调试屏 | ⏳ 待复测 | 第 8 类的修复已就位,同样尚未实测 |
+| F3 调试屏 | ⏳ 待复测 | 第 8 类的修复已就位;它第一版引入了第 9 类,已改掉 |
+| 早期类加载(第 9 类) | ✅ 已修 | 离线证据:`FapiRendererFallbackTest` 在**不带 Minecraft jar** 的 classpath 上全绿(旧写法在该条件下直接 `NoClassDefFoundError: net/minecraft/class_778`) |
 
 修复器清单(本次移植新增,均可复用):`InjectionCallPointFix`(保留 OptiFine 方法体、插回惰性调用点)、`RegionSectionPosFix`(给 OptiFine 的区域构造器补 section 位置)、`StubInjectionTargetFix`(改名 + 留完整副本,让语义不兼容的钩子失效而非崩溃)、`CallSiteRedirectFix`(把**跨类**的调用点也改到改名后的方法上,否则副本照样被调用)、以及扩展的 `SyntheticFieldFix`(按声明位置配对同类型合成字段);另加运行时组件 `RendererApiFallback` / `RendererApiStubGenerator`(注册惰性占位渲染器,挡住 Fabric API 对 `Renderer.get()` 的查找)。
 

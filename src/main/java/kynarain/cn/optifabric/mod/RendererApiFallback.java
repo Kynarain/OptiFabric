@@ -22,13 +22,23 @@
  * class name is what shows up behind "Renderer:" in F3. That is the honest description of the situation: a Fabric
  * renderer exists as far as the API is concerned, and it is OptiFine doing the rendering.
  *
- * This happens in the preLaunch entrypoint, before any mod initialiser runs: whichever renderer shows up first wins
- * (RendererManager refuses a second one), and the ones that matter - Indigo here, Sodium by conflict - do not show up
- * at all. If something else did register one first, that is left alone and only logged.
+ * Two ordering rules come with it:
+ *
+ *   - it runs in the preLaunch entrypoint, after OptiFine's patched classes have been handed to Fabric Loader.
+ *     Registering first would win the race against any other renderer, but the classes this touches have to be
+ *     resolved *through* the patched set - loading one of them around it leaves the game with the vanilla class for
+ *     the rest of the run (that is exactly how the getBlockStateBaseCacheClass crash happened, see
+ *     RendererApiStubGenerator);
+ *   - nothing here calls a reflective method lookup that resolves the interface's other signatures. Only "register"
+ *     is looked up, and its only argument type is the interface itself.
+ *
+ * If something else registered a renderer first, that one is left alone and this only logs a line.
  */
 package kynarain.cn.optifabric.mod;
 
-import java.lang.reflect.InvocationTargetException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 
 public final class RendererApiFallback {
 	private static final String RENDERER_API_CLASS = "net.fabricmc.fabric.api.renderer.v1.Renderer";
@@ -49,14 +59,15 @@ public final class RendererApiFallback {
 
 		try {
 			Object placeholder = RendererApiStubGenerator.newInstance(renderer);
-			renderer.getMethod("register", renderer).invoke(null, placeholder);
+			MethodHandle register = MethodHandles.publicLookup().findStatic(renderer, "register",
+					MethodType.methodType(void.class, renderer));
+			register.invoke(placeholder);
 
 			System.out.println("[OptiFabric] Registered " + placeholder.getClass().getSimpleName()
 					+ " as Fabric's rendering plug-in: Fabric API expects one to exist even though OptiFine is the"
 					+ " renderer and Indigo steps aside, and its own hooks crash without it (the F3 renderer line does)");
-		} catch (InvocationTargetException e) {
-			System.out.println("[OptiFabric] Another rendering plug-in is already registered, leaving it alone: "
-					+ e.getCause());
+		} catch (UnsupportedOperationException e) {
+			System.out.println("[OptiFabric] Another rendering plug-in is already registered, leaving it alone");
 		} catch (Throwable t) {
 			System.err.println("[OptiFabric] Could not register a placeholder for Fabric's renderer API, "
 					+ "Fabric API hooks that ask for it may crash: " + t);

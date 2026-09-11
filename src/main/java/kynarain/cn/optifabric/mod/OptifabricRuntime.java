@@ -42,10 +42,6 @@ public final class OptifabricRuntime {
 			return;
 		}
 
-		//Independent of OptiFine: declaring contains_renderer (see fabric.mod.json) keeps Indigo from registering a
-		//rendering plug-in, and Fabric API's own hooks throw when they look one up (see RendererApiFallback)
-		RendererApiFallback.install();
-
 		try {
 			OptifineVersion.findOptifineJar(); // Fails loudly (and helpfully) when OptiFine is absent
 
@@ -77,6 +73,12 @@ public final class OptifabricRuntime {
 
 			System.err.println("[OptiFabric] Failed to set up OptiFine, the game will continue without it");
 			t.printStackTrace();
+		} finally {
+			//Last, and independently of whether OptiFine worked out: declaring contains_renderer (see fabric.mod.json)
+			//keeps Indigo from registering a rendering plug-in, and Fabric API's own hooks throw when they look one up
+			//(see RendererApiFallback). It deliberately runs after the patched classes are in place: it deals with
+			//Fabric API types that mention Minecraft classes, and those have to resolve through the patched set.
+			RendererApiFallback.install();
 		}
 	}
 
