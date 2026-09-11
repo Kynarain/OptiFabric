@@ -561,6 +561,40 @@ MixinExtras 的 `@Local` 是 FAPI 现在替代 `LocalCapture` 的写法(70 个�
 **已实测达成的目标项**:启动 → 主界面 → 创建存档 → 进入单人世界(`Preparing spawn area` → `Time elapsed` → `logged in with entity id` → 音效引擎与渲染运行)。
 **未测**:多人、光影;以及第 5 项修复后的稳定性。
 
+### 第 6 类:物品贴图全部丢失(class_10430.method_65584)
+
+进入世界并加载光影后,用户报告"所有物品的贴图丢失"。日志里不是贴图加载失败,而是**每一个物品模型都烘焙失败**:
+
+```
+[Worker-Main-7/WARN]: Unable to bake item model: 'minecraft:nether_wart_block' / 'structure_block' / …(每个物品)
+Caused by: InjectionError: Critical injection failure: Callback method onReturnUpdate(...)
+```
+
+**更正一个此前的错误判断**:`fabric-renderer-api-v1` 的 `BlockModelWrapperMixin.onReturnUpdate` 曾被当作"require = 0 的非致命警告"。`require = 0` 只表示注入点找不到时不报错,但它失败的**后果**是每条物品渲染链失效——物品模型全部烘不出来,所以贴图全丢。
+
+定位过程(记录一下,因为第一次修错了):
+
+1. 取出 mixin 注解:`@Inject(method="method_65584(class_10444, class_1799, class_10442, class_811, class_638, class_11566, I)V", at=@At("RETURN"))` + `@Local` 参数 → 与 `class_4603` **完全同形**(OptiFine 改写后 `RETURN` 处不再有 mixin 需要的局部变量);
+2. 第一次按"方法首参是 `class_10444`"判断宿主,注册到 `class_10444` → **修复器没触发**:原版与补丁后的 `class_10444` 都没有 `method_65584`;
+3. 查 mixin 的 `@Mixin(value = ...)` → 真正的目标类是 **`class_10430`**;
+4. `registerFix("class_10430", new RestoreVanillaMethodsFix(true, "method_65584"))` → 日志确认 `Restored vanilla net/minecraft/class_10430.method_65584(...) over OptiFine's version`,物品模型恢复烘焙。
+
+**教训**:Mixin 的 `method=` 目标要按 `@Mixin` 的**目标类**解析,不能按"方法描述符里的第一个参数类型"猜宿主。
+
+### 最终真机状态(1.21.11,2026-09-11)
+
+| 目标项 | 结果 | 证据 |
+|---|---|---|
+| 启动 → 主界面 | ✅ | 多次实测 |
+| 进入单人世界 | ✅ | `logged in with entity id`、区块生成、音效引擎 |
+| 方块与区块渲染 | ✅ | 世界正常、可走动;`Batching sections` 不再抛错 |
+| 物品渲染 | ✅ | `Unable to bake item model` 归零 |
+| 光影 | ✅ | `[Shaders] Loaded shaderpack: ComplementaryReimagined_r5.9.1.zip` |
+| 运行时错误 | ✅ | 该会话 `[ERROR]` 0 条、注入失败 0 条、无崩溃报告 |
+| 多人 | ⏳ 尚未实测 | — |
+
+修复器清单(本次移植新增的四个,均可复用):`InjectionCallPointFix`(保留 OptiFine 方法体、插回惰性调用点)、`RegionSectionPosFix`(给 OptiFine 的区域构造器补 section 位置)、`StubInjectionTargetFix`(改名 + 留完整副本,让语义不兼容的钩子失效而非崩溃)、以及扩展的 `SyntheticFieldFix`(按声明位置配对同类型合成字段)。
+
 ### 补上"OptiFine 自己的 874 个类"的校验
 
 之前只校验被补丁的 568 个类,OptiFine 自己的类只是挂在 classpath 上"供解析" —— 但它们同样会被加载、同样在调游戏,出问题一样是崩。新增 `VerifyPatched --verify-jar`:
