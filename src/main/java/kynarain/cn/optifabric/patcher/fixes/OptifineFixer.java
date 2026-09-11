@@ -92,6 +92,10 @@ public class OptifineFixer {
 		//stays available for OptiFine's own callers.
 		registerFix("class_6850", new RestoreVanillaMethodsFix(true, "method_39969"));
 
+		//and the same method has to hand OptiFine's region its section position: the restored vanilla body calls the
+		//vanilla constructor, which leaves that field null (see RegionSectionPosFix).
+		registerFix("class_6850", new RegionSectionPosFix("class_853", "class_4076", "method_18677", "method_39969"));
+
 		//net/minecraft/client/render/model/ModelLoader$BakerImpl (fabric-model-loading-api-v1)
 		//Same pattern: OptiFine's bake(id, settings) only forwards to its own bake(id, settings, textureGetter),
 		//which is where Fabric's @ModifyVariable (INVOKE_ASSIGN of getOrLoadModel) and its @Redirect of
