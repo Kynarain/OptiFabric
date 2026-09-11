@@ -135,6 +135,11 @@ public class OptifineFixer {
 		//callback cannot be built and the class fails. The vanilla body has exactly the local layout the mixin was
 		//written against (the same repair as method_39969 for fabric-block-view-api-v2 in the 1.20.6 port).
 		registerFix("class_4603", new RestoreVanillaMethodsFix(true, "method_24225"));
+
+		//fabric-rendering-v1's BEFORE_BLOCK_OUTLINE hook reads a world render context that OptiFine's pass
+		//structure never fills in, and dies with a NullPointerException (see StubInjectionTargetFix).
+		registerFix("class_761", new StubInjectionTargetFix("method_62210",
+				"(Lnet/minecraft/class_4597$class_4598;Lnet/minecraft/class_4587;ZLnet/minecraft/class_11658;)V", "optifabric$blockOutline"));
 		//net/minecraft/block/entity/BlockEntity
 		//Upstream skips OptiFine's BlockEntity, and skipping it leaves five references dangling: OptiFine adds
 		//hasCustomOutlineRendering (from its Forge compatibility interface) and the nbtTag/nbtTagUpdateMs fields,
