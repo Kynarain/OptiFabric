@@ -351,7 +351,8 @@ public class OptifineSetup {
 		if (all instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Path path && Files.exists(path)) return path;
 
 		throw new IllegalStateException("Unable to find the Minecraft jar OptiFine has to be patched into."
-				+ " Please supply it explicitly with -Doptifabric.mc-jar=<path to the vanilla 1.20.6 client jar>");
+				+ " Please supply it explicitly with -Doptifabric.mc-jar=<path to the vanilla "
+				+ OptifineVersion.minecraftVersion + " client jar>");
 	}
 
 	private static ClassCache generateClassCache(Consumer<ZipVisitor> from, File to, byte[] hash, boolean extractClasses) throws IOException {
