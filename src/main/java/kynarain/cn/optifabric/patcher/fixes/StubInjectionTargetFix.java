@@ -26,7 +26,8 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
@@ -72,16 +73,48 @@ public class StubInjectionTargetFix implements ClassFixer {
 			}
 		}
 
-		// the stub Mixin will find: same name and descriptor, never called
-		MethodNode stub = new MethodNode(Opcodes.ACC_PRIVATE, methodName, methodDesc, null, null);
-		stub.visitInsn(Type.getReturnType(methodDesc).getOpcode(Opcodes.IRETURN));
-		stub.visitMaxs(0, 0); //recomputed by the frame computing writer the pipeline uses for fixed classes
-		stub.visitEnd();
+		// the stub Mixin will find: same name and descriptor, never called - but a *copy* of the body, not an empty
+		// one. An empty stub broke the launch: a handler that also injects at an instruction point inside the method
+		// then has nothing to find, and Mixin fails the whole class (which is how this was discovered). Since the
+		// copy is never called, its body cannot run; it only has to look like the method the mixin was written for.
+		MethodNode stub = copyOf(real, optifine.name, methodName);
+
+		if (stub == null) {
+			System.err.println("[OptiFabric] Could not copy " + optifine.name + '.' + hiddenName + methodDesc
+					+ " back into a stub, the mixin hook may fail the class");
+
+			return;
+		}
 
 		optifine.methods.add(stub);
 
 		System.out.println("[OptiFabric] Renamed " + optifine.name + '.' + methodName + methodDesc + " to "
-				+ hiddenName + " (" + references + " call(s) followed) and left a stub behind, so the mixin hook that"
-				+ " cannot survive OptiFine's render flow injects into code nobody runs");
+				+ hiddenName + " (" + references + " call(s) followed) and left an uncalled copy behind, so the mixin hook"
+				+ " that cannot survive OptiFine's render flow injects into code nobody runs");
+	}
+
+	/** An independent copy of a method under another name, through a throw-away class. */
+	private static MethodNode copyOf(MethodNode method, String owner, String name) {
+		try {
+			ClassNode wrapper = new ClassNode();
+			wrapper.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, owner + "$optifabricStub", null, "java/lang/Object", null);
+			MethodNode clone = new MethodNode(method.access, name, method.desc, method.signature, method.exceptions.toArray(new String[0]));
+			method.accept(clone);
+			clone.name = name;
+			wrapper.methods.add(clone);
+
+			ClassWriter writer = new ClassWriter(0);
+			wrapper.accept(writer);
+
+			ClassNode read = new ClassNode();
+			new ClassReader(writer.toByteArray()).accept(read, ClassReader.EXPAND_FRAMES);
+
+			return read.methods.get(0);
+		} catch (Throwable t) {
+			System.err.println("[OptiFabric] Unable to copy " + owner + '#' + method.name + method.desc);
+			t.printStackTrace();
+
+			return null;
+		}
 	}
 }
