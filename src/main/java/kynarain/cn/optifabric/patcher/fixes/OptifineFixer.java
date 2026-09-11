@@ -63,7 +63,22 @@ public class OptifineFixer {
 		registerFix("class_5619", new RestoreVanillaMethodsFix("method_32174", "method_32175"));
 
 		//net/minecraft/server/world/ThreadedAnvilChunkStorage (fabric-lifecycle-events-v1)
-		registerFix("class_3898", new RestoreVanillaMethodsFix("method_17227", "method_18843"));
+		//method_60440 (1.21.11): the recompile moved it into a differently named lambda, and
+		//fabric-lifecycle-events-v1 injects into it - the same shape as the two entries above.
+		registerFix("class_3898", new RestoreVanillaMethodsFix("method_17227", "method_18843", "method_60440"));
+
+		//net/minecraft/client/render/LevelRenderer (fabric-rendering-v1 LevelRendererMixin, @ModifyExpressionValue)
+		//OptiFine's recompile turned this lambda body into lambda$addMainPass$1 with one extra parameter, so the
+		//vanilla method - name and descriptor - is simply not in the patched class any more. Mixin resolves an
+		//injection target by name AND descriptor, fails the whole class when it cannot find it (require = 1) and
+		//the crash surfaces as "Mixin transformation of net.minecraft.class_761 failed" during OptiFine's own
+		//Reflector bootstrap. Restoring the vanilla body gives the injection its target back.
+		registerFix("class_761", new RestoreVanillaMethodsFix("method_62214"));
+
+		//net/minecraft/client/resources/model/ModelManager (fabric-model-loading-api-v1)
+		//Same shape again: the lambda the mixin injects into is called lambda$loadBlockModels$7 after the
+		//recompile, and the vanilla name the mixin asks for is gone.
+		registerFix("class_1092", new RestoreVanillaMethodsFix("method_65750"));
 
 		//net/minecraft/client/render/chunk/ChunkRendererRegionBuilder (fabric-block-view-api-v2)
 		//OptiFine reduced build() to a call to its own createRegion() and moved the loop - and the four loop

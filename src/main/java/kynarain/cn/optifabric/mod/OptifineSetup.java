@@ -239,8 +239,9 @@ public class OptifineSetup {
 	 * 4: the game is also an input of the remap, so references to inherited members keep their mapped name too.
 	 * 5: references to a renamed field are matched through the subclass that names it as their owner.
 	 * 6: OptiFine's BlockEntity is applied instead of skipped, so its callers find what they call.
+	 * 7: the vanilla bodies Fabric API injects into are restored again (three more of them).
 	 */
-	private static final int CACHE_FORMAT = 6;
+	private static final int CACHE_FORMAT = 7;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {

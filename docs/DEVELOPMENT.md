@@ -484,6 +484,45 @@ OptiFine 的补丁类是**用它自己的源码重编译**出来的,再经过它
 
 同时补上:`@ModifyConstant`(没有 `@At` 时 Mixin 自己在目标方法里找常量,找不到就整类失败)现在也会被检查 —— 实测 Fabric API 落在被补丁类上的 81 个处理器**全部带显式 `@At`**,`@ModifyConstant` 命中 0 个,所以这一层暂时没有缺口。
 
+### 真机第一次启动:三个注入目标被 OptiFine 重编译"改名改造"(已修)
+
+第一次真机启动崩在:
+
+```
+Mixin apply for mod fabric-rendering-v1 failed fabric-rendering-v1.mixins.json:LevelRendererMixin
+  -> net.minecraft.class_761: Critical injection failure:
+     @ModifyExpressionValue annotation on onRenderBlockLayers could not find any targets matching
+     'method_62214(Lcom/mojang/blaze3d/buffers/GpuBufferSlice;...;)V' in net.minecraft.class_761. No refMap loaded.
+```
+
+进而 `RuntimeException: Mixin transformation of net.minecraft.class_761 failed` → OptiFine 自己的 `Reflector.<clinit>`(它会 `getDeclaredFields(class_761)`)连带失败 → 游戏崩。
+
+根因:OptiFine 重编译 `class_761` 时把那个 **lambda 体**编译成了 `lambda$addMainPass$1`,而且**多带一个参数**(`class_9779`):
+
+| | 名字 | 描述符 |
+|---|---|---|
+| 原版 | `method_62214` | 9 个参数 |
+| OptiFine | `lambda$addMainPass$1` | 10 个参数(原版 9 个 + `class_9779`) |
+
+Mixin 按**名字 + 描述符**找注入目标,名字和形状都对不上 → `require = 1` 缺省下整类失败。这属于"私有 lambda 体,只有 mod 会注入"的类型,正是 `RestoreVanillaMethodsFix` 存在的理由。
+
+**扫描器当时看不见它,有两个盲区(都已修)**:
+
+1. `RefmapScan` 也没有处理 **无 owner 引用**(`method="method_62214(...)V"`),于是 430 个 mixin 里只解析出 147 条引用,`MISSING 0` 是假的;
+2. 更隐蔽的一条:对被补丁的类,它把**原版声明的成员也算作存在** —— 但游戏加载的是补丁后的那份,原版成员并不存在于其中。`method_62214` 正是因此被判为"存在"。
+
+修完:引用解析数 147 → **560**,并如实报出 3 个"原版有、补丁后没有、而 Fabric API 要注入"的方法。三个都按既有机制补回原版方法体:
+
+| 被补回的方法 | 谁注入 | 现状 |
+|---|---|---|
+| `class_761.method_62214(...)V` | fabric-rendering-v1 `LevelRendererMixin`(`@ModifyExpressionValue`) | 已补回,启动不再崩 |
+| `class_3898.method_60440(class_3193;CompletableFuture;J)V` | fabric-lifecycle-events-v1 | 已补回 |
+| `class_1092.method_65750(Map$Entry)Pair` | fabric-model-loading-api-v1 | 已补回 |
+
+注意这三处是**补回原版方法体**(OptiFine 的活代码走它自己那份 lambda),因此这些注入点虽然存在、注入也会成功,但落在不再被调用的方法上 —— 相应 FAPI 功能(方块层渲染钩子等)可能不生效,**但不会再崩**。要做到"注入落在活代码上"需要把 OptiFine 的 lambda 改名并改造描述符(它的调用点写在 `invokedynamic` 的 bootstrap 参数里),风险高,留待需要时再评估。
+
+另外一个真机日志里的**非致命**警告:`Failed to locate initialiser injection point in <init>(Lnet/minecraft/class_2591;Lnet/minecraft/class_2338;Lnet/minecraft/class_2680;)V, initialiser was not mixed in.` —— 这是第 5 轮把 OptiFine 的 BlockEntity 应用回来(修 5 处悬空引用)的代价:Fabric 的方块实体初始化钩子找不到注入点而失效(warn,不崩)。
+
 ### 补上"OptiFine 自己的 874 个类"的校验
 
 之前只校验被补丁的 568 个类,OptiFine 自己的类只是挂在 classpath 上"供解析" —— 但它们同样会被加载、同样在调游戏,出问题一样是崩。新增 `VerifyPatched --verify-jar`:
