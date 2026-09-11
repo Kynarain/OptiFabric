@@ -124,6 +124,13 @@ public class OptifineFixer {
 		registerFix("class_775", new InjectionCallPointFix("class_1163", "method_4961",
 				"(Lnet/minecraft/class_1920;Lnet/minecraft/class_2338;)I", "method_3347"));
 
+		//net/minecraft/client/render/ScreenEffectRenderer (fabric-renderer-api-v1 ScreenEffectRendererMixin)
+		//The third real launch: MixinExtras' sugar reports
+		//  "Failed to validate sugar @Local class_2338.class_2339 ... at instruction InjectionNode[Insn [ARETURN]]"
+		//Vanilla keeps a MutableBlockPos in scope at that return; OptiFine's recompiled body does not, so the
+		//callback cannot be built and the class fails. The vanilla body has exactly the local layout the mixin was
+		//written against (the same repair as method_39969 for fabric-block-view-api-v2 in the 1.20.6 port).
+		registerFix("class_4603", new RestoreVanillaMethodsFix(true, "method_24225"));
 		//net/minecraft/block/entity/BlockEntity
 		//Upstream skips OptiFine's BlockEntity, and skipping it leaves five references dangling: OptiFine adds
 		//hasCustomOutlineRendering (from its Forge compatibility interface) and the nbtTag/nbtTagUpdateMs fields,
