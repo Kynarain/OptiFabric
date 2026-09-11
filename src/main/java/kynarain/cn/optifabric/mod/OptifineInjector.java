@@ -1,6 +1,6 @@
 /*
  * Ported from OptiFabric (https://github.com/Chocohead/OptiFabric), MPL-2.0.
- * Adapted for Minecraft 1.20.6 / Fabric Loader 0.19.x.
+ * Adapted for Minecraft 1.20.6 and 1.21.11 / Fabric Loader 0.19.x.
  *
  * Changes from upstream: upstream turned each cached OptiFine patched class into a Mixin class
  * replacer (through Fabric-ASM) that ran when the class was loaded. Here the same transformation is

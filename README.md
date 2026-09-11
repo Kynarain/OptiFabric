@@ -78,12 +78,15 @@ mods/OptiFine_1.21.11_HD_U_J9.jar
 | 映射表 | 构建期把 mappings 打进 jar | 同样:构建期把 `net.fabricmc:intermediary:1.21.11:v2` 的 `mappings/mappings.tiny` 打进去 |
 | 每 mod 兼容 mixin | 数十个(`compat/**`,针对 fabric-api / architectury / apoli …) | **未包含**(它们依赖 MM 的 early riser 机制) |
 | contextual mapping | 有:人工维护的硬编码表,按版本手写(`this$0`/`this$1`/`field_3835` 等) | **改为规则推导**:`OptifineMappings` 按字段名形状 + 描述符匹配(含沿继承层次找覆写),自动对齐名字、类型与构造器里存入的值 |
-| 版本特定补丁修正 | 面向 1.20.4 等 | **`patcher/fixes` 一批 fixer**(见下),全部用离线验证器(JVM + ASM 双向)与真机逐项验证 |
+| 版本特定补丁修正 | 面向 1.20.4 等 | **`patcher/fixes` 里 16 个 fixer**(其中 9 个为本移植新增,见下),全部用离线验证器(JVM + ASM 双向)与真机逐项验证 |
 
-新增或重写的文件(其余文件为逐行移植,仅改包名与必要的 API 适配;凡不在上游存在的文件,其文件头都会注明 "New in the 1.21.11 port"):
+新增或重写的文件(其余文件为逐行移植,仅改包名与必要的 API 适配)。文件头的来源说明与这里一致,而且和上游逐个核对过:
+
+- 上游**没有**对应文件的,注明 `New in the 1.20.6 port …` 或 `New in the 1.21.11 port …`(写明是哪一版写的);
+- 上游**有**对应文件的,注明 `Ported from OptiFabric …, Adapted for Minecraft 1.20.6 and 1.21.11`。
 
 ```
-kynarain/cn/optifabric/Optifabric.java                入口(preLaunch)
+kynarain/cn/optifabric/Optifabric.java                入口(preLaunch;上游的 OptifabricLoadGuard 是个空类,这个是干活的)
 kynarain/cn/optifabric/mod/OptifabricRuntime.java     总调度:找 jar → 打补丁 → 挂 classpath → 注册替换
 kynarain/cn/optifabric/mod/GameTransformerHook.java   把补丁类注入 Loader 的游戏 transformer(按字段类型反射定位)
 kynarain/cn/optifabric/mod/OptifineMappings.java      取代上游硬编码 contextual mapping 的规则推导
@@ -91,6 +94,7 @@ kynarain/cn/optifabric/mod/OptifineRuntime.java       准备结果(remapped jar 
 kynarain/cn/optifabric/mod/OptifabricSetup.java       仅保留 optifineRuntimeJar(供崩溃报告用)
 kynarain/cn/optifabric/mod/RendererApiFallback.java   给 Fabric 的渲染器 API 注册一个惰性占位渲染器(见第 4 节)
 kynarain/cn/optifabric/mod/RendererApiStubGenerator.java  在运行时用 ASM 生成上面那个类(不解析任何游戏类型)
+kynarain/cn/optifabric/patcher/fixes/RestoreVanillaMethodsFix.java    把 OptiFine 重编译时丢掉的原版方法体补回来
 kynarain/cn/optifabric/patcher/fixes/DelegatingConstructorFix.java    重写 OptiFine 的委托构造器
 kynarain/cn/optifabric/patcher/fixes/SyntheticFieldFix.java           this$0/this$1 → 真实字段名(同类型时按声明顺序配对)
 kynarain/cn/optifabric/patcher/fixes/ObjectCreationPointFix.java      补回被换掉的 NEW 注入点

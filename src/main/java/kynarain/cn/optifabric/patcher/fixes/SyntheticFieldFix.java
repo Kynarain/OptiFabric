@@ -1,5 +1,5 @@
 /*
- * New in this 1.20.6 port of OptiFabric (which is MPL-2.0, see LICENSE.txt). Upstream solved the same class
+ * New in the 1.20.6 port of OptiFabric (which is MPL-2.0, see LICENSE.txt). Upstream solved the same class
  * of problem with hand written "contextual mapping" entries instead; this file is a rule driven replacement
  * written for this port.
  *

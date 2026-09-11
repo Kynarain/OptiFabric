@@ -1,6 +1,6 @@
 /*
  * Ported from OptiFabric (https://github.com/Chocohead/OptiFabric), MPL-2.0.
- * Adapted for Minecraft 1.20.6 / Fabric Loader 0.19.x.
+ * Adapted for Minecraft 1.20.6 and 1.21.11 / Fabric Loader 0.19.x.
  *
  * Changes from upstream:
  *   - MinecraftClient#openScreen was removed in 1.20.6, setScreen is used instead;
@@ -70,7 +70,7 @@ public abstract class MixinTitleScreen extends Screen {
 			helpButtonText = "Open help";
 			action = help -> {
 				if (help) {
-					Util.getOperatingSystem().open("https://github.com/Kynarain/OptiFabric/blob/main/README.md");
+					Util.getOperatingSystem().open("https://github.com/Kynarain/OptiFabric/blob/mc1.21.11/README.md");
 				} else {
 					Util.getOperatingSystem().open(new File(FabricLoader.getInstance().getGameDirectory(), "mods"));
 				}

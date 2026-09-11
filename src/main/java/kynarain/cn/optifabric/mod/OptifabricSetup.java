@@ -1,6 +1,6 @@
 /*
  * Ported from OptiFabric (https://github.com/Chocohead/OptiFabric), MPL-2.0.
- * Adapted for Minecraft 1.20.6 / Fabric Loader 0.19.x.
+ * Adapted for Minecraft 1.20.6 and 1.21.11 / Fabric Loader 0.19.x.
  *
  * Upstream this class was also the entry point that wired up all the per-mod compatibility mixin
  * configs through Fabric-ASM early risers. That machinery is gone: loading OptiFine now lives in

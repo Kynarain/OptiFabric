@@ -1,5 +1,5 @@
 /*
- * New in this 1.21.11 port of OptiFabric (which is MPL-2.0, see LICENSE.txt).
+ * New in the 1.21.11 port of OptiFabric (which is MPL-2.0, see LICENSE.txt).
  *
  * OptiFine compiles the classes it patches from its own sources and then runs its own obfuscator over the
  * result. Members whose name the obfuscator has no mapping for keep the name OptiFine's source used - a record

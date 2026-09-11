@@ -56,7 +56,7 @@ OptiFine's 1.21.11 build ships its class patches as xdelta diffs, and its recomp
 
 | File | SHA-256 |
 |---|---|
-| `OptiFabric-1.0.0+mc1.21.11.jar` (843,046 bytes) | `EEA5630D85FE4F3190F6AFF8576B6F3EDF7576A0E08ED0A30AB84D31115DE820` |
+| `OptiFabric-1.0.0+mc1.21.11.jar` (843,055 bytes) | `C552E1506E0ED84E6C91D52DC5BD78A6BAB1DAD307A23C74396A6F94FE838495` |
 
 Full changelog: [`CHANGELOG.md`](CHANGELOG.md) · Usage, troubleshooting and known issues: [`README.md`](README.md) · Verification tooling: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 

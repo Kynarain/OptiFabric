@@ -1,5 +1,5 @@
 /*
- * New in this 1.20.6 port of OptiFabric (which is MPL-2.0, see LICENSE.txt). This file has no upstream
+ * New in the 1.20.6 port of OptiFabric (which is MPL-2.0, see LICENSE.txt). This file has no upstream
  * counterpart: Minecraft 1.20.6 is the first version where OptiFine's convenience constructor overload
  * broke a Fabric API injection, so the fix was written for this port.
  *
