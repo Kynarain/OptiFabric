@@ -80,6 +80,11 @@ public class OptifineFixer {
 		//recompile, and the vanilla name the mixin asks for is gone.
 		registerFix("class_1092", new RestoreVanillaMethodsFix("method_65750"));
 
+		//net/minecraft/client/resources/model/ModelBakery (fabric-model-loading-api-v1 ModelBakeryMixin)
+		//The second real launch crashed here: @WrapOperation asks for these two methods by name and descriptor
+		//and OptiFine's recompiled ModelBakery no longer has either.
+		registerFix("class_1088", new RestoreVanillaMethodsFix("method_68018", "method_68019"));
+
 		//net/minecraft/client/render/chunk/ChunkRendererRegionBuilder (fabric-block-view-api-v2)
 		//OptiFine reduced build() to a call to its own createRegion() and moved the loop - and the four loop
 		//counters plus the Chunk[][] array Fabric's createDataMap captures with CAPTURE_FAILHARD - into it.
@@ -112,6 +117,12 @@ public class OptifineFixer {
 		//preparations, and both have the same type, so only their position identifies them. Fabric API shadows
 		//field_61871 and field_64469, and a shadow it cannot locate fails the whole mixin.
 		registerFix("class_1092$1", new SyntheticFieldFix());
+
+		//net/minecraft/client/render/block/LiquidBlockRenderer (fabric-rendering-fluids-v1)
+		//The recompile dropped the Biome colour call this mixin wraps. OptiFine's own fluid rendering stays
+		//untouched: an inert call site is put back in front of the method so the mixin finds its point.
+		registerFix("class_775", new InjectionCallPointFix("class_1163", "method_4961",
+				"(Lnet/minecraft/class_1920;Lnet/minecraft/class_2338;)I", "method_3347"));
 
 		//net/minecraft/block/entity/BlockEntity
 		//Upstream skips OptiFine's BlockEntity, and skipping it leaves five references dangling: OptiFine adds
