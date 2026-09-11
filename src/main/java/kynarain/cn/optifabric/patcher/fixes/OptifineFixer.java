@@ -136,6 +136,11 @@ public class OptifineFixer {
 		//written against (the same repair as method_39969 for fabric-block-view-api-v2 in the 1.20.6 port).
 		registerFix("class_4603", new RestoreVanillaMethodsFix(true, "method_24225"));
 
+		//net/minecraft/client/render/item/BlockModelWrapper (fabric-renderer-api-v1 BlockModelWrapperMixin)
+		//Its @Inject(at = RETURN) needs locals that OptiFine's recompiled update() no longer has, so every single item
+		//model fails to bake and all item textures disappear. Same repair as class_4603 above.
+		registerFix("class_10430", new RestoreVanillaMethodsFix(true, "method_65584"));
+
 		//fabric-rendering-v1's BEFORE_BLOCK_OUTLINE hook reads a world render context that OptiFine's pass
 		//structure never fills in, and dies with a NullPointerException (see StubInjectionTargetFix).
 		registerFix("class_761", new StubInjectionTargetFix("method_62210",
