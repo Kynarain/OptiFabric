@@ -42,6 +42,10 @@ public final class OptifabricRuntime {
 			return;
 		}
 
+		//Independent of OptiFine: declaring contains_renderer (see fabric.mod.json) keeps Indigo from registering a
+		//rendering plug-in, and Fabric API's own hooks throw when they look one up (see RendererApiFallback)
+		RendererApiFallback.install();
+
 		try {
 			OptifineVersion.findOptifineJar(); // Fails loudly (and helpfully) when OptiFine is absent
 

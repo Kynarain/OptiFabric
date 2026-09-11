@@ -149,6 +149,14 @@ public class OptifineFixer {
 		registerExtraClass("class_11681", new StubInjectionTargetFix("method_72998",
 				"(Lnet/minecraft/class_11788;Lnet/minecraft/class_4597$class_4598;Lnet/minecraft/class_776;Lnet/minecraft/class_4618;)V", "optifabric$movingBlocks"));
 
+		//Renaming it is only half of the story: the game calls it from the neighbouring class_11684.method_73002, and
+		//that call would land on the copy Mixin injected into - which is exactly what the multiplayer crash showed
+		//(class_11684.method_73002 -> class_11681.method_72998 -> handler$zmb000$...beforeRenderMovingBlocks). So the
+		//caller is taken over as well and its call moved onto the renamed method (see CallSiteRedirectFix).
+		registerExtraClass("class_11684", new CallSiteRedirectFix("class_11681", "method_72998",
+				"(Lnet/minecraft/class_11788;Lnet/minecraft/class_4597$class_4598;Lnet/minecraft/class_776;Lnet/minecraft/class_4618;)V", "optifabric$movingBlocks",
+				"the injected copy must stay uncalled, and the vanilla body still has to render moving blocks"));
+
 		//fabric-rendering-v1's BEFORE_BLOCK_OUTLINE hook reads a world render context that OptiFine's pass
 		//structure never fills in, and dies with a NullPointerException (see StubInjectionTargetFix).
 		registerFix("class_761", new StubInjectionTargetFix("method_62210",

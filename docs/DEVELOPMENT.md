@@ -386,6 +386,8 @@ Unable to bake model: 0       Mixin transformation: 0      InjectionError: 0
 | `LocalsScan` | `LocalCapture` 需要的局部变量布局是否与原版一致 | 只剩 indigo 那条 |
 | `ShadowScan` | `@Shadow`/`@Accessor`/`@Invoker` 成员 | 真缺失 0 |
 | `NamedResolver` | 具名→intermediary 解析(供上面几个工具用) | yarn 映射驱动 |
+| `RendererStubTest` | 用一个假接口离线跑"运行时生成的占位渲染器"的字节码(抽象/默认/静态方法、各种返回类型) | 全部通过 |
+| `FapiRendererFallbackTest` | 拿**真实** `fabric-renderer-api-v1` + intermediary 游戏 jar + **构建产物 jar** 跑一遍:F3 那行 `Renderer.get().getClass().getSimpleName()` 读到什么、被真调用时抛什么 | 全部通过 |
 
 扫描器自身踩过的坑也记录在案:`@Mixin(targets = "...")` 与 `@At(target = "...")` 里的目标是**具名字符串**、NEW 点的目标是**裸类名**、以及 `INVOKE_ASSIGN`/`CONSTANT` 等注入类型不建模 —— 这些都会导致**静默跳过**,让真实冲突藏起来。
 
@@ -555,6 +557,8 @@ MixinExtras 的 `@Local` 是 FAPI 现在替代 `LocalCapture` 的写法(70 个�
 | 3 | 启动崩:`@Local class_2338$class_2339` 校验失败 | 原版在 `ARETURN` 处作用域内有 `MutableBlockPos`,补丁后没有(MixinExtras 在**注入点**上判别局部变量) | `RestoreVanillaMethodsFix(true, "method_24225")` |
 | 4 | **进入世界成功**,约 4 秒后崩:`ChunkCacheOF.renderStart() ... regionIn is null` | OptiFine 的 `RenderChunkRegion` 只有**六参数**构造器会写 section 位置,而 `class_6850`(我们早就把 `build()` 换回原版方法体)调用的是五参数那个 → 字段恒为 null | 新增 `RegionSectionPosFix`:在原版方法体里改调六参数构造器,用该方法本就收到的**打包 long** 经 `ChunkSectionPos.from(long)` 生成第六个参数 |
 | 5 | 进入世界约 4 秒后崩:`WorldRenderContextImpl.worldState()` 为 null | `beforeRender` 是 `@Inject(method_22710, at=HEAD)`,而 `beforeDrawBlockOutline` 读它准备的上下文;OptiFine 用 `RenderPass` + 自己的 `lambda$addMainPass$1` 替换了传入渲染状态的 `method_74923` 流程 → 上下文未填充。**这是 FAPI 与 OptiFine 渲染流程的语义不兼容,不是字节码形状问题** | 新增 `StubInjectionTargetFix`:把 `class_761` 的私有 `method_62210` 改名为 `optifabric$blockOutline`(4 处调用跟进)并留同名同描述符的空桩 → Mixin 注入进**没人调用**的桩,钩子失效但不再崩,描边仍由改名后的方法绘制 |
+| 6 | 物品贴图全部丢失 | `class_10430.method_65584` 上的 `@Inject(at=RETURN)` 需要 OptiFine 重编译后不再存在的局部变量 → 每个物品模型都烘焙失败(见下一节) | `RestoreVanillaMethodsFix(true, "method_65584")` |
+| 7 | 进多人服务器约 30 秒崩:`Attempted to retrieve active rendering plug-in before one was registered` | 第 5 项的同类钩子,但**调用者不在同一个类里**:改名后的副本仍被 `class_11684.method_73002` 按名字调到(见第 7 类) | 新增 `CallSiteRedirectFix`,把调用方也接管并改掉调用点 |
 
 **代价与遗留**:`BEFORE_BLOCK_OUTLINE` 事件不再触发(非原版功能);`class_10444.update` 上 `fabric-renderer-api-v1` 的 `BlockModelWrapperMixin.onReturnUpdate` 仍是 `require = 0` 的**非致命**警告(1427 条),同样可用 `InjectionCallPointFix` 处理。
 
@@ -581,6 +585,60 @@ Caused by: InjectionError: Critical injection failure: Callback method onReturnU
 
 **教训**:Mixin 的 `method=` 目标要按 `@Mixin` 的**目标类**解析,不能按"方法描述符里的第一个参数类型"猜宿主。
 
+### 第 7 类:多人游戏崩溃(钩子注入进了"会被调用"的那份副本)
+
+单人一直正常,进多人服务器约 30 秒后崩(玩家处于旁观模式,服务器上有移动方块):
+
+```
+java.lang.UnsupportedOperationException: Attempted to retrieve active rendering plug-in before one was registered.
+	at net.fabricmc.fabric.impl.renderer.RendererManager.getRenderer(RendererManager.java:29)
+	at net.fabricmc.fabric.api.renderer.v1.Renderer.get(Renderer.java:72)
+	at net.fabricmc.fabric.api.renderer.v1.render.FabricBlockModelRenderer.render(FabricBlockModelRenderer.java:68)
+	at net.minecraft.class_11681.handler$zmb000$fabric-renderer-api-v1$beforeRenderMovingBlocks(class_11681.java:565)
+	at net.minecraft.class_11681.method_72998(class_11681.java:24)
+	at net.minecraft.class_11684.method_73002(class_11684.java:52)
+```
+
+`fabric-renderer-api-v1` 的 `BlockFeatureRendererMixin`(`@Mixin(class_11681)`)在这个类上挂了**两个**处理器,目标都是 `method_72998`:一个 `@Inject(at = INVOKE Iterator.hasNext(), ordinal = 0)` 用 `@Local` 抓到那个迭代器后**先把移动方块队列遍历并消费掉**(于是原版方法自己的循环变成空转),再走 Fabric 的渲染路径;另一个在 `RETURN` 收尾。两者都要 `Renderer.get()`,而 `contains_renderer` 让 Indigo 退场后 `RendererManager` 是空的 → 抛异常。
+
+**第一次修复为什么会失效**:第 5 项的 `StubInjectionTargetFix` 只在**同一个类内部**把跟着改名的调用改掉了(日志里那句 "4 call(s) followed")。移动方块这条的调用来自**邻居类** `class_11684.method_73002`,它按名字 `method_72998` 调到的正是 Mixin 刚注入进去的那份副本,于是崩溃原样复现(上一次实测日志与本轮实测日志的栈完全相同)。这也说明 `class_761.method_62210` 之所以成立,只是碰巧它的 4 处调用都在 `class_761` 内部。
+
+**修复**:新增 `CallSiteRedirectFix` —— 把指定调用者的调用点改到改名后的真实方法上,并把 `class_11684` 也用 `registerExtraClass` 登记(OptiFine 不补丁它,所以由我们接管,机制与 `class_11681` 完全一样;差别只是这次改动落在调用方)。离线日志:
+
+```
+[OptiFabric] Took over net/minecraft/class_11684 on our own (OptiFine does not patch it)
+[OptiFabric] Renamed net/minecraft/class_11681.method_72998(...) to optifabric$movingBlocks (0 call(s) followed) and left an uncalled copy behind
+[OptiFabric] Moved 1 call(s) from net/minecraft/class_11684 onto net/minecraft/class_11681.optifabric$movingBlocks(...) instead of method_72998
+[OptiFabric] Prepared 570 patched classes (0 skipped, 0 failed) / verified OK: 570 / ASM verifier problems: 0
+```
+
+改完后 `method_72998` 这个名字只出现在 `class_11681`(声明 + 副本),而 `class_11684` 调的是 `optifabric$movingBlocks`(即原版方法体,里面本来就会遍历移动方块队列并逐个 `class_778.method_3374(...)` 绘制)——即"OptiFine 但没有 Fabric API"的行为。**教训**:让 Mixin 的注入点变成死代码,要求**所有**调用者(含跨类的)一起改名;只改本类内部的调用不够。
+
+### 第 8 类(还没崩,但按 F3 必崩):没有任何渲染器被注册
+
+顺着第 7 类那条异常查 `Renderer.get()` 的调用者,发现还有一条**活的**:`fabric-renderer-api-v1` 自己注册了一条调试屏条目(`DebugHudClient$ActiveRendererDebugHudEntry`),F3 打开时执行 `Renderer.get().getClass().getSimpleName()` 来显示 `Renderer: xxx`。我们这里 `RendererManager.activeRenderer` 永远是 null,所以**一按 F3 就会崩**,异常与多人那次一模一样。
+
+根因是 `contains_renderer = true` 这个声明本来含义是"渲染器由别的 mod 提供"(Sodium 声明它,并确实注册了一个),而 OptiFine 不实现 Fabric 的渲染器 API —— 这个声明在我们这里只完成了"让 Indigo 退场"这一半。
+
+**修复**:`RendererApiFallback` 在 preLaunch 阶段(早于任何 mod 初始化器)注册一个惰性占位渲染器:
+
+- 类由 `RendererApiStubGenerator` 在**运行时用 ASM 生成**。本 mod 刻意不依赖 Fabric API(连 compileOnly 都没有),所以没法在编译期实现那个接口;改为反射读出接口的抽象方法再生成实现体,类名 `OptifineRendererPlaceholder`,F3 里显示成 `Renderer: OptifineRendererPlaceholder`;
+- 真被调用到的每个方法都抛 `UnsupportedOperationException` 并附一句说明(而不是让 NPE 出现在更深的地方);
+- 只在那个渲染器接口存在时注册(直接 `Class.forName`,不查 `isModLoaded`):没有 Fabric API 时连问都不会问,更不会报错;若已有别的渲染器注册过,则原样保留并只打一行日志(`RendererManager` 拒绝第二个)。
+
+生成的字节码由 `test-downloads/RendererStubTest.java` 离线验证:用一个假接口覆盖 对象返回 / void / 多宽度参数(long、double)/ 布尔返回 / 默认方法 / 静态方法 各种形状,全部通过。再用 `test-downloads/FapiRendererFallbackTest.java` 对**真实** `fabric-renderer-api-v1` + 构建产物 jar 跑一遍端到端:
+
+```
+[OptiFabric] Generated kynarain/cn/optifabric/mod/OptifineRendererPlaceholder, implementing 6 method(s) of net.fabricmc.fabric.api.renderer.v1.Renderer
+[OptiFabric] Registered OptifineRendererPlaceholder as Fabric's rendering plug-in: …
+Renderer.get()          -> kynarain.cn.optifabric.mod.OptifineRendererPlaceholder
+F3 shows                -> Renderer: OptifineRendererPlaceholder
+mutableMesh() explains  -> java.lang.UnsupportedOperationException: OptiFine is the active terrain renderer: …
+second registration     -> refused as expected (Attempted to register a second rendering plug-in. Multiple rendering plug-ins are not supported.)
+```
+
+(其中"第二次注册被拒绝"正好证明第一次注册真的生效了。)
+
 ### 最终真机状态(1.21.11,2026-09-11)
 
 | 目标项 | 结果 | 证据 |
@@ -588,12 +646,13 @@ Caused by: InjectionError: Critical injection failure: Callback method onReturnU
 | 启动 → 主界面 | ✅ | 多次实测 |
 | 进入单人世界 | ✅ | `logged in with entity id`、区块生成、音效引擎 |
 | 方块与区块渲染 | ✅ | 世界正常、可走动;`Batching sections` 不再抛错 |
-| 物品渲染 | ✅ | `Unable to bake item model` 归零 |
+| 物品渲染 | ✅ | `Unable to bake item model` 归零;用户确认"贴图已全部恢复" |
 | 光影 | ✅ | `[Shaders] Loaded shaderpack: ComplementaryReimagined_r5.9.1.zip` |
-| 运行时错误 | ✅ | 该会话 `[ERROR]` 0 条、注入失败 0 条、无崩溃报告 |
-| 多人 | ⏳ 尚未实测 | — |
+| 运行时错误 | ✅ | 单人会话 `[ERROR]` 0 条、注入失败 0 条、无崩溃报告 |
+| 多人 | ⏳ 待复测 | 上一次崩在第 7 类(已修,修复版尚未实测) |
+| F3 调试屏 | ⏳ 待复测 | 第 8 类的修复已就位,同样尚未实测 |
 
-修复器清单(本次移植新增的四个,均可复用):`InjectionCallPointFix`(保留 OptiFine 方法体、插回惰性调用点)、`RegionSectionPosFix`(给 OptiFine 的区域构造器补 section 位置)、`StubInjectionTargetFix`(改名 + 留完整副本,让语义不兼容的钩子失效而非崩溃)、以及扩展的 `SyntheticFieldFix`(按声明位置配对同类型合成字段)。
+修复器清单(本次移植新增,均可复用):`InjectionCallPointFix`(保留 OptiFine 方法体、插回惰性调用点)、`RegionSectionPosFix`(给 OptiFine 的区域构造器补 section 位置)、`StubInjectionTargetFix`(改名 + 留完整副本,让语义不兼容的钩子失效而非崩溃)、`CallSiteRedirectFix`(把**跨类**的调用点也改到改名后的方法上,否则副本照样被调用)、以及扩展的 `SyntheticFieldFix`(按声明位置配对同类型合成字段);另加运行时组件 `RendererApiFallback` / `RendererApiStubGenerator`(注册惰性占位渲染器,挡住 Fabric API 对 `Renderer.get()` 的查找)。
 
 ### 补上"OptiFine 自己的 874 个类"的校验
 
@@ -605,7 +664,7 @@ java -cp ... VerifyPatched --verify-jar <Optifine-mapped.jar> <vanilla intermedi
 
 它把补丁后的类先定义进加载器(这样 OptiFine 的类看到的就是被补丁的游戏,和真机一致),再逐个定义+链接它们自己的类,然后跑 ASM 数据流校验。只对 Forge / launchwrapper 专用的类放行(那些 API 在 Fabric 上根本不存在)。
 
-结果:**874/874 通过,0 失败,ASM 0**。加上被补丁的 568 个类,这次移植共有 **1442 个类**通过 JVM 与 ASM 双向校验。
+结果:**874/874 通过,0 失败,ASM 0**。加上被补丁的类(OptiFine 自己补丁 568 个游戏类,第 7 类又让我们接管了 `class_11681`、`class_11684` 两个 → **570 个**),这次移植共有 **1444 个类**通过 JVM 与 ASM 双向校验。
 
 ### 全新安装模拟(与用户操作一致)
 
@@ -613,8 +672,8 @@ java -cp ... VerifyPatched --verify-jar <Optifine-mapped.jar> <vanilla intermedi
 
 ```
 首次补丁耗时 6.7 秒
-[OptiFabric] Prepared 568 patched classes (0 skipped, 0 failed)
-verified OK: 568 / FAILED: 0 / ASM verifier problems: 0
+[OptiFabric] Found 568 patched classes / Prepared 570 patched classes (0 skipped, 0 failed)
+verified OK: 570 / FAILED: 0 / ASM verifier problems: 0
 生成 .optifine/OptiFine_1.21.11_HD_U_J9/{cache-format.txt, Optifine-mapped.jar, Optifine.classes.gz}
 ```
 
