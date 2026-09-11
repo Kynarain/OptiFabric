@@ -170,6 +170,11 @@ class MethodComparison {
 				 return true; //Could check the end result format...
 			} else if ("java/lang/runtime/ObjectMethods".equals(a.bsm.getOwner())) {
 				return Objects.equals(a.name, b.name) && Arrays.asList(a.bsmArgs).subList(2, a.bsmArgs.length).equals(Arrays.asList(b.bsmArgs).subList(2, b.bsmArgs.length));
+			} else if ("java/lang/runtime/SwitchBootstraps".equals(a.bsm.getOwner())) {
+				// Java 21 pattern matching switches. javac compiles both copies from the same source, but the
+				// switch labels may name classes, and those names differ between the official and the
+				// intermediary namespace, so comparing their values would report false differences.
+				return Objects.equals(a.name, b.name) && Objects.equals(a.desc, b.desc) && a.bsmArgs.length == b.bsmArgs.length;
 			} else {
 				throw new IllegalStateException(String.format("Unknown invokedynamic bsm: %s#%s%s (tag=%d iif=%b)", a.bsm.getOwner(), a.bsm.getName(), a.bsm.getDesc(), a.bsm.getTag(), a.bsm.isInterface()));
 			}
@@ -287,7 +292,12 @@ class MethodComparison {
 
 				if (isJavaLambdaMetafactory(idin.bsm)) {
 					instructionEater.accept(idin);
-				} else if ("java/lang/invoke/StringConcatFactory".equals(idin.bsm.getOwner()) || "java/lang/runtime/ObjectMethods".equals(idin.bsm.getOwner())) {
+				} else if ("java/lang/invoke/StringConcatFactory".equals(idin.bsm.getOwner())
+						|| "java/lang/runtime/ObjectMethods".equals(idin.bsm.getOwner())
+						// Minecraft 1.21.11 is compiled with Java 21 and uses pattern matching switches, which
+						// javac compiles to an invokedynamic against this bootstrap. Like the two above it holds
+						// no handle to a method of the class, so there is nothing here to rebuild.
+						|| "java/lang/runtime/SwitchBootstraps".equals(idin.bsm.getOwner())) {
 					//These won't have any methods within the class to find
 				} else {
 					throw new IllegalStateException(String.format("Unknown invokedynamic bsm: %s#%s%s (tag=%d iif=%b)", idin.bsm.getOwner(), idin.bsm.getName(), idin.bsm.getDesc(), idin.bsm.getTag(), idin.bsm.isInterface()));
