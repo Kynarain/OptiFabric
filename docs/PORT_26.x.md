@@ -547,6 +547,56 @@ UnsupportedOperationException: ...（OptifineRendererPlaceholder 那段话）
 代价是明确的:**Fabric API 想画的 quad 哪儿也不去,世界由 OptiFine 自己画** —— 这正是
 `contains_renderer: true` 声明的东西。
 
+### 4. Indigo 在 26.x 上根本不是地形渲染器(所以那个键是多余的)
+
+上面那句"Fabric API 想画的 quad 哪儿也不去"是当时诚实的描述,但它把 **1.21.x 的取舍带到了这一线**。
+两条线上的 indigo 不是同一个东西:
+
+| | 1.21.11(Fabric API 0.141.6) | 26.1.2(Fabric API 0.155.3) |
+|---|---|---|
+| indigo | **5.0.3**,11 条 mixin(`SectionCompilerMixin`、`ModelBlockRendererMixin`、`RenderSectionRegionMixin`、`BlockRenderDispatcherMixin`、`SubmitNode*` + 物品两条) | **8.1.5**,只剩 3 条:`BlockModelLighterAccessor`、`ItemFeatureRendererAccessor`、`ItemFeatureRendererMixin` |
+| 它还是地形渲染器吗 | 是 | **不是** |
+
+26.1 把地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己(`SectionCompilerMixin`、
+`BlockFeatureRendererMixin`、`VanillaBlockModelPartEncoder`、`QuadConsumers`、`FabricSubmitNodeCollection`…),
+而**这些 mixin 不受 `contains_renderer` 影响,本来就一直在生效**。于是这一线的实际情况是:`Renderer.get()`
+一直有人在问(Fabric API 自己的钩子),而键一声明,**唯一能回答它的渲染器就被关掉了** —— 拿到的是我们的惰性占位,
+mod 生成的网格**静默消失**(不报错、不显示),F3 那行 `Renderer: OptifineRendererPlaceholder` 就是它。
+
+**改法**:26.x 的 `fabric.mod.json` 不再声明该键(两条线的 metadata 因此在构建期分叉:`custom` 块由
+`expand` 注入,见 `v26.x/build.gradle` 与 `v1.21.x/build.gradle`);`RendererApiFallback` 把这个键**读回来**,
+只有它被声明时才注册占位器,否则让 Indigo 自己注册 `IndigoRenderer.INSTANCE`(26.x 的 `Renderer` 一共只有
+3 个抽象方法,Indigo 自己的实现就是完整答案)。1.21.x 的 jar 照旧声明,那一线的行为一字未变。
+
+**先量后改**:indigo 那 3 条 mixin 的目标类 OptiFine **全都补丁了**(OptiFine 26.1.2 的 jar 里
+`patch/srg/net/minecraft/client/renderer/feature/ItemFeatureRenderer.class.xdelta` 与
+`.../client/renderer/block/BlockModelLighter.class.xdelta` 都在),所以先在补丁产物上逐个核对成员:
+`ItemFeatureRenderer.renderSolid` / `renderTranslucent` 仍在(描述符与 indigo 的 `@Inject` 一致),
+`getFoilBuffer` / `computeFoilDecalPose` 仍在(`@Invoker` 的目标,私有无妨 —— Mixin 会放宽),
+`BlockModelLighter.CACHE` 仍是 `ThreadLocal<BlockModelLighter$Cache>`(`@Accessor` 的目标)。
+(离线 `AtTargetScan` 在 26.x 上本来就是 `PROBLEMS 0`:那句 `[indigo: disabled by ...]` 只是标注文案,
+扫描本身一直包含 indigo。)
+
+**真机结果**(`launch-26.ps1 -World OptiTest`,世界里有光影):
+
+```
+[OptiFabric] Indigo is present and nothing declared fabric-renderer-api-v1:contains_renderer,
+             so it registers Fabric's rendering plug-in itself - not registering a placeholder
+[Render thread/INFO]: [Indigo] Registering Indigo renderer!
+[Render thread/INFO]: Mixing ItemFeatureRendererAccessor … into net.minecraft.client.renderer.feature.ItemFeatureRenderer
+[Render thread/INFO]: Mixing ItemFeatureRendererMixin … into net.minecraft.client.renderer.feature.ItemFeatureRenderer
+[Render thread/INFO]: Mixing BlockModelLighterAccessor … into net.minecraft.client.renderer.block.BlockModelLighter
+[Render thread/INFO]: Renaming @Accessor method fabric_getCACHE()Ljava/lang/ThreadLocal; …
+```
+
+进世界、区块与实体渲染、光影全部照常;mixin 变换失败 0、异常 0(上面第 2 节那个"占位自己抛异常"的崩点
+从此不存在)。**`[Indigo] Different rendering plugin detected` 这行不该再出现** —— 它才是"让位生效"的标志。
+
+**仍然有意保持惰性的两处**:`BlockFeatureRenderer.renderMovingBlockSubmits` / `renderBlockModelSubmits` 照旧
+改名(`optifabric$movingBlocks` / `optifabric$blockModels`)并把调用者一起改过去,即这两条 Fabric 钩子仍然
+收不到调用、由原版方法体绘制(见 `OptifineFixer.registerOfficialNameFixes`)。渲染器现在是真的了,理论上
+可以把它们放回去、让那些提交走 Indigo —— 但那是与**已实测的绘制路径**不同的另一条路,要单独测过再动。
+
 ### 3. 抗锯齿的 post chain 被我们弄坏了(第三次进世界的日志)
 
 ```

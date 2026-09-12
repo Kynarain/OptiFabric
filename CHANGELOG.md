@@ -19,12 +19,17 @@
   而 Fabric API 用**不带描述符**的 `method = "..."` 指名目标 —— 恢复原版方法体之后类里出现两个同名方法,
   MixinExtras 建不出局部变量上下文,整个类变换失败。逐处消歧:`LevelRenderer`、`SectionCompiler`、
   `CuboidItemModelWrapper`、`ScreenEffectRenderer`、`ModelManager`;
-- **渲染器占位**:26.1 把 Fabric 渲染器 API 挪进了 `api.client.renderer.v1`,按旧名字查找失败使占位
-  **从未注册**,第一个 `Renderer.get()` 就把游戏带走;并且占位**不再抛异常** —— Fabric API 自己的渲染钩子
-  会在普通帧里调用它,现在返回形状正确的惰性对象(Fabric API 想画的 quad 哪儿也不去,世界由 OptiFine 绘制);
+- **渲染器(FRAPI)**:26.1 把 Fabric 渲染器 API 挪进了 `api.client.renderer.v1`,按旧名字查找失败曾让占位
+  **从未注册**,第一个 `Renderer.get()` 就把游戏带走;更根本的是,从 1.21.x 继承来的
+  `fabric-renderer-api-v1:contains_renderer` 让位键在这一线**本来就是多余的** —— 26.1.2 的 indigo 已经不是
+  地形渲染器(地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己,它只剩 1 条物品 mixin + 2 个 accessor),
+  键一声明就把 Fabric API 唯一能问到的那个渲染器关掉,模组生成的网格进了惰性占位 —— **不报错,也不显示**。
+  本版**不再声明该键**,`RendererApiFallback` 把它读回来、只在确实被声明时才补占位器,否则由 Indigo 注册自己的
+  `IndigoRenderer`(F3 的 `Renderer:` 一行因此显示 `IndigoRenderer`,而不再是 `OptifineRendererPlaceholder`);
 - **抗锯齿**:26.x 从 `post_effect/` 读后处理链,而 1.21.x 那套修复的做法是**删掉该文件**、补写老位置的链 ——
   在这一线正好是反的。现在按版本线分开处理;
-- **渲染路径**:移动方块与普通方块模型这两处 Fabric API 钩子改为惰性(世界仍由 OptiFine 绘制)。
+- **渲染路径**:移动方块与普通方块模型这两处 Fabric API 钩子仍改为惰性(由原版/OptiFine 路径绘制);方块破坏
+  裂纹那条没有动,它现在真的走 Indigo 的渲染器。
 
 ### 要求与实测
 
@@ -36,10 +41,11 @@
 | OptiFine | `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar`(目前只有 preview) |
 | Fabric API | 0.155.3+26.1.2 |
 
-实测:启动、进世界、方块/物品/生物渲染、抗锯齿、光影、多人全部正常。
+实测:启动、进世界、方块/物品/生物渲染、抗锯齿、光影、多人全部正常;进世界时 Indigo 注册真正的渲染器
+(`[Indigo] Registering Indigo renderer!`),Fabric API 自己的渲染钩子从它上面绘制。
 
-产物:`OptiFabric-1.2.0+mc26.1.2.jar` — 163164 字节
-`SHA-256: 672F3895AB656FACDA42C93218F885BA21487D929A92C9E05D542A4D0A20B64A`
+产物:`OptiFabric-1.2.0+mc26.1.2.jar` — 163776 字节
+`SHA-256: 00E0BB0ACD05B5DCC18AFBA408F093067F72E4308E3D4ABC99F8A9E48287160F`
 
 ## 1.0.0+mc1.21 … 1.0.0+mc1.21.11 — 1.21.x 全系列
 

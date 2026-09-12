@@ -189,11 +189,11 @@ kynarain/cn/optifabric/patcher/fixes/MissingOverrideFix.java          全局:补
 
 ### 4.3 为此付出的代价(有意接受的降级)
 
-- **Fabric 的渲染器 API 只是"存在"**:OptiFine 不实现 FRAPI,依赖 indigo 的模组不会获得自定义渲染(地形由 OptiFine 渲染),`Renderer.get()` 拿到的是一个占位实现 —— 真去用它建网格会得到一句明确说明的 `UnsupportedOperationException`。
-- **两个 Fabric API 钩子被有意中和**:`BEFORE_BLOCK_OUTLINE` 事件不再触发(方块描边仍照画);移动方块的 FRAPI 渲染钩子失效(移动方块由原版路径正常渲染)。
+- **Fabric 的渲染器 API 只是"存在"**(仅 1.21.x 线):OptiFine 不实现 FRAPI,依赖 indigo 的模组不会获得自定义渲染(地形由 OptiFine 渲染),`Renderer.get()` 拿到的是一个占位实现 —— 真去用它建网格会得到一句明确说明的 `UnsupportedOperationException`。**26.1.2 上不是这样**:那一线的 indigo 已经不是地形渲染器,所以不声明让位键、由 Indigo 注册真渲染器(见 4.4 第 5 项)。
+- **两个 Fabric API 钩子被有意中和**:`BEFORE_BLOCK_OUTLINE` 事件不再触发(方块描边仍照画);移动方块的 FRAPI 渲染钩子失效(移动方块由原版路径正常渲染)。26.x 上另有"移动方块提交 / 方块模型提交"两处同样处理(见 4.4)。
 - **OptiFine 的 `BlockEntity` 补丁被应用**(上游是跳过):跳过它会留下 5 处悬空引用(OptiFine 给它加的 `hasCustomOutlineRendering` 与两个字段被它自己和重编译后的 `class_757` 调用),代价是日志里一条 `Failed to locate initialiser injection point in <init>(class_2591,...)`。
 
-### 4.4 26.x 线上独有的三类冲突(官方名,与上面那些不是同一批)
+### 4.4 26.x 线上独有的冲突(官方名,与上面那些不是同一批)
 
 26.x 并不是"同样的补丁换个版本号" —— 未混淆这件事本身带来三类新问题,都在真机上逐个定位过(完整记录见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md)):
 
@@ -203,6 +203,7 @@ kynarain/cn/optifabric/patcher/fixes/MissingOverrideFix.java          全局:补
 | 2 | 进世界即崩:`Attempted to retrieve active rendering plug-in before one was registered` | 26.1 把 Fabric 渲染器 API 挪进了 `api.client.renderer.v1`(注册表 `impl.client.renderer.RendererManager`),按旧包名查找失败使占位渲染器**从未注册**;而查不到正是"没装 Fabric API"的正常分支,于是**静默返回** | `RendererApiFallback` 按新→旧顺序尝试两个位置(1.21.x 仍走旧名字) |
 | 3 | 同上位置、注册成功之后:崩在**我们自己的占位**上(`OptifineRendererPlaceholder.quadEmitter`) | 1.21.x 时代只有 F3 调试行会调用它,所以"抛异常"是诚实的;但 26.1.2 上 `BlockFeatureRenderer` **不是 OptiFine 的补丁类**,那些调用是 **Fabric API 自己的代码**注入进原版方法后跑在普通绘制路径上 —— 逐个堵是打地鼠 | 占位改为返回**形状正确的惰性对象**(递归生成接口实现,fluent 接口直接把 `this` 还回去),Fabric API 想画的 quad 哪儿也不去,世界由 OptiFine 画 |
 | 4 | 抗锯齿失效:`Could not find post chain with id: minecraft:fxaa_of_2x` | 1.21.x 那套修复的做法是**删掉** `post_effect/*.json`、补写 `shaders/post/` 老位置的链;而 26.x 读的正是 `post_effect/`,删掉它才是失败原因,补写的老式文件根本没人读 —— 前提在这一线**正好反了** | 该修复只在混淆线执行,未混淆线原样保留 OptiFine 自带的 `post_effect/` |
+| 5 | 依赖 Fabric 渲染器 API 的模组几何**静默消失**(不崩、不报错,只是不画) | 从 1.21.x 继承来的 `contains_renderer` 让位键在这一线是**多余的**:26.1 把地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己,indigo 只剩 3 条 mixin(1 条物品 mixin + 2 个 accessor),**不再是地形渲染器**。键一声明,唯一能回答 `Renderer.get()` 的渲染器就被关掉,拿到的是惰性占位 | 26.x 的 `fabric.mod.json` 不再声明该键;`RendererApiFallback` 把它读回来,只有声明时才注册占位器,否则由 Indigo 注册 `IndigoRenderer`。1.21.x 照旧声明,行为不变(见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md) 第 4 节) |
 
 > 踩过的一个坑值得记:第 1 类里给 `SectionCompiler` 做"删掉多余重载"时,那个重载是 **public 且被另一个类调用**的,而类内引用扫描说"没人调" —— 离线扫描器逮住了(`[patched caller] SectionRenderDispatcher$RenderSection$RebuildTask.doTask -> SectionCompiler.compile(...)`),那是进世界后第一次区块重建就会踩的 `NoSuchMethodError`。规则因此改成**按可见性定可靠性**:只有 `private` 方法才可依据类内扫描删除,非 `private` 的必须显式声明并核实整个游戏 jar 里无引用。
 
@@ -248,7 +249,7 @@ kynarain/cn/optifabric/patcher/fixes/MissingOverrideFix.java          全局:补
 
 ### 已知限制
 
-- 依赖 FRAPI/indigo 的模组不再有 indigo 的自定义渲染(地形交给 OptiFine)—— 见第 4.3 节。
+- 依赖 FRAPI/indigo 的模组:在 **1.21.x** 上不再有 indigo 的自定义渲染(地形交给 OptiFine)—— 见第 4.3 节;**26.1.2 上 indigo 会正常注册**(见 4.4 第 5 项),只有"移动方块提交 / 方块模型提交"这两条 Fabric 钩子仍被有意停用。
 - OptiFine 不认识 Fabric 的资源包类型(日志里成片的 `[OptiFine] Unknown resource pack type: ...ModNioResourcePack`),所以 **Fabric 模组内部的资源(贴图/CTM 配置等)OptiFine 看不到**。这是 OptiFine 侧的限制,不影响启动与运行。
 - 光影包与 OptiFine 版本不完全匹配时会有 `[Shaders] ...` 报错,属光影包自身问题。
 
@@ -291,8 +292,9 @@ kynarain/cn/optifabric/patcher/fixes/MissingOverrideFix.java          全局:补
 `fabric-renderer-indigo`(Fabric API 自带的地形渲染器)与 OptiFine 只能有一个在场,移植版用 Fabric 自己的机制让 indigo 让位:`fabric.mod.json` 里声明 `"custom": {"fabric-renderer-api-v1:contains_renderer": true}`。这个键本来就**是给"另一个渲染器"用的**(Sodium 用同一个键),而 OptiFine 本身就是地形渲染器。indigo 会打印 `[Indigo] Different rendering plugin detected; not applying Indigo.`。
 
 - **代价**:依赖 FRAPI/indigo 的模组不再有 indigo 提供的自定义渲染(地形由 OptiFine 渲染)。
-- **只声明这个键还不够**:Fabric 的渲染器模块不看这个键,它们查**注册表**,空的时候会抛 `Attempted to retrieve active rendering plug-in before one was registered`。所以本模组另外注册了惰性占位渲染器(第 4.2 节第 8、9 项)。
-- **想换回 indigo**:删掉 `fabric.mod.json` 里那个 `custom` 键并重新构建 —— 但那样 `ChunkBuilder$BuiltChunk$RebuildTask` 一加载就会因为缺失注入点而崩(见 1.20.6 移植的记录)。
+- **只声明这个键还不够**(1.21.x):Fabric 的渲染器模块不看这个键,它们查**注册表**,空的时候会抛 `Attempted to retrieve active rendering plug-in before one was registered`。所以本模组另外注册了惰性占位渲染器(第 4.2 节第 8、9 项)。
+- **26.1.2 不声明这个键**:那一线的 indigo 已经**不是地形渲染器**(只剩 1 条物品 mixin + 2 个 accessor,地形整合搬进了 `fabric-renderer-api-v1` 自己),声明它只会把 Fabric API 要用的渲染器关掉。所以 26.x 的 metadata 里没有这个键,由 Indigo 自己注册 `IndigoRenderer`,`RendererApiFallback` 只在键确实被声明时补占位器。详见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md) 第 4 节。
+- **想换回 indigo**(1.21.x):删掉 `fabric.mod.json` 里那个 `custom` 键并重新构建 —— 但那样 `ChunkBuilder$BuiltChunk$RebuildTask` 一加载就会因为缺失注入点而崩(见 1.20.6 移植的记录)。
 
 ---
 

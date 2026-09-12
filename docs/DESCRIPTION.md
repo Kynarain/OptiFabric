@@ -95,7 +95,7 @@ All of these were found through real crashes and traced to the bytecode — firs
 - synthetic `this$0` / `val$…` fields (several of them with the same type) → paired by declaration order and renamed to what mods shadow;
 - object creation OptiFine redirects to its own subclass (the `ChunkOF` chunk object) → an inert marker puts the injection point back.
 
-Seven of them exist **only on 26.1.2**, where the game is unobfuscated and the render pipeline moved on again — nearly all of the conflicts sit in the renderer:
+Eight of them exist **only on 26.1.2**, where the game is unobfuscated and the render pipeline moved on again — nearly all of the conflicts sit in the renderer:
 
 - OptiFine hollows `LevelRenderer.extractBlockOutline` into a thin wrapper and moves the body into an overload of its own, leaving **two methods of one name**. A Fabric mixin that names it without a descriptor then resolves neither and the whole class fails to transform. The vanilla body is restored, and the **overloads vanilla no longer has are dropped** (keeping them makes the injection fail with `LVTGeneratorError` while it looks for method metadata);
 - the same trick is harder on **chunk building**: `SectionCompiler.compile`'s public overload is still called from outside and must not be removed → it is **renamed and its call sites redirected**, which keeps the contract and puts the injection point back on the real body;
@@ -103,21 +103,22 @@ Seven of them exist **only on 26.1.2**, where the game is unobfuscated and the r
 - OptiFine also hollows out `ModelManager`'s bake lambda, `ScreenEffectRenderer.getViewBlockingState` and `CuboidItemModelWrapper.update` → their vanilla bodies are restored (`update` too needs its vanilla-absent overload dropped);
 - the chunk object is redirected to OptiFine's own `ChunkOF` → an inert marker is inserted **under the official name** so injections that depend on `LevelChunk` have a target again;
 - the Fabric renderer API moved into `api.client.renderer.v1` on 26.1, so the placeholder renderer was never registered (the lookup failed and returned quietly) and the first `Renderer.get()` crashed the game. The placeholder also no longer throws: Fabric API's own rendering hooks call it in the middle of ordinary frames, and it answers with inert objects of the right shape instead;
-- the anti-aliasing repair is the other way round there: 26.x reads the post chain from `post_effect/`, so *removing* that file — which the 1.21.x repair does — is what broke AA.
+- the anti-aliasing repair is the other way round there: 26.x reads the post chain from `post_effect/`, so *removing* that file — which the 1.21.x repair does — is what broke AA;
+- and the quietest one, which never crashed: the `fabric-renderer-api-v1:contains_renderer` key inherited from the 1.21.x line was switching off exactly the rendering plug-in Fabric API keeps asking for. Indigo is not a terrain renderer on 26.1.2 any more (Fabric API moved the terrain and submit-node integration into `fabric-renderer-api-v1` itself, leaving Indigo one item mixin and two accessors), so the key had nothing left to keep away: mods' meshes went into the inert placeholder — invisible, and silent about it. This line no longer declares the key and Indigo registers its own `IndigoRenderer`; the fallback class reads the key back and only steps in where it is declared.
 
 The full list (symptom / cause / fix, per release) is in the changelog and in `docs/DEVELOPMENT.md`.
 
 ### Verified state
 
-Offline, for **every supported release**, each class is loaded and linked in a single loader (the same way the game does it) and checked with the JVM verifier plus an ASM data-flow verifier — 425 to 570 patched game classes and 773 to 874 OptiFine classes per release, 0 failures, 0 verifier problems, plus five scanners (mixin member references, `@At` points, abstract contracts/overrides/references and invokedynamic handles) with nothing left but the injection points of the deliberately disabled Indigo. In game (1.21.11): startup, title screen, singleplayer, **multiplayer server**, block/chunk/item rendering, **shaders** (`ComplementaryReimagined` loaded), F3 debug screen — with 0 `[ERROR]` lines and no crash report in the final session. In game (26.1.2): 567 patched classes and 879 OptiFine classes all verified with 0 failures and 0 verifier problems, every scanner clean, and startup, a world, block/item/entity rendering, **anti-aliasing**, **shaders** and **multiplayer** all working.
+Offline, for **every supported release**, each class is loaded and linked in a single loader (the same way the game does it) and checked with the JVM verifier plus an ASM data-flow verifier — 425 to 570 patched game classes and 773 to 874 OptiFine classes per release, 0 failures, 0 verifier problems, plus five scanners (mixin member references, `@At` points, abstract contracts/overrides/references and invokedynamic handles) — with nothing left but the injection points of the deliberately disabled Indigo on the 1.21.x line, while 26.1.2 has none (its Indigo is not disabled there). In game (1.21.11): startup, title screen, singleplayer, **multiplayer server**, block/chunk/item rendering, **shaders** (`ComplementaryReimagined` loaded), F3 debug screen — with 0 `[ERROR]` lines and no crash report in the final session. In game (26.1.2): 567 patched classes and 879 OptiFine classes all verified with 0 failures and 0 verifier problems, every scanner clean, and startup, a world, block/item/entity rendering, **anti-aliasing**, **shaders** and **multiplayer** all working — with Indigo registering its own renderer (`[Indigo] Registering Indigo renderer!`) and Fabric API's hooks drawing through it.
 
 ### Known issues
 
 - **Conflicts with Sodium** — both are renderers; do not install them together.
 - **26.1.2 requires Java 25** — starting it on Java 21 fails before the game window appears. That is the game's own requirement, not this mod's; the 1.21.x jars work on Java 21.
 - **Incompatible with RyoamicLights** — OptiFine replaces the whole video settings screen (including its superclass), which makes that mod's injection fail and crashes as soon as the screen is opened. OptiFine has **built-in dynamic lights** (Video Settings → Quality → Dynamic Lights), so it is not needed. (Confirmed on the 1.20.6 port; declared the same way here.)
-- **Mods that rely on FRAPI/indigo** no longer get indigo's custom rendering; terrain is rendered by OptiFine. Fabric's renderer API is present but backed by a placeholder, so the F3 "Renderer:" line shows `OptifineRendererPlaceholder`.
-- **Two Fabric API hooks are intentionally inert**: the `BEFORE_BLOCK_OUTLINE` event does not fire (the outline is still drawn), and the Fabric renderer's moving-block hook is bypassed (moving blocks are drawn by the vanilla path). On 26.1.2 the block-model submit hook is redirected the same way, and moving blocks are submitted from this mod's own render phase.
+- **Mods that rely on FRAPI/indigo**: on the **1.21.x** line they no longer get Indigo's custom rendering — OptiFine renders the terrain, and Fabric's renderer API is backed by a placeholder, so the F3 "Renderer:" line shows `OptifineRendererPlaceholder`. On **26.1.2** it is the other way round: Indigo registers its own renderer and Fabric API's hooks draw through it, so the F3 line shows `IndigoRenderer`.
+- **Two Fabric API hooks are intentionally inert**: the `BEFORE_BLOCK_OUTLINE` event does not fire (the outline is still drawn), and the Fabric renderer's moving-block hook is bypassed (moving blocks are drawn by the vanilla path). On 26.1.2 the moving-block and block-model submit hooks are redirected the same way, so those two submits are drawn by the vanilla/OptiFine path; the block-breaking overlay path is untouched and does go through Fabric's renderer.
 - **OptiFine cannot see resources inside Fabric mods** — you will see `Unknown resource pack type: ...ModNioResourcePack` in the log. This is a limitation on OptiFine's side.
 - Shader packs log warnings like `Unknown macro value: IRIS_VERSION` or `ParseException: Model variable not found: ...`; those come from the shader pack, not from this mod.
 
@@ -244,7 +245,8 @@ Fabric API 可以一起加载(本模组专门针对它做过适配;每个版本�
 - OptiFine 还掏空了 `ModelManager` 的烘焙 lambda、`ScreenEffectRenderer.getViewBlockingState`、`CuboidItemModelWrapper.update` → 一律补回原版方法体(`update` 同样要顺带丢掉原版已删的重载);
 - 区块对象被换成 OptiFine 自己的 `ChunkOF` → 按**官方名**插入惰性标记,让依赖 `LevelChunk` 的注入点重新存在;
 - Fabric 的渲染器 API 这一版搬到了 `api.client.renderer.v1` → 新旧两个包名依次回退;占位实现也改成**生成惰性桩**(链式调用返回 `this`、getter 返回惰性对象),不再一个方法一个方法地补,杜绝"渲染到一半抛异常";
-- **抗锯齿的修法在那边正好相反**:26.x 是从 `post_effect/` 读后处理链的,而 1.21.x 的修法恰恰是**删掉**那个文件 —— 照搬过去就会把抗锯齿弄坏。
+- **抗锯齿的修法在那边正好相反**:26.x 是从 `post_effect/` 读后处理链的,而 1.21.x 的修法恰恰是**删掉**那个文件 —— 照搬过去就会把抗锯齿弄坏;
+- **最安静的一条(它从不崩)**:从 1.21.x 继承过来的 `fabric-renderer-api-v1:contains_renderer` 让位键,在这一线关掉的正是 Fabric API 一直要用的那个渲染器 —— 26.1.2 的 indigo 已经不是地形渲染器(地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己,它只剩一条物品 mixin 和两个 accessor),键没有东西可"让"了,于是模组生成的网格进了惰性占位:**看不见,而且不报错**。现在这一线不再声明该键,由 Indigo 注册自己的 `IndigoRenderer`;占位类把这个键读回来,只在它确实被声明时兜底。
 
 另外,`StubInjectionTargetFix` / `CallSiteRedirectFix` 这类"按名字 + 描述符"匹配的修复器改成了**按名字匹配、描述符可选** —— 同一个方法在不同版本描述符不同(1.21.8 的 `method_62210` 收 `Camera`,1.21.11 收 `Vec3d`),写死描述符会让修复器在别的版本上静默失效。这条在 26.1.2 上更是必需:官方名下的方法形状随版本变动更频繁。
 
@@ -252,15 +254,15 @@ Fabric API 可以一起加载(本模组专门针对它做过适配;每个版本�
 
 ### 验证状态
 
-离线:支持的全部 11 个版本,每一版都把**与游戏一致的单一加载器**里的所有类逐个加载+链接,并用 JVM 验证器与 ASM 数据流验证器双向检查 —— 1.21.x 每版 425~570 个被补丁的游戏类、773~874 个 OptiFine 自身的类,26.1.2 是 567 / 879,全部通过,0 失败、0 验证器问题;再加 5 个扫描器(mixin 成员引用、`@At` 注入点、抽象契约/覆写/引用、invokedynamic 句柄),除了**已被有意停用**的 indigo 的注入点以外没有遗留。真机已完成 **1.21.11 与 26.1.2** 两条线:启动、主界面、单人世界、**多人服务器**、方块/区块/物品与实体渲染、**抗锯齿与光影**(1.21.11 用 `ComplementaryReimagined` 加载成功)、F3 调试屏;26.1.2 最近一轮会话无崩溃。1.21.11 那轮 `[ERROR]` 0 条、无崩溃报告。
+离线:支持的全部 11 个版本,每一版都把**与游戏一致的单一加载器**里的所有类逐个加载+链接,并用 JVM 验证器与 ASM 数据流验证器双向检查 —— 1.21.x 每版 425~570 个被补丁的游戏类、773~874 个 OptiFine 自身的类,26.1.2 是 567 / 879,全部通过,0 失败、0 验证器问题;再加 5 个扫描器(mixin 成员引用、`@At` 注入点、抽象契约/覆写/引用、invokedynamic 句柄):1.21.x 那条线剩下的全是**已被有意停用**的 indigo 注入点,26.1.2 则一条不剩(indigo 在那边没有被停用)。真机已完成 **1.21.11 与 26.1.2** 两条线:启动、主界面、单人世界、**多人服务器**、方块/区块/物品与实体渲染、**抗锯齿与光影**(1.21.11 用 `ComplementaryReimagined` 加载成功)、F3 调试屏;26.1.2 最近一轮会话里 Indigo 注册了真正的渲染器(`[Indigo] Registering Indigo renderer!`)、Fabric API 的钩子从它上面绘制,无崩溃。1.21.11 那轮 `[ERROR]` 0 条、无崩溃报告。
 
 ### 已知问题
 
 - **与 Sodium 冲突**:两者都是渲染器,请勿同时安装。
 - **26.1.2 必须用 Java 25**:用 Java 21 启动会在游戏窗口出现之前就失败。这是游戏本身的要求、不是本模组的限制;1.21.x 那条线的 jar 在 Java 21 上正常工作。
 - **与 RyoamicLights 不兼容**:OptiFine 把视频设置界面整个换成了自己的实现(连父类都换掉),该模组注入失败会导致开界面即崩。OptiFine **自带动态光源**(视频设置 → 品质 → 动态光源),不需要它。(该结论来自 1.20.6 移植的实测,1.21.11 沿用同样的声明。)
-- **依赖 FRAPI/indigo 的模组**不再获得 indigo 的自定义渲染(地形由 OptiFine 渲染);Fabric 的渲染器 API 由一个占位实现顶着,F3 的 `Renderer:` 一行会显示 `OptifineRendererPlaceholder`。
-- **两个 Fabric API 钩子被有意中和**:`BEFORE_BLOCK_OUTLINE` 事件不再触发(描边照画);移动方块的 FRAPI 渲染钩子失效(移动方块由原版路径正常渲染)。26.1.2 上"方块模型提交"钩子也做了同样的重定向,移动方块改由本模组自己的渲染阶段提交。
+- **依赖 FRAPI/indigo 的模组**:**1.21.x** 那条线不再获得 indigo 的自定义渲染(地形由 OptiFine 渲染),Fabric 的渲染器 API 由占位实现顶着,F3 的 `Renderer:` 一行显示 `OptifineRendererPlaceholder`;**26.1.2 上正好相反** —— Indigo 会注册自己的渲染器、Fabric API 的钩子真的从它上面画过去,F3 那行显示 `IndigoRenderer`。
+- **两个 Fabric API 钩子被有意中和**:`BEFORE_BLOCK_OUTLINE` 事件不再触发(描边照画);移动方块的 FRAPI 渲染钩子失效(移动方块由原版路径正常渲染)。26.1.2 上"移动方块提交"与"方块模型提交"两处做了同样的重定向,这两类提交由原版/OptiFine 路径绘制;方块破坏裂纹那条没有动,它确实走 Fabric 的渲染器。
 - **OptiFine 看不到 Fabric 模组内部的资源**:日志里会出现 `Unknown resource pack type: ...ModNioResourcePack`,这是 OptiFine 侧的限制。
 - 光影包会打印 `Unknown macro value: IRIS_VERSION`、`ParseException: Model variable not found: ...` 之类的警告,属光影包自身与 OptiFine 版本的匹配问题。
 
