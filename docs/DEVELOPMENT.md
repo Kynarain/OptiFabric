@@ -734,12 +734,13 @@ OptiFine 在 1.21.x 上出过构建的版本一共 **10 个**:1.21、1.21.1、1.
 ### 构建
 
 ```powershell
-.\gradlew build "-Pmc=1.21.8"      # PowerShell 里必须给参数加引号,否则 1.21.8 会被拆成 1
-.\gradlew build                     # 不带参数 = gradle.properties 里的 minecraft_version
+.\gradlew -p v1.21.x build "-Pmc=1.21.8"   # PowerShell 里必须给参数加引号,否则 1.21.8 会被拆成 1
+.\gradlew -p v1.21.x build                 # 不带参数 = v1.21.x/gradle.properties 里的 minecraft_version
 ```
 
-- 版本 → yarn 构建号的对应表在 `build.gradle` 的 `yarnBuilds`(yarn 的版本串里含版本号,必须逐个列出);加一个版本就是加一行。
-- 产物名固定为 `OptiFabric-<mod_version_base>+mc<版本>.jar`(例如 `OptiFabric-1.1.0+mc1.21.8.jar`),`mod_version_base` 在 `gradle.properties`。
+- 项目布局:`common/` 放与版本无关的源码(patcher、fixer、mod、util),`v1.21.x/` 与 `v26.x/` 是**两个独立的 Gradle 项目**,各自有 `settings.gradle`、`gradle.properties`、`build.gradle`,并把 `../common/src/main` 一起编译。26.x 是未混淆的,走另一套插件与命名,见 [`PORT_26.x.md`](PORT_26.x.md)。
+- 版本 → yarn 构建号的对应表在 `v1.21.x/build.gradle` 的 `yarnBuilds`(yarn 的版本串里含版本号,必须逐个列出);加一个版本就是加一行。
+- 产物名固定为 `OptiFabric-<mod_version_base>+mc<版本>.jar`(例如 `OptiFabric-1.1.0+mc1.21.8.jar`),`mod_version_base` 在各项目的 `gradle.properties` 里;产物在 `v1.21.x/build/libs/`。
 
 ### 每版离线验证(一条命令)
 
@@ -749,7 +750,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 
 依次做六件事,全部离线可重复:
 
-1. `gradlew build "-Pmc=<版本>"` —— 用该版本的 MC / yarn / intermediary 编译;
+1. `gradlew -p v1.21.x build "-Pmc=<版本>"` —— 用该版本的 MC / yarn / intermediary 编译;
 2. `test-downloads/version-setup.ps1` —— 从 loom 缓存取**混淆客户端 jar** 与 **intermediary 客户端 jar**,从 gradle 缓存取该版本的 **yarn 映射**,把该版本 **OptiFine 安装器**放进 harness 的游戏目录;
 3. 下载并解包该版本 **Fabric API** 的 43 个模块 jar(扫描器要读每个模块的 mixin 注解);
 4. `VerifyPatched --setup` —— 跑真实补丁管线,再对补丁类做 **JVM + ASM 双向校验**;
@@ -1148,5 +1149,5 @@ NullPointerException: Cannot read field "norm" because "multiTex" is null
 `HD_U_J9` 上单机、光影(Complementary)、抗锯齿、多人全部正常 —— 该项目最初的移植目标至此闭环。
 
 **最终成绩:十个版本里八个可用**(1.21、1.21.1、1.21.3、1.21.4、1.21.8、1.21.9、1.21.10、1.21.11),
-两个(1.21.6、1.21.7)因 OptiFine 预览构建自身缺陷按用户决定放弃。全部十版由**同一份源码**构建,
-每版一个 jar(缓存格式 24),`-Pmc=<版本>` 即可复现。
+两个(1.21.6、1.21.7)因 OptiFine 预览构建自身缺陷按用户决定放弃。全部十版由 **`v1.21.x` 项目的同一份源码**构建,
+每版一个 jar(缓存格式 24),`.\gradlew -p v1.21.x build "-Pmc=<版本>"` 即可复现。

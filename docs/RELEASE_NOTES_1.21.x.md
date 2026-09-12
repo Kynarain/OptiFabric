@@ -4,10 +4,10 @@
 
 用法:发某个版本时,把这个版本的小节整体粘进 GitHub Release 说明框(第一行作标题)以及 CurseForge 对应文件的 changelog;两个平台都支持 Markdown。想只留英文就把末尾的「中文」一行删掉。
 
-所有版本共用同一份源码(分支 `mc1.21.x`),构建方式:
+所有版本共用 `v1.21.x` 这一个项目的源码,构建方式:
 
 ```powershell
-.\gradlew build "-Pmc=1.21.10"      # PowerShell 里必须给参数加引号
+.\gradlew -p v1.21.x build "-Pmc=1.21.10"      # PowerShell 里必须给参数加引号
 ```
 
 ---

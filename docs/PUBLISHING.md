@@ -24,20 +24,20 @@
 
 ## 二、构建发布包
 
-1.21.x 全系列都从**同一条分支**(`mc1.21.x`)构建,每个版本一个 jar:
+1.21.x 全系列都从**同一个项目**(`v1.21.x/`)构建,每个版本一个 jar:
 
 ```powershell
 cd C:\Users\kynar\IdeaProjects\OptiFabric
 git checkout mc1.21.x
 foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1.21.9","1.21.10","1.21.11")) {
-	.\gradlew build "-Pmc=$v" --offline
-	Copy-Item "build\libs\OptiFabric-1.1.0+mc$v.jar" dist -Force
+	.\gradlew -p v1.21.x build "-Pmc=$v" --offline
+	Copy-Item "v1.21.x\build\libs\OptiFabric-1.1.0+mc$v.jar" dist -Force
 }
 ```
 
 （`-Pmc=` 的参数在 PowerShell 里必须加引号,否则 `1.21.8` 会被拆成 `1`。首次构建某个版本需要联网下载它的 MC/yarn/intermediary;之后可以 `--offline`。）
 
-产物在 `build\libs\`(顺手复制到 `dist\`,里面已有一份现成的):
+产物在 `v1.21.x\build\libs\`(顺手复制到 `dist\`,里面已有一份现成的):
 
 - `OptiFabric-1.1.0+mc<版本>.jar` ← **上传对应版本这个**
 - `OptiFabric-1.1.0+mc<版本>-sources.jar`(可选,一般不用发)

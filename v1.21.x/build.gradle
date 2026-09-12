@@ -2,22 +2,22 @@ plugins {
     id 'fabric-loom' version '1.17-SNAPSHOT'
 }
 
-// Which Minecraft release this build targets.
+// The 1.21.x line. Every release here is obfuscated, so each needs its own official -> intermediary mappings
+// bundled into the jar (the obfuscated names differ per version, so a wrongly built jar would remap OptiFine
+// into nonsense) - which is why one jar is always built for exactly one release. The fixers in
+// common/src/main/java/.../patcher/fixes are written against intermediary ids, which are stable across the
+// 1.21.x releases, so the same sources serve all of them.
 //
-// Every release needs its own official -> intermediary mappings bundled into the jar (the obfuscated names differ
-// per version, so a wrongly built jar would remap OptiFine into nonsense), which is why one jar is always built for
-// exactly one version. The default comes from gradle.properties and -Pmc=<version> builds another of them from the
-// same source tree:
+// The default release comes from this project's gradle.properties and -Pmc=<version> builds another one:
 //
-//   .\gradlew build -Pmc=1.21.8
+//   .\gradlew -p v1.21.x build "-Pmc=1.21.8"
 //
-// The fixers in patcher/fixes are written against intermediary ids, which are stable across the 1.21.x releases, so
-// the same sources serve all of them; what differs per version is which of them find a target and which new
-// conflicts OptiFine's build for that release brings (see docs/DEVELOPMENT.md).
+// The 26.x line is a separate project next door (v26.x) because 26.1 and newer ship unobfuscated, which is a
+// different Loom flavour and a different naming of the game - see docs/PORT_26.x.md.
 def targetMc = (project.findProperty("mc") ?: project.minecraft_version).toString()
 
-// Yarn is published per release and its build number is part of the version string, so the supported releases are
-// listed here (latest yarn build of each). Adding a release is one line.
+// Yarn is published per release and its build number is part of the version string, so the supported releases
+// are listed here (latest yarn build of each). Adding a release is one line.
 def yarnBuilds = [
         "1.21"    : "1.21+build.9",
         "1.21.1"  : "1.21.1+build.3",
@@ -34,7 +34,7 @@ def yarnBuilds = [
 def targetYarn = yarnBuilds[targetMc]
 
 if (targetYarn == null) {
-    throw new GradleException("No yarn build is listed for Minecraft " + targetMc + "; add it to yarnBuilds in build.gradle")
+    throw new GradleException("No yarn build is listed for Minecraft " + targetMc + "; add it to yarnBuilds in v1.21.x/build.gradle")
 }
 
 version = "${project.mod_version_base}+mc${targetMc}"
@@ -54,6 +54,16 @@ configurations {
     intermediaryMappings
 }
 
+// Everything that is not version specific lives in common/ and is compiled into this project as well.
+def sharedSources = file('../common/src/main')
+
+sourceSets {
+    main {
+        java.srcDirs = [new File(sharedSources, 'java'), file('src/main/java')]
+        resources.srcDirs = [new File(sharedSources, 'resources'), file('src/main/resources')]
+    }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${targetMc}"
     mappings "net.fabricmc:yarn:${targetYarn}:v2"
@@ -70,10 +80,14 @@ dependencies {
     compileOnly "org.ow2.asm:asm-analysis:${project.asm_version}"
 }
 
+def targetJavaVersion = 21
+def mixinCompatibilityLevel = "JAVA_" + targetJavaVersion
+
 processResources {
     inputs.property "version", project.version
     inputs.property "minecraft_version", targetMc
     inputs.property "loader_version", project.loader_version
+    inputs.property "mixin_compatibility_level", mixinCompatibilityLevel
     filteringCharset "UTF-8"
 
     filesMatching("fabric.mod.json") {
@@ -82,13 +96,18 @@ processResources {
                 "loader_version": project.loader_version
     }
 
+    // The shared config carries a placeholder: Mixin refuses to apply a mixin class compiled for a newer Java
+    // version than its config declares, so this line has to follow the compile release of the project.
+    filesMatching("optifabric.mixins.json") {
+        expand "mixin_compatibility_level": mixinCompatibilityLevel
+    }
+
     // Bundle the official -> intermediary mappings taken from the intermediary artifact
     from({ zipTree(configurations.intermediaryMappings.singleFile) }) {
         include "mappings/mappings.tiny"
     }
 }
 
-def targetJavaVersion = 21
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = "UTF-8"
     if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
@@ -105,7 +124,7 @@ java {
 }
 
 jar {
-    from("LICENSE.txt") {
+    from(file('../LICENSE.txt')) {
         rename { "${it}_${project.archives_base_name}" }
     }
 }
