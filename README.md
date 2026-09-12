@@ -39,6 +39,16 @@
 
 26.x 一行**只对应 26.1.2**:26.1 的其他小版本与 26.2+ 需要各自重新移植。两线的 jar 名字里都带 `mc` 版本,那是唯一的区分点,别发错。
 
+> **26.2 之后还有 OptiFine 吗?** 到 2026-09 为止**没有**:官方只出过 `26.1.2` 的 preview(`HD_U_K1` 的 pre1/pre2),
+> 26.1 / 26.1.1 / 26.1.3 / 26.2 / 26.2.1 / 26.3 都是**空列表** —— 没有 OptiFine 就没有可移植的对象,
+> 所以这条线目前只到 26.1.2。随时可以自己核一遍(**看正文是不是空数组,别只看状态码**:查不存在的版本
+> 这个接口也回 200):
+>
+> ```powershell
+> curl.exe -s "https://bmclapi2.bangbang93.com/optifine/26.2"      # -> []  没有构建
+> curl.exe -s "https://bmclapi2.bangbang93.com/optifine/26.1.2"    # -> 列出 pre1 / pre2
+> ```
+
 **26.x 这条线有自己的 mod id 与显示名**:`optifabric_reforged` / **OptiFabric Reforged**(1.21.x 仍是 `optifabric` / OptiFabric,已发布的 1.1.0 原样不动)。原因很实际:有些模组声明 `"breaks": {"optifabric": "*"}` —— LambdaBetterGrass 就是 —— 而 Fabric Loader **按 id 匹配**,只改显示名没用;用独立 id 之后这些声明不再拦 26.x。实测:上游**未经修改**的 `lambdabettergrass-2.7.2+26.1.1.jar` 现在能与本模组一起启动,更好的草与连接纹理都正常。
 
 **版本号按 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/) 走**,而且只通过一个脚本改:`.\release\version.ps1` —— 规则(什么算不兼容修改、什么算新功能)、映射表与发布前检查见 [`docs/VERSIONING.md`](docs/VERSIONING.md)。名字里的 `+mc26.1.2` 是规范的**编译信息**(§10),所以**版本号必须与 MC 版本成对写**才能定位到唯一产物。**每个 jar 的版本号描述它自己那份产物的内容**:只改了某一个 MC 版本的行为时就只用一条命令给那一个产物升版(`.\release\version.ps1 -Line 1.21.x -Mc 1.21.11 -Kind patch`),别的版本继续停在原版本号 —— 1.1.1 就是这么来的。
