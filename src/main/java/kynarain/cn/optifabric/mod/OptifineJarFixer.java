@@ -75,8 +75,7 @@ public class OptifineJarFixer {
 					+ "\\s*,\\s*\"inputs\"\\s*:\\s*(\\[[^\\[\\]]*\\])\\s*,\\s*\"output\"\\s*:\\s*\"([^\"]+)\"\\s*\\}");
 
 	/** Rewrites the two kinds of entry described above, in place. */
-	public static void fix(File jar, Path minecraftJar) throws IOException {
-		//Only the game jar is held open here: the jar being rewritten must stay untouched, or Windows refuses to
+	public static void fix(File jar, Path minecraftJar) throws IOException {		//Only the game jar is held open here: the jar being rewritten must stay untouched, or Windows refuses to
 		//replace it half way through.
 		try (ZipFile minecraft = openQuietly(minecraftJar)) {
 			ZipUtils.transformInPlace(jar, (zip, entry) -> {
