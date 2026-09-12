@@ -1,14 +1,22 @@
-# GitHub Release notes — `v1.1.0+mc1.21.11`
+# GitHub Release notes — tag `v1.1.1`(`OptiFabric-1.1.1+mc1.21.11.jar`)
 
 > 复制下面 `---` 之间的内容到 GitHub Release 的说明框里(标题用第一行)。英文在前,末尾附中文摘要。
+> 标签是**版本号本身**(`v1.1.1`,不带 `+mc`),与已发的 `v1.1.0` / `v1.2.0` / `v2.0.0` 一致;这一行要手改,
+> 其余版本号由 `release\version.ps1` 统一改写。
 
 ---
 
-## OptiFabric 1.1.0+mc1.21.11 — OptiFine on Fabric 1.21.11
+## OptiFabric 1.1.1+mc1.21.11 — OptiFine on Fabric 1.21.11
 
 Run **OptiFine** and **Fabric** in the same 1.21.11 client. Drop OptiFabric and your own OptiFine jar into `mods/`; at startup OptiFabric runs OptiFine's installer, remaps its patches into Fabric's namespace, repairs the structural conflicts with Fabric API, and hands the result to Fabric Loader's class transformer.
 
 **OptiFine is not bundled or redistributed** — bring your own `OptiFine_1.21.11_HD_U_J9.jar` (or another 1.21.11 build).
+
+### New in 1.1.1
+
+Switching to a shader pack no longer fails the resource reload (`Resource not found: minecraft:post_effect/fxaa_of_2x.json`, sometimes with `Could not find post chain with id: minecraft:fxaa_of_2x`). It was our own anti-aliasing repair: OptiFine builds since 1.21.8 stopped shipping the old `shaders/post/fxaa_of_*.json` location, so the pipeline wrote that file back and **deleted** the game's `post_effect/fxaa_of_2x.json`. On 1.21.6–1.21.10 OptiFine really does read the old location (measured), but on 1.21.11 the post chain is resolved by **the game's own loader**, which looks for `minecraft:fxaa_of_2x` under `post_effect/` — and that file was gone. 1.1.1 keeps OptiFine's own file exactly as shipped on 1.21.11, and every other release keeps the previous behaviour. The jar is built from the same source tree as the 26.x line, so that work is compiled in as well — it is gated on the runtime namespace and on what a release actually has, and on 1.21.11 (intermediary) the pipeline behaves as before, which the offline verification below re-checks in full.
+
+This jar is versioned on its own: the other nine Minecraft releases of this line stay at 1.1.0, because their content did not change (`v1.1.0` stays as published).
 
 ### Requirements
 
@@ -24,7 +32,7 @@ Run **OptiFine** and **Fabric** in the same 1.21.11 client. Drop OptiFabric and 
 ### Install
 
 1. Install a 1.21.11 Fabric client (Loader 0.19.5+).
-2. Put `OptiFabric-1.1.0+mc1.21.11.jar` **and** your OptiFine 1.21.11 jar into that version's `mods/` folder. Do **not** run OptiFine's installer — dropping the file in is enough.
+2. Put `OptiFabric-1.1.1+mc1.21.11.jar` **and** your OptiFine 1.21.11 jar into that version's `mods/` folder. Do **not** run OptiFine's installer — dropping the file in is enough.
 3. Start the game with the **Fabric** profile. The first launch spends a few seconds patching and remapping (cached afterwards under `<game dir>/.optifine/<version>/`).
 
 ### What it took for 1.21.11
@@ -57,7 +65,7 @@ OptiFine's 1.21.11 build ships its class patches as xdelta diffs, and its recomp
 
 | File | SHA-256 |
 |---|---|
-| `OptiFabric-1.1.0+mc1.21.11.jar` (865,253 bytes) | `B314887657CB78B1B4BD9A76CA1E0B57A0890C931BD9C05A3F8982D01CBE71D7` |
+| `OptiFabric-1.1.1+mc1.21.11.jar` (876446 bytes) | `9E78C98FC0FC568C453ACA880FE167545192021D16C4A2DA0E4127AC5F3A9143` |
 
 The same `v1.21.x` project also builds the other Minecraft releases OptiFine ships a 1.21.x build for — 1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.6, 1.21.7, 1.21.8, 1.21.9 and 1.21.10 — with `.\gradlew -p v1.21.x build "-Pmc=<version>"`, and each of them passes the same offline verification (see [`docs/DEVELOPMENT.md`](DEVELOPMENT.md)).
 
@@ -73,6 +81,8 @@ A port of [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric) by Mod
 
 把 OptiFine 接进 Minecraft **1.21.11** 的 Fabric。把本 jar 与自备的 `OptiFine_1.21.11_HD_U_J9.jar` 一起放进 `mods/`,用 Fabric 版本启动即可(**不需要**先运行 OptiFine 安装器);首次启动多花几秒做补丁+重映射,之后走缓存。
 
+- **1.1.1 修复**:换光影包时不再弹"重载资源失败"(旧版会报 `Resource not found: minecraft:post_effect/fxaa_of_2x.json`),
+  见上面英文段的 "New in 1.1.1";这一个 jar 单独用 1.1.1 号,1.21.x 其余九个版本仍是 1.1.0
 - 需要:Fabric Loader ≥ 0.19.5、Java 21+、客户端;Fabric API 可选(实测 0.141.6+1.21.11)
 - 离线校验:被补丁的 **570** 个游戏类与 OptiFine 自身的 **874** 个类全部通过 JVM + ASM 双向校验
 - 真机已验证:启动、主界面、单人、**多人服务器**、方块/区块/物品渲染、**光影**、F3 调试屏,`[ERROR]` 0 条

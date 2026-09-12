@@ -12,6 +12,16 @@
 #   .\release\version.ps1 -Line 26.x -Part                 # 只打印当前版本号(给别的脚本用)
 #   .\release\version.ps1 -Line 26.x -RecordDigest         # 构建之后:把产物的字节数与 SHA-256 写回文档
 #
+# 一个 jar 对应一个 MC 版本,所以"只改了某一个 MC 版本的行为"时,只给那一个产物升版,不要连累其余九个:
+#
+#   .\release\version.ps1 -Line 1.21.x -Mc 1.21.11 -Kind patch   # 1.1.0+mc1.21.11 -> 1.1.1+mc1.21.11,其余不动
+#   .\release\version.ps1 -Line 1.21.x -Mc 1.21.11               # 看那个版本的当前值
+#   .\release\version.ps1 -Line 1.21.x -Mc 1.21.11 -RecordDigest # 那个产物的尺寸与 SHA-256
+#
+# 逐 MC 版本的例外值记在 release\publish.ps1 的 $modVersions 里(发布脚本本来就要靠它取文件名),
+# 没有例外的版本仍用那条线的 gradle.properties 基数。文档里只有 "<版本>+mc<MC>" 这一串被改写,
+# 所以别的 MC 版本、别的线、以及历史版本号都不会被动到。
+#
 # 递增依据 SemVer:patch = 向下兼容的修正(minor 与 patch 归零规则见规范 §7/§8),
 # minor = 向下兼容的新功能,patch 号归零;major = 不兼容修改,次版本号与修订号都归零。
 # 新版本必须比当前版本**优先级更高**(§11),否则拒绝写入(要硬来加 -Force)。
@@ -25,6 +35,10 @@ param(
 	[string]$Kind,
 	# Set an explicit version instead of incrementing one (validated like any other).
 	[string]$Set,
+	# Version one Minecraft version's jar instead of the whole line: the override map in release\publish.ps1
+	# gets the new value and only "<version>+mc<Mc>" references are rewritten. For a fix that only changes how
+	# one release behaves - rebuilding the other nine at a new version would freeze nothing and prove nothing.
+	[string]$Mc,
 	# Print the line's current version and nothing else.
 	[switch]$Part,
 	# Show what would change without writing anything.
@@ -67,10 +81,95 @@ $documentFiles = @(
 	"release/notes/mc26.1.2.md",
 	"release/notes/mc1.21.x.md",
 	"release/notes/mc1.21.11.md",
+	"docs/RELEASE_NOTES.md",
 	"dist/README.txt"
 )
 # docs/VERSIONING.md is deliberately absent: its version numbers are examples of the rules, not statements about
 # the current release, so a bump must not rewrite them.
+
+# Reads a file the way these scripts must write it back: UTF-8, with the BOM it already had (a BOM-less .ps1 with
+# Chinese text is read as ANSI by Windows PowerShell and then fails to parse).
+function Read-ReleaseFile([string]$path) {
+	$bytes = [System.IO.File]::ReadAllBytes((Join-Path $root $path))
+	$text = [System.Text.Encoding]::UTF8.GetString($bytes)
+	if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+		$text = $text.Substring(1)
+	}
+
+	return $text
+}
+
+function Write-ReleaseFile([string]$path, [string]$text) {
+	$full = Join-Path $root $path
+	$bytes = [System.IO.File]::ReadAllBytes($full)
+	$bom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+
+	if (-not $DryRun) {
+		[System.IO.File]::WriteAllText($full, $text, (New-Object System.Text.UTF8Encoding($bom)))
+	}
+}
+
+# The Minecraft versions release\publish.ps1 iterates; that list is what decides whether a version has a jar at
+# all, so it is also the list a -Mc value has to come from (no second copy to keep in sync).
+function Get-PublishVersions {
+	$text = Read-ReleaseFile "release/publish.ps1"
+	$match = [regex]::Match($text, '(?s)\$versions\s*=\s*@\((.*?)\)')
+	if (-not $match.Success) { throw "release\publish.ps1 里找不到 `$versions 列表" }
+
+	return @([regex]::Matches($match.Groups[1].Value, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+}
+
+function Get-LineVersions([string]$line) {
+	$prefix = if ($line -eq "26.x") { '^26\.' } else { '^1\.21' }
+
+	return @(Get-PublishVersions | Where-Object { $_ -match $prefix })
+}
+
+# The per-Minecraft-version exceptions in release\publish.ps1: @{ "1.21.11" = "1.1.1" } means that jar is 1.1.1
+# while the rest of the line stays on the gradle.properties base.
+function Get-McVersionMap {
+	$text = Read-ReleaseFile "release/publish.ps1"
+	$match = [regex]::Match($text, '(?s)\$modVersions\s*=\s*@\{(.*?)\}')
+	if (-not $match.Success) { throw "release\publish.ps1 里找不到 `$modVersions 映射" }
+
+	$map = @{}
+	foreach ($pair in [regex]::Matches($match.Groups[1].Value, '"([^"]+)"\s*=\s*"([^"]+)"')) {
+		$map[$pair.Groups[1].Value] = $pair.Groups[2].Value
+	}
+
+	return $map
+}
+
+# One jar's version: its own exception if it has one, otherwise the line's base.
+function Resolve-Version([string]$line, [string]$mc) {
+	$map = Get-McVersionMap
+	if ($map.ContainsKey($mc)) { return $map[$mc] }
+
+	return Get-CurrentVersion $line
+}
+
+# Writes one jar's new version into the publish script's map, adding the key when it is not there yet.
+function Set-McVersion([string]$mc, [string]$version) {
+	$map = Get-McVersionMap
+	if ($map.ContainsKey($mc)) {
+		return Update-File "release/publish.ps1" @{ ('"' + $mc + '" = "' + $map[$mc] + '"') = ('"' + $mc + '" = "' + $version + '"') }
+	}
+
+	$text = Read-ReleaseFile "release/publish.ps1"
+	$entry = '"' + $mc + '" = "' + $version + '"'
+	$updated = [regex]::Replace($text, '(?s)(\$modVersions\s*=\s*@\{)(.*?)(\})', {
+			param($m)
+			$body = $m.Groups[2].Value.TrimEnd()
+			$body = if ($body -eq "") { ' ' + $entry + ' ' } else { $body + '; ' + $entry + ' ' }
+
+			return $m.Groups[1].Value + $body + $m.Groups[3].Value
+		}, 1)
+	if ($updated -eq $text) { throw "没能把 $mc 写进 release\publish.ps1 的 `$modVersions 映射" }
+
+	Write-ReleaseFile "release/publish.ps1" $updated
+
+	return 1
+}
 
 function Get-CurrentVersion([string]$line) {
 	$properties = Join-Path $root (Join-Path $lines[$line].project "gradle.properties")
@@ -162,8 +261,31 @@ function Update-File([string]$path, [hashtable]$pairs) {
 	return $count
 }
 
-function Get-BuiltJar([string]$line, [string]$version) {
-	$name = "$($lines[$line].artifact)-$version+mc$($lines[$line].mc).jar"
+# Same, but the search is a regular expression, so a bump can leave alone the names where this version sits inside
+# a *different*, frozen artifact: dist\README.txt keeps "archive-OptiFabric-1.1.0+mc…-live-verified…" as the
+# reference copy of an older build, and that file is literally called that.
+function Update-FilePattern([string]$path, [string]$pattern, [string]$replacement) {
+	$full = Join-Path $root $path
+	if (-not (Test-Path $full)) { return 0 }
+
+	$bytes = [System.IO.File]::ReadAllBytes($full)
+	$bom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+	$text = [System.Text.Encoding]::UTF8.GetString($bytes)
+	if ($bom) { $text = $text.Substring(1) }
+
+	$count = ([regex]::Matches($text, $pattern)).Count
+	if ($count -gt 0) {
+		$text = [regex]::Replace($text, $pattern, { param($m) $replacement })
+		if (-not $DryRun) {
+			[System.IO.File]::WriteAllText($full, $text, (New-Object System.Text.UTF8Encoding($bom)))
+		}
+	}
+
+	return $count
+}
+
+function Get-BuiltJar([string]$line, [string]$version, [string]$mc) {
+	$name = "$($lines[$line].artifact)-$version+mc$mc.jar"
 
 	return @{ name = $name; path = (Join-Path $root (Join-Path $lines[$line].project "build/libs/$name")) }
 }
@@ -177,19 +299,38 @@ if (-not $Line -and -not $RecordDigest) {
 		Write-Host ("{0,-8} 当前 {1,-10} 产物 {2}-{1}+mc{3}.jar" -f $name, $current, $lines[$name].artifact, $lines[$name].mc)
 		Write-Host ("          按 SemVer 递增:patch -> {0}   minor -> {1}   major -> {2}" -f `
 			(Next-Version $current "patch"), (Next-Version $current "minor"), (Next-Version $current "major"))
+
+		$overrides = Get-McVersionMap
+		foreach ($mc in Get-LineVersions $name) {
+			if ($overrides.ContainsKey($mc) -and $overrides[$mc] -ne $current) {
+				Write-Host ("          {0,-9} 单独用 {1,-8} 产物 {2}-{1}+mc{0}.jar" -f $mc, $overrides[$mc], $lines[$name].artifact)
+			}
+		}
 	}
 	Write-Host ""
-	Write-Host "用法见 docs\VERSIONING.md;要真改就加 -Line 与 -Kind(或 -Set)。"
+	Write-Host "用法见 docs\VERSIONING.md;要真改就加 -Line 与 -Kind(或 -Set);只改一个 MC 版本加 -Mc。"
 	return
 }
 
 if (-not $Line) { throw "-RecordDigest 需要同时给 -Line" }
 
+# -Mc picks one jar of the line; everything below then reads and writes that jar's version alone.
+if ($Mc) {
+	$allowed = Get-LineVersions $Line
+	if ($allowed -notcontains $Mc) {
+		throw "$Line 线里没有 $Mc 这个版本(可选:" + ($allowed -join ", ") + ")"
+	}
+	if ($allowed.Count -eq 1) {
+		throw "$Line 线只有一个 MC 版本($Mc):直接用 -Kind / -Set 给整条线升版"
+	}
+}
+
 # ---------------------------------------------------------------- digest mode
 
 if ($RecordDigest) {
-	$current = Get-CurrentVersion $Line
-	$jar = Get-BuiltJar $Line $current
+	$current = if ($Mc) { Resolve-Version $Line $Mc } else { Get-CurrentVersion $Line }
+	$mc = if ($Mc) { $Mc } else { $lines[$Line].mc }
+	$jar = Get-BuiltJar $Line $current $mc
 
 	if (-not (Test-Path $jar.path)) {
 		throw "还没有构建产物:$($jar.path)`n先跑 .\gradlew -p $($lines[$Line].project) build"
@@ -202,12 +343,13 @@ if ($RecordDigest) {
 	Write-Host "  $sizeText"
 	Write-Host "  SHA-256 $hash"
 
-	# Only the paragraphs that mention *this* line's artifact or version are rewritten. A blanket search for
+	# Only the paragraphs that mention *this* artifact+version are rewritten. A blanket search for
 	# "<n> 字节" would also hit the ten 1.1.0-era figures in dist\README.txt and in the changelog, which belong
-	# to the other release line - one jar per Minecraft version means those numbers are all different.
-	$artifactPattern = [regex]::Escape($lines[$Line].artifact)
-	$versionPattern = [regex]::Escape("$current+mc$($lines[$Line].mc)")
-	$sizePattern = '([\d,]{4,})(\s*字节)'
+	# to the other release line - one jar per Minecraft version means those numbers are all different. With -Mc
+	# the pattern carries the Minecraft version as well, so the nine jars of the same line stay untouched too.
+	$versionPattern = [regex]::Escape("$current+mc$mc")
+	# The unit is kept as written: the Chinese documents say "字节", docs\RELEASE_NOTES.md says "bytes".
+	$sizePattern = '([\d,]{4,})(\s*(?:字节|bytes))'
 	$hashPattern = '([0-9A-Fa-f]{64})'
 
 	$touched = 0
@@ -238,7 +380,7 @@ if ($RecordDigest) {
 			# matters: without it this also matches this release's own name, and then nothing is ever updated.
 			$otherVersion = [regex]::IsMatch($paragraph,
 				[regex]::Escape($lines[$Line].artifact) + '-(?!' + [regex]::Escape($current) + ')\d+\.\d+\.\d+[^\s`]*\+mc')
-			$mentionsCurrent = [regex]::IsMatch($paragraph, [regex]::Escape($lines[$Line].artifact) + '-' + [regex]::Escape("$current+mc")) -or
+			$mentionsCurrent = [regex]::IsMatch($paragraph, [regex]::Escape("$($lines[$Line].artifact)-$current+mc$mc")) -or
 				$paragraph -match $versionPattern
 			$matched = $mentionsCurrent -and -not $otherVersion
 
@@ -250,8 +392,8 @@ if ($RecordDigest) {
 			$previousMatched = $true
 
 			$before = $paragraph
-			$after = [regex]::Replace($before, $sizePattern, { param($m) "$size 字节" })
-			# In a markdown table the size is a bare cell next to the digest, with no "字节" after it.
+			$after = [regex]::Replace($before, $sizePattern, { param($m) "$size" + $m.Groups[2].Value })
+			# In a markdown table the size is a bare cell next to the digest, with no unit after it.
 			$after = [regex]::Replace($after, '\|\s*[\d,]{4,}\s*\|', { param($m) "| $size |" })
 			$after = [regex]::Replace($after, $hashPattern, $hash)
 			if ($after -ne $before) { $paragraphs[$i] = $after; $changes++ }
@@ -275,7 +417,7 @@ if ($RecordDigest) {
 
 # ---------------------------------------------------------------- version mode
 
-$current = Get-CurrentVersion $Line
+$current = if ($Mc) { Resolve-Version $Line $Mc } else { Get-CurrentVersion $Line }
 
 if ($Part) { Write-Output $current; return }
 
@@ -291,41 +433,66 @@ if ($order -eq 0) { throw "新版本号与当前相同($current);SemVer §3:已�
 if ($order -lt 0 -and -not $Force) { throw "新版本号 $target 低于当前版本 $current(SemVer §11);确实要降就加 -Force" }
 if ($new.build) { Write-Host "提示:版本号里带了编译信息(+$($new.build));按 §10 它不参与优先级比较。" }
 
-Write-Host "版本号:$current -> $target  ($Line 线,$($lines[$Line].project) 项目)"
+if ($Mc) {
+	Write-Host "版本号:$current -> $target  ($Line 线,$Mc 这一个版本,$($lines[$Line].project) 项目;其余版本不动)"
+} else {
+	Write-Host "版本号:$current -> $target  ($Line 线,$($lines[$Line].project) 项目)"
+}
 if ($DryRun) { Write-Host "[DryRun] 不写任何文件" }
 
-# 1. the project's own version
-$properties = Join-Path $root (Join-Path $lines[$Line].project "gradle.properties")
-$count = Update-File (Join-Path $lines[$Line].project "gradle.properties") @{ "mod_version_base=$current" = "mod_version_base=$target" }
-Write-Host ("  {0,-45} {1} 处" -f "$($lines[$Line].project)/gradle.properties", $count)
-
-# 2. the release script's per-line version map (and its default for the 1.21.x line)
-$publishPairs = @{}
-if ($Line -eq "26.x") {
-	$publishPairs['@{ "26.1.2" = "' + $current + '" }'] = '@{ "26.1.2" = "' + $target + '" }'
-} else {
-	$publishPairs['$defaultModVersion = "' + $current + '"'] = '$defaultModVersion = "' + $target + '"'
+# 1. the project's own version (only for a whole-line bump: with -Mc the base is what the other versions use)
+if (-not $Mc) {
+	$properties = Join-Path $root (Join-Path $lines[$Line].project "gradle.properties")
+	$count = Update-File (Join-Path $lines[$Line].project "gradle.properties") @{ "mod_version_base=$current" = "mod_version_base=$target" }
+	Write-Host ("  {0,-45} {1} 处" -f "$($lines[$Line].project)/gradle.properties", $count)
 }
-$count = Update-File "release/publish.ps1" $publishPairs
-Write-Host ("  {0,-45} {1} 处" -f "release/publish.ps1", $count)
-if ($count -eq 0) { Write-Host "    (没找到该线在 publish.ps1 里的映射,请手动确认)" }
+
+# 2. the release script's version map: one entry per Minecraft version with a version of its own, plus the
+#    1.21.x line's default for the versions that have none.
+if ($Mc) {
+	$count = Set-McVersion $Mc $target
+	Write-Host ("  {0,-45} {1} 处" -f "release/publish.ps1  (`$modVersions[""$Mc""])", $count)
+} else {
+	$publishPairs = @{}
+	if ($Line -eq "26.x") {
+		$publishPairs['@{ "26.1.2" = "' + $current + '" }'] = '@{ "26.1.2" = "' + $target + '" }'
+	} else {
+		$publishPairs['$defaultModVersion = "' + $current + '"'] = '$defaultModVersion = "' + $target + '"'
+	}
+	$count = Update-File "release/publish.ps1" $publishPairs
+	Write-Host ("  {0,-45} {1} 处" -f "release/publish.ps1", $count)
+	if ($count -eq 0) { Write-Host "    (没找到该线在 publish.ps1 里的映射,请手动确认)" }
+}
 
 # 3. every "<version>+mc" reference in the documents. Matching on the bare version covers both the artifact
-#    names (OptiFabric-Reforged-<version>+mc<mc>.jar) and the version fields of the release checklists.
+#    names (OptiFabric-Reforged-<version>+mc<mc>.jar) and the version fields of the release checklists. With -Mc
+#    the string carries the Minecraft version too, so no other jar's references (or history) can be caught. The
+#    lookbehind keeps names where this version sits inside a *different*, frozen artifact (see Update-FilePattern).
+$from = if ($Mc) { "$current+mc$Mc" } else { "$current+mc" }
+$to = if ($Mc) { "$target+mc$Mc" } else { "$target+mc" }
+$pattern = '(?<!archive-' + [regex]::Escape($lines[$Line].artifact) + '-)' + [regex]::Escape($from)
 $total = 0
 foreach ($file in $documentFiles) {
-	$count = Update-File $file @{ "$current+mc" = "$target+mc" }
+	$count = Update-FilePattern $file $pattern $to
 	if ($count -gt 0) { Write-Host ("  {0,-45} {1} 处" -f $file, $count) }
 	$total += $count
 }
 Write-Host "  文档合计 $total 处"
 
-$jar = Get-BuiltJar $Line $target
+$jar = Get-BuiltJar $Line $target $(if ($Mc) { $Mc } else { $lines[$Line].mc })
 Write-Host ""
 Write-Host "接下来:"
-Write-Host "  1. .\gradlew -p $($lines[$Line].project) build --offline"
+if ($Mc -and $Line -eq "1.21.x") {
+	Write-Host "  1. .\gradlew -p $($lines[$Line].project) build ""-Pmc=$Mc"" ""-Pmod_version_base=$target"" --offline"
+} else {
+	Write-Host "  1. .\gradlew -p $($lines[$Line].project) build --offline"
+}
 Write-Host "     -> 产物名应是 $($jar.name)"
-Write-Host "  2. .\release\version.ps1 -Line $Line -RecordDigest"
+if ($Mc) {
+	Write-Host "  2. .\release\version.ps1 -Line $Line -Mc $Mc -RecordDigest"
+} else {
+	Write-Host "  2. .\release\version.ps1 -Line $Line -RecordDigest"
+}
 Write-Host "     -> 把尺寸与 SHA-256 写回文档(dist/README.txt、CHANGELOG、release/notes/)"
 Write-Host "  3. 按 release\MANUAL_RELEASE*.md 发布;tag 名与产物名成对写,别只写版本号"
 Write-Host "  4. 已发布过的版本号不得复用(§3);内容要改就发新版本"

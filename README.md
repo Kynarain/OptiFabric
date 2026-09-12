@@ -5,7 +5,8 @@
 让 **Fabric Loader** 与 **OptiFine** 在同一客户端共存。把 OptiFine 的 jar 丢进 `mods/`,OptiFabric 会在游戏启动时给原版客户端打补丁、重映射命名空间,并把结果接到 Fabric 的类加载流程里。
 
 - 两条**独立**发布线(jar 不能互相替代):
-  - **1.21.x** —— Minecraft 1.21 ~ 1.21.11(OptiFine 出过构建的全部 10 个版本),产物 `OptiFabric-1.1.0+mc1.21.x.jar`;
+  - **1.21.x** —— Minecraft 1.21 ~ 1.21.11(OptiFine 出过构建的全部 10 个版本),产物 `OptiFabric-1.1.0+mc1.21.x.jar`
+    (**1.21.11 现在是 `1.1.1`**:只修了那一个版本的抗锯齿后处理链,其余九个内容没变、仍停在 1.1.0);
   - **26.x** —— Minecraft 26.1.2。**26.1 起游戏未混淆**,官方名即运行名,没有 yarn、也没有真正的 intermediary 可重映射,因此走另一套构建与运行期路径,产物 `OptiFabric-Reforged-2.0.0+mc26.1.2.jar`(移植记录见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md))。
 - 目标环境:两条线都要求 Fabric Loader **≥ 0.19.5** 与**客户端**;1.21.x 用 **Java 21+**,**26.1.2 要求 Java 25**(该版本自身的硬要求)
 - 实测搭配:**(1.21.11)** Fabric API `0.141.6+1.21.11` + OptiFine `1.21.11 HD_U J9`;**(26.1.2)** Fabric API `0.155.3+26.1.2` + `preview_OptiFine_26.1.2_HD_U_K1_pre2`
@@ -28,9 +29,9 @@
 | 1.21.8 | `OptiFabric-1.1.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | **已实测正常(多人崩溃已修)** |
 | 1.21.9 | `OptiFabric-1.1.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | **已实测正常(含抗锯齿)** |
 | 1.21.10 | `OptiFabric-1.1.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | **已实测正常(含抗锯齿)** |
-| 1.21.11 | `OptiFabric-1.1.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` | **已实测正常** |
+| 1.21.11 | `OptiFabric-1.1.1+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` | **已实测正常**(1.1.1 修掉换光影包时的"重载资源失败") |
 
-**26.x 线**(项目 `v26.x/`,版本基数 1.2.1):
+**26.x 线**(项目 `v26.x/`,版本基数 2.0.0):
 
 | Minecraft | 产出的 jar | OptiFine 构建 | Java | 真机验证 |
 |---|---|---|---|---|
@@ -40,15 +41,17 @@
 
 **26.x 这条线有自己的 mod id 与显示名**:`optifabric_reforged` / **OptiFabric Reforged**(1.21.x 仍是 `optifabric` / OptiFabric,已发布的 1.1.0 原样不动)。原因很实际:有些模组声明 `"breaks": {"optifabric": "*"}` —— LambdaBetterGrass 就是 —— 而 Fabric Loader **按 id 匹配**,只改显示名没用;用独立 id 之后这些声明不再拦 26.x。实测:上游**未经修改**的 `lambdabettergrass-2.7.2+26.1.1.jar` 现在能与本模组一起启动,更好的草与连接纹理都正常。
 
-**版本号按 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/) 走**,而且只通过一个脚本改:`.\release\version.ps1` —— 规则(什么算不兼容修改、什么算新功能)、映射表与发布前检查见 [`docs/VERSIONING.md`](docs/VERSIONING.md)。名字里的 `+mc26.1.2` 是规范的**编译信息**(§10),所以**版本号必须与 MC 版本成对写**才能定位到唯一产物。
+**版本号按 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/) 走**,而且只通过一个脚本改:`.\release\version.ps1` —— 规则(什么算不兼容修改、什么算新功能)、映射表与发布前检查见 [`docs/VERSIONING.md`](docs/VERSIONING.md)。名字里的 `+mc26.1.2` 是规范的**编译信息**(§10),所以**版本号必须与 MC 版本成对写**才能定位到唯一产物。**每个 jar 的版本号描述它自己那份产物的内容**:只改了某一个 MC 版本的行为时就只用一条命令给那一个产物升版(`.\release\version.ps1 -Line 1.21.x -Mc 1.21.11 -Kind patch`),别的版本继续停在原版本号 —— 1.1.1 就是这么来的。
 
-OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。1.21.x 这 10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。**1.21.x 表里真机一列是 2026-09-12 两轮装机实测的结果**,五处已定位到根因并修复:
+OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。1.21.x 这 10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。**1.21.x 表里真机一列是 2026-09-12 两轮装机实测的结果**,六处已定位到根因并修复:
 
 1. **1.21.3 / 1.21.8 的 `VerifyError`** —— 补丁管线给**未被任何 fixer 改动**的类也重算了栈帧(`MissingOverrideFix` 是全局的),合并分支类型时退化成 `java/lang/Object`,游戏拒绝加载该类。现在这类类保留 OptiFine 自己的栈帧。
 2. **1.21 / 1.21.4 的 Mixin 转换失败** —— 两类注入点被改掉了:`DelegatingConstructorFix` 内联 OptiFine 的委托构造函数时,把原版构造函数里那次 `Identifier.ofVanilla(name)` 换成了 OptiFine 的 `new Identifier(name)`(Fabric API 的 `@WrapOperation` 包的正是前者);1.21.4 上 OptiFine 把 `InGameHud` 构造函数里三条 layer 方法引用改写成了 `lambda$new$0/1/2`,而那一版 Fabric API 的自定义注入点是**按方法句柄**匹配的。现在内联照抄**原版**的转换调用,`LambdaMethodRefFix` 则把这些 lambda 改名回游戏使用的方法名(改名而非指回原版方法,是为了不丢掉 OptiFine 在这些 layer 里的附加逻辑,如 QuickInfo)。
 3. **1.21.1 的 Mixin 转换失败** —— 同一处注入点,但 OptiFine 在那里用的是**静态工厂**委托(`this(provider, Identifier.ofVanilla(id), type)`),内联 fixer 原来只认 `new Identifier(...)` 那一种形状,于是注入点留在 `this()` 之前。两种形状现在都识别。
 4. **1.21 / 1.21.3 / 1.21.4 进世界十几秒后崩**(`ChunkCacheOF.renderStart()` 收到 null)—— `RegionSectionPosFix` 在 1.21–1.21.4 上没生效:那些版本的 region 构建器收的是 `ChunkSectionPos` 对象,1.21.6 起才是打包 long,fixer 只处理后者就整段跳过了。现在两种形状都支持。
 5. **1.21.6 / 1.21.7 光影完全没反应** —— OptiFine 那两个预览构建的 `Shaders.loadShaderPack()` 在检查前写死了 `cancelled = true`,于是 `getShaderPack()` 永远不被调用,选任何包都是 `No shaderpack loaded`(1.21.8 起的构建是正常写法)。新的 `OptifineJarFixer` 在映射后的 jar 上把这两条指令删掉;**同一组件还修好了 1.21.9**:OptiFine 自带的 `post_effect/fxaa_of_{2,4}x.json` 把 `minecraft:post/blit` 当成顶点着色器,而 1.21.9 起游戏只有 `post/blit.fsh`(顶点阶段是 `core/screenquad`),后处理管线编译失败连带光影初始化失败。
+
+6. **换光影包时提示"重载资源失败"**(`Resource not found: minecraft:post_effect/fxaa_of_2x.json`,可能还带 `Could not find post chain with id: minecraft:fxaa_of_2x`)—— 这是**上一轮抗锯齿修复自己造成的**:1.21.8 起的 OptiFine 不再带老位置的 `shaders/post/fxaa_of_*.json`,管线于是补写它、并把游戏新位置的 `post_effect/fxaa_of_2x.json` 删掉(1.21.6–1.21.10 上 OptiFine 确实读老位置,实测可用);但 **1.21.11 的后处理链由游戏自己的加载器解析**,它按 `minecraft:fxaa_of_2x` 去 `post_effect/` 取文件,删掉的那份正是它要的。1.21.11 现在**原样保留** OptiFine 自带的那份文件(不补写、也不删),其余版本照旧 —— 这一版即 **1.1.1**。
 
 **唯一不属于补丁的一条**:1.21.8 / 1.21.10 上光影"加载了但渲染不对",是光影包 `photon_v1.2a.zip` 里用了 OptiFine 不认识的程序名(`gbuffers_entities/particles/block_translucent`、`gbuffers_all_translucent`,以及 Distant Horizons 用的 `dh_water`/`dh_terrain`),OptiFine 只报 `Invalid program name` 并跳过。换一个 OptiFine 专用包(例如 `ComplementaryReimagined_r5.9.1.zip`)即可验证。详见 DEVELOPMENT.md 的"第二轮真机反馈"。
 
@@ -96,7 +99,7 @@ mods/OptiFine_1.21.11_HD_U_J9.jar
 
 | 文件 | 内容 |
 |---|---|
-| `cache-format.txt` | 缓存格式版本(当前 `15`);数字与代码里不一致就整份重建 |
+| `cache-format.txt` | 缓存格式版本(当前 `25`);数字与代码里不一致就整份重建 |
 | `Optifine-mapped.jar` | 重映射后的 OptiFine(不含 MC 类),这就是加进 classpath 的 jar |
 | `Optifine.classes.gz` | 打过补丁的 MC 类缓存(ClassCache),用于下次启动直接复用 |
 

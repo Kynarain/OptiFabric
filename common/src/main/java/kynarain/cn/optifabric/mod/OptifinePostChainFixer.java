@@ -43,7 +43,28 @@ final class OptifinePostChainFixer {
 	private OptifinePostChainFixer() {
 	}
 
+	/**
+	 * Repairs the anti-aliasing chain for the releases that read it from the pre-1.21.6 location.
+	 *
+	 * <p>Unchanged behaviour: write the old-style {@code shaders/post/fxaa_of_*.json} when the build no longer
+	 * ships it, and drop the new-style {@code post_effect/fxaa_of_*.json} so only one chain runner owns the id.
+	 */
 	static void fix(File jar) throws IOException {
+		fix(jar, false);
+	}
+
+	/**
+	 * @param keepGameChains the release resolves the chain through the game's own post-chain loader, which looks
+	 *                       for {@code assets/minecraft/post_effect/fxaa_of_*.json}: that file is then left
+	 *                       exactly as OptiFine ships it, and a leftover old-style file is dropped instead.
+	 *                       Writing the old-style file on such a release is what breaks the chain - switching a
+	 *                       shader pack then reloads the resources and fails with
+	 *                       {@code Resource not found: minecraft:post_effect/fxaa_of_2x.json} followed by
+	 *                       {@code Could not find post chain with id: minecraft:fxaa_of_2x}, because the id is
+	 *                       resolved there and the old-style file is never read. See
+	 *                       {@code OptifineSetup.POST_EFFECT_RELEASES} for which releases these are.
+	 */
+	static void fix(File jar, boolean keepGameChains) throws IOException {
 		Map<String, byte[]> added = new LinkedHashMap<>();
 		Map<String, String> dropped = new LinkedHashMap<>();
 
@@ -54,6 +75,18 @@ final class OptifinePostChainFixer {
 
 				if (zip.getEntry(POST + "fxaa_" + level + ".fsh") == null) {
 					continue; // not an FXAA build
+				}
+
+				if (keepGameChains) {
+					//The game's loader owns this id on these releases, so OptiFine's own new-style file is the
+					//chain: keep it, and make sure a leftover old-style file cannot be picked up as well.
+					if (zip.getEntry(chain) != null) {
+						dropped.put(chain, effect);
+						System.out.println("[OptiFabric] Dropped " + chain + " - this release reads the chain from "
+								+ effect + " through the game's post-chain loader");
+					}
+
+					continue;
 				}
 
 				if (zip.getEntry(chain) != null) {

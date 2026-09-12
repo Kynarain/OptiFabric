@@ -1,5 +1,34 @@
 # 更新日志
 
+## 1.1.1+mc1.21.11 — 只覆盖 1.21.11 的一版(抗锯齿后处理链)
+
+> **为什么只跳一格、而且只覆盖一个 MC 版本**:1.21.x 这条线是"一份源码、每个 MC 版本一个 jar",每个 jar 的版本号
+> 描述的是**它自己那份产物的内容**(SemVer §3:已发布的版本号不能改内容,只能发新版本)。这次的行为改动只发生在
+> 1.21.11 上(判据按版本取值),其余九个 1.1.0 的 jar 内容没变、不需要重建,所以只有 1.21.11 从 1.1.0 升到 1.1.1,
+> `v1.1.0` 那个发布条目原样不动。逐 MC 版本升版只用一条命令,见 [`docs/VERSIONING.md`](docs/VERSIONING.md)。
+
+**修复:切换光影包时提示"重载资源失败"**(`Resource not found: minecraft:post_effect/fxaa_of_2x.json`,
+可能还带 `Could not find post chain with id: minecraft:fxaa_of_2x`)。
+
+根因在**我们自己那条抗锯齿修复**上:1.21.8 起的 OptiFine 构建不再带老位置的
+`assets/minecraft/shaders/post/fxaa_of_2x.json`,于是管线按老办法**补写**它、并把游戏新位置的
+`assets/minecraft/post_effect/fxaa_of_2x.json` **删掉**(1.21.6–1.21.10 上 OptiFine 确实读老位置的那条链,
+实测可用)。但 1.21.11 的后处理链已改由**游戏自己的加载器**解析 —— 它按 `minecraft:fxaa_of_2x` 去
+`post_effect/` 取文件,而那个文件被我们删了:每次资源重载(选光影包就会触发一次)都失败并弹窗。
+
+修法:1.21.11 上**原样保留** OptiFine 自带的新位置文件 —— 不补写老位置的那个,也不删它
+(`OptifinePostChainFixer.fix(jar, keepGameChains)` 的新分支);1.21.6–1.21.10 保持老做法不变。
+这个版本列表是**逐版本实测**得出的(静态特征不可用:每个 1.21.x 原版 jar 里都只有 `post_effect/` 一种位置,
+OptiFine 的类里也没有路径字面量),依据写在 `OptifineSetup.POST_EFFECT_RELEASES` 旁边。
+缓存格式号同时升到 `25`(管线产物变了),升级后首次启动会重建 `.optifine/`。
+
+**离线校验**(`powershell -File test-downloads\verify-version.ps1 -Version 1.21.11 -ModVersion 1.1.1`):
+被补丁的游戏类 **570 / 570**、OptiFine 自身的类 **874 / 874** 通过 JVM 校验,ASM 数据流验证器 **0 问题**;
+扫描器:注入点 4 条(全部属于**已停用**的 indigo)、mixin 成员引用缺失 0、契约/覆写/引用 0/0/0、invokedynamic 句柄 0 悬空。
+
+产物:`OptiFabric-1.1.1+mc1.21.11.jar` — 876446 字节
+`SHA-256: 9E78C98FC0FC568C453ACA880FE167545192021D16C4A2DA0E4127AC5F3A9143`
+
 ## 2.0.0+mc26.1.2 — 26.x 线的第二版(mod id 改名 + 实时几何)
 
 > **主版本号递增的依据**(SemVer §8,规则见 [`docs/VERSIONING.md`](docs/VERSIONING.md)):这一版把 mod id 从

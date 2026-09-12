@@ -1055,6 +1055,60 @@ NullPointerException: Cannot invoke "com.mojang.blaze3d.textures.GpuTexture.getG
 > 若哪天又出现"开了抗锯齿没效果",就是 OptiFine 没触发自己的链,下一步是把游戏管线的 uniform
 > 按链的形式补齐(ProjMat/OutSize/... 塞进 pass 的 `uniforms`),而不是再删文件。
 
+### 1.21.11 反过来:游戏那份不能删(1.1.1)
+
+用户反馈:在 1.21.11 上**换光影包**会弹"重载资源失败",控制台里是
+
+```
+Resource not found: minecraft:post_effect/fxaa_of_2x.json
+Could not find post chain with id: minecraft:fxaa_of_2x
+```
+
+而 1.1.0 的管线在 1.21.11 上对这一处**只做了一件事**:上面第 2 步 —— 把 `assets/minecraft/post_effect/fxaa_of_2x.json`
+删掉,再补写老位置的 `shaders/post/fxaa_of_2x.json`(实测:`OptiFine_1.21.11_HD_U_J9.jar` 里只有新位置的两份
+`post_effect/fxaa_of_{2,4}x.json`,没有老位置的那种)。报错文本自己说明了问题:1.21.11 解析
+`minecraft:fxaa_of_2x` 时找的是 **`post_effect/`**,被删掉的正是它要的那份;而"选光影包"会触发一次资源重载,
+于是每次都失败。
+
+也就是说,1.21.9 / 1.21.10 的那套推理("这条链该由 OptiFine 自己的运行器跑")在 1.21.11 上**正好相反** ——
+那一版的后处理链由**游戏自己的 post-chain 加载器**解析。
+
+判据能不能从静态特征上判?不能,所以这一处按**逐版本实测**记:
+
+* 每个 1.21.x 原版 client jar 里都只有 `post_effect/` 一种后处理位置(没有 `shaders/post/`),拿它区分不出 1.21.9 与 1.21.11;
+* OptiFine 的类里没有这两个路径的字面量(字符串常量池里搜不到),看不出它自己读哪儿;
+* 实测的分界是:**1.21.6–1.21.10** 上 OptiFine 读老位置(那几版的抗锯齿真机确认可用),**1.21.11** 上由游戏解析。
+
+修法(`OptifinePostChainFixer.fix(File jar, boolean keepGameChains)`):
+
+* `keepGameChains = true`(1.21.11):OptiFine 自带的新位置文件**原样保留**,既不补写老位置的,也不删它;
+  万一老位置还残留一份,顺手删掉,免得两个运行器抢同一个 id;
+* `keepGameChains = false`(默认,1.21.6–1.21.10 与其余版本):行为与从前完全一致(补老位置、删新位置)。
+
+开关在 `OptifineSetup.POST_EFFECT_RELEASES = Set.of("1.21.11")`,旁边写明了"**要加版本必须先实测**:留着 OptiFine
+原文件跑一次、再在日志里搜 `Could not find post chain`",以及启动时会打印的一行
+`[OptiFabric] Leaving OptiFine's post_effect/ files alone on 1.21.11: …`。缓存格式 24 -> **25**(产物变了)。
+
+验证(离线,一条命令):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-version.ps1 -Version 1.21.11 -ModVersion 1.1.1
+```
+
+* `Prepared 570 patched classes (0 skipped, 0 failed)`、`verified OK: 570`、`verified OK: 874`、`ASM verifier problems: 0`;
+* 扫描器:`PROBLEMS: 4`(仍然只有那 4 条属于**已停用 indigo** 的注入点)、`MISSING members: 0`、
+  `unresolvable member references: 0`、`DANGLING handles: 0`;
+* 直接对着管线产物 `Optifine-mapped.jar` 核对了条目:两份 `post_effect/fxaa_of_*.json` 在、**没有**多出
+  `shaders/post/fxaa_of_*.json` —— 与用户自己那份 `OptiFine_1.21.11_HD_U_J9.jar` 的 FXAA 条目一一对应。
+
+> 还没做的一步(要真机):换光影包 / 开关抗锯齿时不再弹"重载资源失败",以及开着抗锯齿的画面是否正常。
+> 线上表现为:控制台不再出现 `Resource not found: minecraft:post_effect/fxaa_of_2x.json` 与
+> `Could not find post chain with id: minecraft:fxaa_of_2x`。
+
+> 顺带记两条与 1.21.11 有关、**不属于本模组**的观察:手里拿着的方块在开光影时偶尔黑一下(在只装 OptiFine、
+> 不装本模组的 Forge 客户端上同样复现),以及光影包自身对 OptiFine 不认识的程序名的报错。前者建议先关动态光源
+> (`ofDynamicLights:0`)或换包再复现一次,再往 OptiFine 的 issue 里报。
+
 ## 仍待办的两项(实现细节已备齐,可直接开工)
 
 ### A. 1.21.6 / 1.21.7 启动崩溃

@@ -30,10 +30,12 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 # 1.21.x 与 26.x 是两条独立发布线,jar 与标签各发各的(见 release\MANUAL_RELEASE*.md)。
-# 版本基数也按线分:1.21.x 的 1.1.0 已经发布出去、就此冻结,26.x 从 1.2.1 起。
+# 版本基数按线分(defaultModVersion 是 1.21.x 里没有例外值的那些版本用的;26.x 只有一个版本,写在映射里)。
 $versions = @("1.21", "1.21.1", "1.21.3", "1.21.4", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11", "26.1.2")
 $defaultModVersion = "1.1.0"
-$modVersions = @{ "26.1.2" = "2.0.0" }
+# 逐 MC 版本的例外值:某个版本单独升过版就写在这里(1.21.11 的 1.1.1 = 只修它一个版本的抗锯齿后处理链)。
+# 这张表由 release\version.ps1 -Mc 维护,别手改(见 docs\VERSIONING.md 第五节)。
+$modVersions = @{ "26.1.2" = "2.0.0"; "1.21.11" = "1.1.1" }
 # 26.x 那条线的产物名也是它自己的:它的 mod id 是 optifabric_reforged(见 v26.x/build.gradle),
 # 所以 jar 名与 1.21.x 不同,发布脚本必须按线取文件名。
 $defaultArtifact = "OptiFabric"
@@ -66,7 +68,9 @@ $jar = Join-Path $root "dist\$artifact-$modVersion+mc$mc.jar"
 	$title = "$modName $modVersion+mc$mc"
 	# Which branch the tag is made on. gh would otherwise tag the default branch (main), which is not where either
 	# release line lives - the first 26.x release was tagged through the web UI and ended up pointing at main.
-	$tagTarget = if ($mc -eq "26.1.2") { "26.x" } else { "mc1.21.x" }
+	# Both projects (v1.21.x/ and v26.x/) live on the 26.x branch now, so every tag is made there; mc1.21.x is the
+	# single-project layout the ten 1.1.0 jars were built from and is kept as history only.
+	$tagTarget = "26.x"
 
 	if (-not (Test-Path $jar)) { Write-Warning "跳过 $mc :没有 $jar"; continue }
 	if (-not (Test-Path $notes)) { Write-Warning "跳过 $mc :没有 $notes"; continue }

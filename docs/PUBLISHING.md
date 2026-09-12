@@ -2,14 +2,18 @@
 
 本文档记录"把本项目发出去"需要做的步骤。仓库里已经准备好的东西、以及**你还需要自己做的部分**都写在下面。
 
-> 本仓库有**两条独立的发布线**,jar 不能互相替代,发哪条就 checkout 哪个分支构建;
-> tag 名里带 MC 版本,不会互相冲突:
+> 本仓库有**两条独立的发布线**,jar 不能互相替代:
 >
-> - **`mc1.21.x` 分支** = `1.1.0+mc1.21` … `1.1.0+mc1.21.11`(10 个版本,一份源码一个项目 `v1.21.x/`。
+> - **1.21.x 线** = `1.1.0+mc1.21` … `1.1.1+mc1.21.11`(10 个版本,一份源码一个项目 `v1.21.x/`。
 >   本文下面第三节起**以它为例**);
-> - **`26.x` 分支** = `2.0.0+mc26.1.2`(26.1 起游戏**未混淆**,是另一套构建与运行期路径,项目 `v26.x/`)。
+> - **26.x 线** = `2.0.0+mc26.1.2`(26.1 起游戏**未混淆**,是另一套构建与运行期路径,项目 `v26.x/`)。
 >   它有自己的清单 [`release/MANUAL_RELEASE_26.x.md`](../release/MANUAL_RELEASE_26.x.md) 与移植记录
 >   [`PORT_26.x.md`](PORT_26.x.md),差异见下面第二节末尾。
+>
+> **两条线的源码现在都在 `26.x` 分支上**(根目录下 `v1.21.x/` 与 `v26.x/` 两个项目,共用 `common/`),
+> 所以发布都是从 `26.x` 分支构建;`mc1.21.x` 是 1.1.0 发布时的旧布局(仓库根目录单项目),只作历史保留。
+> **发布标签是版本号本身**(已发的:`v1.1.0`、`v1.2.0`、`v2.0.0`),不带 `+mc` —— MC 版本留在产物名与标题里;
+> 1.1.0 那次的 10 个 jar 挂在同一个 `v1.1.0` 条目下,单个版本的热修(如 `v1.1.1`)另发一个条目。
 >
 > 历史:`main` 分支 = `1.1.0+mc1.20.6`(第一个发布版)。
 
@@ -42,7 +46,7 @@ Copy-Item "v26.x\build\libs\OptiFabric-Reforged-2.0.0+mc26.1.2.jar" dist -Force
 | 项目 | 位置 | 说明 |
 |---|---|---|
 | 源码仓库 | 仓库根目录 | 已配好 `.gitignore`(不含 OptiFine、测试工件、构建产物) |
-| 构建配置 | `v1.21.x/build.gradle` / `gradle.properties` | 版本号 `1.1.0+mc1.21.11`,产物名 `OptiFabric-1.1.0+mc1.21.11.jar` |
+| 构建配置 | `v1.21.x/build.gradle` / `gradle.properties` | 版本号 `1.1.1+mc1.21.11`,产物名 `OptiFabric-1.1.1+mc1.21.11.jar` |
 | 许可 | `LICENSE.txt` | MPL-2.0(上游 OptiFabric 的许可,移植必须保留) |
 | 使用者文档 | `README.md` | 原理、安装、已知问题、排查(已按 1.21.11 更新) |
 | 开发记录 | `docs/DEVELOPMENT.md` | 逐轮排查与可复现的离线校验工具(1.21.11 的 9 类崩溃都在里面) |
@@ -57,12 +61,18 @@ Copy-Item "v26.x\build\libs\OptiFabric-Reforged-2.0.0+mc26.1.2.jar" dist -Force
 
 ```powershell
 cd C:\Users\kynar\IdeaProjects\OptiFabric
-git checkout mc1.21.x
+git checkout 26.x
 foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1.21.9","1.21.10","1.21.11")) {
 	.\gradlew -p v1.21.x build "-Pmc=$v" --offline
 	Copy-Item "v1.21.x\build\libs\OptiFabric-1.1.0+mc$v.jar" dist -Force
 }
 ```
+
+> 上面那段是 **1.1.0 当时的做法**(十个版本同一个版本号)。现在每个 jar 的版本号描述它自己那份产物的内容:
+> 只改了某一个版本的行为时,先 `.\release\version.ps1 -Line 1.21.x -Mc <MC版本> -Kind patch`,
+> 再按脚本打印的那一行构建(多一个 `"-Pmod_version_base=<该版本>"`),例如 1.21.11 就是
+> `. \gradlew -p v1.21.x build "-Pmc=1.21.11" "-Pmod_version_base=1.1.1"`;规则见
+> [`VERSIONING.md`](VERSIONING.md) 第五节。
 
 （`-Pmc=` 的参数在 PowerShell 里必须加引号,否则 `1.21.8` 会被拆成 `1`。首次构建某个版本需要联网下载它的 MC/yarn/intermediary;之后可以 `--offline`。）
 
@@ -87,16 +97,21 @@ git remote add origin https://github.com/<你的用户名>/<仓库名>.git
 git push -u origin mc1.21.x     # 推当前分支;想一起带上 1.20.6 那版再 git push origin main
 ```
 
-发 Release —— **每个版本一个 tag / 一个 Release**,这样别人能按自己的游戏版本下载:
+发 Release —— 1.1.0 那次的 10 个 jar 挂在**同一个 `v1.1.0` 条目**下(每个 jar 在正文里写明它对应的 MC 版本,
+这样别人能按自己的游戏版本下载);**单个版本的热修**另发一个条目,标签就是那个版本号:
 
 ```powershell
-foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1.21.9","1.21.10","1.21.11")) {
-	git tag "v1.1.0+mc$v"
-	git push origin "v1.1.0+mc$v"
-}
+# 例:1.21.11 的 1.1.1(只改了这一个版本)
+git tag v1.1.1
+git push origin v1.1.1
 ```
 
-然后在 GitHub 网页上基于每个 tag 建 Release(`Target` 选 `mc1.21.x` 分支),把 `OptiFabric-1.1.0+mc<版本>.jar` 作为附件上传。
+然后在 GitHub 网页上基于该 tag 建 Release(`Target` 选 `26.x` 分支),把 `OptiFabric-1.1.1+mc1.21.11.jar`
+(以及 `-sources.jar`,可选)作为附件上传。仓库根目录的发布脚本也能做同样的事:
+
+```powershell
+.\release\publish.ps1 -Version 1.21.11 -DryRun   # 先看它会创建什么(不联网、不改远端)
+```
 
 > Release 文案已经写好了:
 > - 1.21 ~ 1.21.10:[`docs/RELEASE_NOTES_1.21.x.md`](RELEASE_NOTES_1.21.x.md) —— 每个版本一节,连同"全系列共用段落"一起粘;

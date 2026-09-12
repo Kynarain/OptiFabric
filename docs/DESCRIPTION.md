@@ -41,7 +41,7 @@ One jar per release, for every 1.21.x version OptiFine ships a build for — eac
 | 1.21.8 | `OptiFabric-1.1.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
 | 1.21.9 | `OptiFabric-1.1.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
 | 1.21.10 | `OptiFabric-1.1.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
-| 1.21.11 | `OptiFabric-1.1.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
+| 1.21.11 | `OptiFabric-1.1.1+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
 | **26.1.2** | `OptiFabric-Reforged-2.0.0+mc26.1.2.jar` | `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar` (**Java 25**) |
 
 (OptiFine never shipped a build for 1.21.2 or 1.21.5, so there is no jar for those.) The 1.21.x releases and 26.1.2 are **separate lines** — different build setup, different runtime path, and 26.1.2 needs **Java 25** — so their jars are not interchangeable. All of them pass the same offline verification: every patched class and every OptiFine class loaded and checked with the JVM verifier plus an ASM data-flow verifier, and five scanners on top. Live-verified on 1.21.11 and on 26.1.2.
@@ -184,7 +184,7 @@ A port of [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric) by Mod
 | 1.21.8 | `OptiFabric-1.1.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
 | 1.21.9 | `OptiFabric-1.1.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
 | 1.21.10 | `OptiFabric-1.1.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
-| 1.21.11 | `OptiFabric-1.1.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
+| 1.21.11 | `OptiFabric-1.1.1+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
 | **26.1.2** | `OptiFabric-Reforged-2.0.0+mc26.1.2.jar` | `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar`(**要 Java 25**) |
 
 (OptiFine 没出过 1.21.2 / 1.21.5 的构建,所以这两版没有对应 jar;26.1.2 不属于 1.21 序列,单独成行、单独一条发布线。)11 个版本都通过了同一套离线校验(每个补丁类与每个 OptiFine 类都在与游戏一致的单一加载器里用 JVM 验证器 + ASM 数据流验证器双向检查,再加 5 个扫描器);真机验收已完成 **1.21.11 与 26.1.2**。其余 1.21.x 版本装机实测过,发现的两处 `VerifyError`(补丁管线给未被 fixer 改动的类也重算了栈帧)已定位并修复,其余现象仍在排查,见 `docs/DEVELOPMENT.md` 文末。

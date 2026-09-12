@@ -119,8 +119,10 @@ OptiFabric/
 .\gradlew.bat -p v26.x build                              # -> BUILD SUCCESSFUL
 ```
 
-**1.21.x 未被触动**:`v1.21.x/build/libs/OptiFabric-1.1.0+mc1.21.11.jar` 与已发布的
-`dist/OptiFabric-1.1.0+mc1.21.11.jar` **逐字节相同**(SHA-256 `B3148876…BE71D7`,865253 字节)。
+**当时 1.21.x 未被触动**:做 2.0.0 那一版时,`v1.21.x/build/libs/OptiFabric-1.1.0+mc1.21.11.jar` 与已发布的
+`dist/OptiFabric-1.1.0+mc1.21.11.jar` **逐字节相同**(SHA-256 `B3148876…BE71D7`,865253 字节)——
+26.x 的改动一行都没落进 1.21.x。(那一线的 1.21.11 jar 后来单独升到 1.1.1,见
+[`DEVELOPMENT.md`](DEVELOPMENT.md) 里后处理链那一节;其余九个版本仍停在 1.1.0。)
 `v1.21.x` 仍保留 `yarnBuilds` 表与 `-Pmc=` 覆盖,所以十个 1.21.x 版本照旧从这一个项目构建。
 
 **26.x 现在也能出 jar 了**:`v26.x/build/libs/OptiFabric-1.1.0+mc26.1.2.jar`,156769 字节。

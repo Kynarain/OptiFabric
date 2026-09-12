@@ -85,11 +85,41 @@ tag 名可以带 `v` 前缀(§FAQ:「`v1.2.3` 并不是语义化版本号……�
 .\release\version.ps1 -Line 26.x -RecordDigest        # 读 build/libs 里的 jar,写回尺寸与 SHA-256
 ```
 
-## 五、发布前的检查
+## 五、只给一个 MC 版本升版(`-Mc`)
 
-- [ ] `.\release\version.ps1 -Line <线>` 显示的版本是这次要发的那个;
+1.21.x 是"一份源码、每个 MC 版本一个 jar",**每个 jar 的版本号描述它自己那份产物的内容**。所以当一次改动
+只影响其中一个 MC 版本时(判据按版本取值、或那一版的 OptiFine 行为不同),不要给整条线升版 ——
+那会逼着你把另外九个**内容没变**的 jar 也重新构建、重新发布,而它们和已发布的那份只差一个版本号;
+按 §3,已发布的 `1.1.0+mc1.21.8` 也不该被顶掉。
+
+```powershell
+# 看某一个 MC 版本现在的版本号
+.\release\version.ps1 -Line 1.21.x -Mc 1.21.11
+
+# 只给这一个产物升修订号:1.1.0+mc1.21.11 -> 1.1.1+mc1.21.11,其余九个不动
+.\release\version.ps1 -Line 1.21.x -Mc 1.21.11 -Kind patch
+.\release\version.ps1 -Line 1.21.x -Mc 1.21.11 -Set 1.1.2-beta.1   # 也可以直接指定
+
+# 构建那个产物(1.21.x 的版本基数在 gradle.properties 里,逐版本值要用 -Pmod_version_base 覆盖)
+.\gradlew -p v1.21.x build "-Pmc=1.21.11" "-Pmod_version_base=1.1.1" --offline
+
+# 把尺寸与 SHA-256 写回文档
+.\release\version.ps1 -Line 1.21.x -Mc 1.21.11 -RecordDigest
+```
+
+脚本这时候只动两处:它在 `release\publish.ps1` 的 `$modVersions` 里写下/更新 `"1.21.11" = "1.1.1"`
+(发布脚本本来就靠这张表取文件名),以及文档里 **`<该版本>+mc1.21.11`** 这一串 —— 因为字符串里带着 MC 版本,
+别的 MC 版本、别的线、历史版本号(以及 `dist\` 里那句"存档:archive-OptiFabric-1.1.0+…"的冻结文件名)都不会被碰到。
+没有逐版本值的版本仍用那条线的 `gradle.properties` 基数;26.x 只有一个 MC 版本,`-Mc` 会被拒绝(直接给整条线升版即可)。
+
+一次这样的发布就是**一个新的发布条目**,名字是那个版本号(例如 `v1.1.1`),里面只有这一个 jar 的 jar 与 sources;
+`v1.1.0` 那个条目(10 个 jar)原样保留。
+
+## 六、发布前的检查
+
+- [ ] `.\release\version.ps1 -Line <线>` 显示的版本是这次要发的那个(逐 MC 版本的例外值也会一起列出来);
 - [ ] `git status` 干净、该提交的都提交了(git tag 直接指向当前提交);
-- [ ] `.\gradlew -p <项目> build --offline` 通过;
+- [ ] `.\gradlew -p <项目> build --offline` 通过(逐版本升版时别忘 `-Pmod_version_base=<该版本>`);
 - [ ] 离线校验数字写进 CHANGELOG / release notes(见对应 `MANUAL_RELEASE*.md`);
-- [ ] `-RecordDigest` 跑过,文档里的尺寸与 SHA-256 与 `dist/` 里的 jar 一致;
+- [ ] `-RecordDigest` 跑过(逐版本升版加 `-Mc <MC版本>`),文档里的尺寸与 SHA-256 与 `dist/` 里的 jar 一致;
 - [ ] 已发布过的版本号**没有**被复用(§3);要改内容就发新版本。
