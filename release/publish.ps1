@@ -65,7 +65,7 @@ foreach ($mc in $versions) {
 	$payload = [ordered]@{
 		name           = $title
 		version_number = "1.0.0+mc$mc"
-		changelog      = (Get-Content $notes -Raw)
+		changelog      = [System.IO.File]::ReadAllText($notes, [System.Text.Encoding]::UTF8)
 		dependencies   = @()
 		game_versions  = @($mc)
 		version_type   = "release"
@@ -88,7 +88,7 @@ foreach ($mc in $versions) {
 	#CurseForge
 	$cfMeta = Join-Path $tmp "curseforge-$mc.json"
 	$meta = [ordered]@{
-		changelog     = (Get-Content $notes -Raw)
+		changelog     = [System.IO.File]::ReadAllText($notes, [System.Text.Encoding]::UTF8)
 		changelogType = "markdown"
 		displayName   = $title
 		releaseType   = "release"
