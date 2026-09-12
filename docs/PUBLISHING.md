@@ -21,9 +21,15 @@
 ```powershell
 cd C:\Users\kynar\IdeaProjects\OptiFabric
 git checkout 26.x
+.\release\version.ps1 -Line 26.x            # 版本号只走这个脚本(见 docs\VERSIONING.md)
 .\gradlew -p v26.x build --offline
-Copy-Item "v26.x\build\libs\OptiFabric-1.2.1+mc26.1.2.jar" dist -Force
+Copy-Item "v26.x\build\libs\OptiFabric-Reforged-1.2.1+mc26.1.2.jar" dist -Force
+.\release\version.ps1 -Line 26.x -RecordDigest   # 把尺寸与 SHA-256 写回文档
 ```
+
+> **版本号规则**:本项目按 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/) 定版本,`+mc<版本>` 是编译信息。
+> 什么算不兼容修改、什么算新功能、一次改动要同步哪些文件,全部写在 [`docs/VERSIONING.md`](VERSIONING.md);
+> **不要手改版本号**(一次要动 9 个文件,漏一处就文档与产物对不上)。
 
 - **没有 `-Pmc=`**:26.x 项目的目标版本就是 `v26.x/gradle.properties` 里那一个值,一个项目一个版本;
 - **Java 25**(1.21.x 是 21),发布说明里要提醒用户;

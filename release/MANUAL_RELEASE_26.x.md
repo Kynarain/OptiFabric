@@ -50,7 +50,10 @@
 
 ## 发布前自查
 
+- [ ] **版本号已按 SemVer 改好**:`.\release\version.ps1 -Line 26.x -Kind <major|minor|patch>`(规则见
+      [`docs/VERSIONING.md`](../docs/VERSIONING.md);不要手改 —— 一次要动 9 个文件);
 - [ ] `.\gradlew -p v26.x build --offline` 通过,且产物名是 `OptiFabric-Reforged-1.2.1+mc26.1.2.jar`;
+- [ ] `.\release\version.ps1 -Line 26.x -RecordDigest` 跑过,正文里的尺寸与 SHA-256 与 `dist\` 里的 jar 一致;
 - [ ] jar 里**没有** OptiFine 的类或资源、没有 `mappings/mappings.tiny`(26.x 本就不该有映射表);
 - [ ] `LICENSE.txt_OptiFabric` 在,`fabric.mod.json` 的 `license` 仍是 `MPL-2.0`;
 - [ ] `fabric.mod.json` 的 `minecraft` 是 `26.1.2`、`fabricloader` 是 `>=0.19.5`;

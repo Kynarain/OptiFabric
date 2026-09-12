@@ -40,6 +40,8 @@
 
 **26.x 这条线有自己的 mod id 与显示名**:`optifabric_reforged` / **OptiFabric Reforged**(1.21.x 仍是 `optifabric` / OptiFabric,已发布的 1.1.0 原样不动)。原因很实际:有些模组声明 `"breaks": {"optifabric": "*"}` —— LambdaBetterGrass 就是 —— 而 Fabric Loader **按 id 匹配**,只改显示名没用;用独立 id 之后这些声明不再拦 26.x。实测:上游**未经修改**的 `lambdabettergrass-2.7.2+26.1.1.jar` 现在能与本模组一起启动,更好的草与连接纹理都正常。
 
+**版本号按 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/) 走**,而且只通过一个脚本改:`.\release\version.ps1` —— 规则(什么算不兼容修改、什么算新功能)、映射表与发布前检查见 [`docs/VERSIONING.md`](docs/VERSIONING.md)。名字里的 `+mc26.1.2` 是规范的**编译信息**(§10),所以**版本号必须与 MC 版本成对写**才能定位到唯一产物。
+
 OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。1.21.x 这 10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。**1.21.x 表里真机一列是 2026-09-12 两轮装机实测的结果**,五处已定位到根因并修复:
 
 1. **1.21.3 / 1.21.8 的 `VerifyError`** —— 补丁管线给**未被任何 fixer 改动**的类也重算了栈帧(`MissingOverrideFix` 是全局的),合并分支类型时退化成 `java/lang/Object`,游戏拒绝加载该类。现在这类类保留 OptiFine 自己的栈帧。
