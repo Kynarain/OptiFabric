@@ -30,10 +30,10 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 # 1.21.x 与 26.x 是两条独立发布线,jar 与标签各发各的(见 release\MANUAL_RELEASE*.md)。
-# 版本基数也按线分:1.21.x 的 1.1.0 已经发布出去、就此冻结,26.x 从 1.2.0 起。
+# 版本基数也按线分:1.21.x 的 1.1.0 已经发布出去、就此冻结,26.x 从 1.2.1 起。
 $versions = @("1.21", "1.21.1", "1.21.3", "1.21.4", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11", "26.1.2")
 $defaultModVersion = "1.1.0"
-$modVersions = @{ "26.1.2" = "1.2.0" }
+$modVersions = @{ "26.1.2" = "1.2.1" }
 # 26.x 那条线的产物名也是它自己的:它的 mod id 是 optifabric_reforged(见 v26.x/build.gradle),
 # 所以 jar 名与 1.21.x 不同,发布脚本必须按线取文件名。
 $defaultArtifact = "OptiFabric"

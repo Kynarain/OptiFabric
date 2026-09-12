@@ -7,7 +7,7 @@
 >
 > - **`mc1.21.x` 分支** = `1.1.0+mc1.21` … `1.1.0+mc1.21.11`(10 个版本,一份源码一个项目 `v1.21.x/`。
 >   本文下面第三节起**以它为例**);
-> - **`26.x` 分支** = `1.2.0+mc26.1.2`(26.1 起游戏**未混淆**,是另一套构建与运行期路径,项目 `v26.x/`)。
+> - **`26.x` 分支** = `1.2.1+mc26.1.2`(26.1 起游戏**未混淆**,是另一套构建与运行期路径,项目 `v26.x/`)。
 >   它有自己的清单 [`release/MANUAL_RELEASE_26.x.md`](../release/MANUAL_RELEASE_26.x.md) 与移植记录
 >   [`PORT_26.x.md`](PORT_26.x.md),差异见下面第二节末尾。
 >
@@ -22,7 +22,7 @@
 cd C:\Users\kynar\IdeaProjects\OptiFabric
 git checkout 26.x
 .\gradlew -p v26.x build --offline
-Copy-Item "v26.x\build\libs\OptiFabric-1.2.0+mc26.1.2.jar" dist -Force
+Copy-Item "v26.x\build\libs\OptiFabric-1.2.1+mc26.1.2.jar" dist -Force
 ```
 
 - **没有 `-Pmc=`**:26.x 项目的目标版本就是 `v26.x/gradle.properties` 里那一个值,一个项目一个版本;
@@ -133,7 +133,7 @@ foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1
 ## 六、后续版本怎么发
 
 1. 改**该项目**的 `gradle.properties` 里的 `mod_version_base`(例如 `1.0.1`);
-2. 在 `CHANGELOG.md` 顶部加一节(写清新的版本号,例如 `1.0.1+mc1.21.11` 或 `1.2.0+mc26.1.2`);
+2. 在 `CHANGELOG.md` 顶部加一节(写清新的版本号,例如 `1.0.1+mc1.21.11` 或 `1.2.1+mc26.1.2`);
 3. 构建对应项目(1.21.x 还要带 `-Pmc=`):
    ```powershell
    .\gradlew -p v1.21.x build "-Pmc=1.21.11" --offline

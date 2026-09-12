@@ -678,7 +678,7 @@ ASM 0、OptiFine 879/0、五个扫描器全 0。
 
 选了后者:26.x 用 **`optifabric_reforged` / "OptiFabric Reforged"**(`v26.x/gradle.properties` 的
 `archives_base_name`、`build.gradle` 里注入 metadata 的 `optifabric_id`/`optifabric_name`,产物名
-`OptiFabric-Reforged-1.2.0+mc26.1.2.jar`);1.21.x 仍是 `optifabric`,已发布的 1.1.0 与 `dist/` 里那十个 jar 一个字节都不动。
+`OptiFabric-Reforged-1.2.1+mc26.1.2.jar`);1.21.x 仍是 `optifabric`,已发布的 1.1.0 与 `dist/` 里那十个 jar 一个字节都不动。
 
 效果与代价:
 

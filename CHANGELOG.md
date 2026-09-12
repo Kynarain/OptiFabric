@@ -1,6 +1,6 @@
 # 更新日志
 
-## 1.2.0+mc26.1.2 — 26.x 线的第一版(未混淆)
+## 1.2.1+mc26.1.2 — 26.x 线的第一版(未混淆)
 
 **Minecraft 26.1.2** —— 26.1 起游戏**未混淆**,这是一条与 1.21.x 完全独立的线,两边的 jar **不能互相替代**。
 
@@ -12,7 +12,7 @@
 所以另建了一张"官方名"注册表。
 
 ```powershell
-.\gradlew -p v26.x build        →  OptiFabric-Reforged-1.2.0+mc26.1.2.jar
+.\gradlew -p v26.x build        →  OptiFabric-Reforged-1.2.1+mc26.1.2.jar
 ```
 
 ### 本版修复
@@ -55,8 +55,8 @@
 (`[Indigo] Registering Indigo renderer!`),Fabric API 自己的渲染钩子从它上面绘制;**装 LambdaBetterGrass 实测:
 "更好的草"正常、连接纹理正确(光影开启)**。
 
-产物:`OptiFabric-Reforged-1.2.0+mc26.1.2.jar` — 177165 字节
-`SHA-256: 56F86125D34D6B08391159799C8C3E8451B493FF31999511ED3A21D9960311DC`
+产物:`OptiFabric-Reforged-1.2.1+mc26.1.2.jar` — 177165 字节
+`SHA-256: D7CD02A83E84D67C3D147A1DEE97D5ACAD2C6461D62D07D7EF53873D6D7E9352`
 
 ## 1.0.0+mc1.21 … 1.0.0+mc1.21.11 — 1.21.x 全系列
 
