@@ -1,4 +1,4 @@
-# OptiFabric 1.0.0+mc1.21.8
+# OptiFabric 1.1.0+mc1.21.8
 
 **Minecraft 1.21.8** / Fabric Loader 0.19.5 / Java 21+ / 需求 OptiFine `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar`
 
@@ -32,6 +32,6 @@
 
 ## 校验
 
-`OptiFabric-1.0.0+mc1.21.8.jar` — 819659 字节
+`OptiFabric-1.1.0+mc1.21.8.jar` — 819659 字节
 
-`SHA-256: 9FF796A99793897FE3B0BDA282CB8A2BEA8CA73684A25FFB189CCF178E4B1F2C`
+`SHA-256: A253CF86C1ECD6BC399EDDB0AB0DD9FFE59E59FDA51CD593C0773B6BB3C3E949`

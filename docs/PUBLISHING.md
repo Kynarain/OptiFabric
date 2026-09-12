@@ -3,8 +3,8 @@
 本文档记录"把本项目发出去"需要做的步骤。仓库里已经准备好的东西、以及**你还需要自己做的部分**都写在下面。
 
 > 本仓库现在有两条发布线:
-> - **`main` 分支** = `1.0.0+mc1.20.6`(第一个发布版)
-> - **`mc1.21.11` 分支** = `1.0.0+mc1.21.11`(当前这一版,**下面以它为例**)
+> - **`main` 分支** = `1.1.0+mc1.20.6`(第一个发布版)
+> - **`mc1.21.11` 分支** = `1.1.0+mc1.21.11`(当前这一版,**下面以它为例**)
 >
 > 两个分支都是独立可用的,发哪一版就 checkout 哪个分支构建;tag 名里带 MC 版本,不会互相冲突。
 
@@ -13,7 +13,7 @@
 | 项目 | 位置 | 说明 |
 |---|---|---|
 | 源码仓库 | 仓库根目录 | 已配好 `.gitignore`(不含 OptiFine、测试工件、构建产物) |
-| 构建配置 | `build.gradle` / `gradle.properties` | 版本号 `1.0.0+mc1.21.11`,产物名 `OptiFabric-1.0.0+mc1.21.11.jar` |
+| 构建配置 | `build.gradle` / `gradle.properties` | 版本号 `1.1.0+mc1.21.11`,产物名 `OptiFabric-1.1.0+mc1.21.11.jar` |
 | 许可 | `LICENSE.txt` | MPL-2.0(上游 OptiFabric 的许可,移植必须保留) |
 | 使用者文档 | `README.md` | 原理、安装、已知问题、排查(已按 1.21.11 更新) |
 | 开发记录 | `docs/DEVELOPMENT.md` | 逐轮排查与可复现的离线校验工具(1.21.11 的 9 类崩溃都在里面) |
@@ -31,7 +31,7 @@ cd C:\Users\kynar\IdeaProjects\OptiFabric
 git checkout mc1.21.x
 foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1.21.9","1.21.10","1.21.11")) {
 	.\gradlew build "-Pmc=$v" --offline
-	Copy-Item "build\libs\OptiFabric-1.0.0+mc$v.jar" dist -Force
+	Copy-Item "build\libs\OptiFabric-1.1.0+mc$v.jar" dist -Force
 }
 ```
 
@@ -39,8 +39,8 @@ foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1
 
 产物在 `build\libs\`(顺手复制到 `dist\`,里面已有一份现成的):
 
-- `OptiFabric-1.0.0+mc<版本>.jar` ← **上传对应版本这个**
-- `OptiFabric-1.0.0+mc<版本>-sources.jar`(可选,一般不用发)
+- `OptiFabric-1.1.0+mc<版本>.jar` ← **上传对应版本这个**
+- `OptiFabric-1.1.0+mc<版本>-sources.jar`(可选,一般不用发)
 
 每个版本发之前建议先跑一遍离线验证(大约 4 分钟一个版本):
 
@@ -53,7 +53,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 ```powershell
 cd C:\Users\kynar\IdeaProjects\OptiFabric
 git add -A
-git commit -m "OptiFabric 1.0.0+mc1.21.x: OptiFine on Fabric for 1.21 through 1.21.11"
+git commit -m "OptiFabric 1.1.0+mc1.21.x: OptiFine on Fabric for 1.21 through 1.21.11"
 git remote add origin https://github.com/<你的用户名>/<仓库名>.git
 git push -u origin mc1.21.x     # 推当前分支;想一起带上 1.20.6 那版再 git push origin main
 ```
@@ -62,12 +62,12 @@ git push -u origin mc1.21.x     # 推当前分支;想一起带上 1.20.6 那版�
 
 ```powershell
 foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1.21.9","1.21.10","1.21.11")) {
-	git tag "v1.0.0+mc$v"
-	git push origin "v1.0.0+mc$v"
+	git tag "v1.1.0+mc$v"
+	git push origin "v1.1.0+mc$v"
 }
 ```
 
-然后在 GitHub 网页上基于每个 tag 建 Release(`Target` 选 `mc1.21.x` 分支),把 `OptiFabric-1.0.0+mc<版本>.jar` 作为附件上传。
+然后在 GitHub 网页上基于每个 tag 建 Release(`Target` 选 `mc1.21.x` 分支),把 `OptiFabric-1.1.0+mc<版本>.jar` 作为附件上传。
 
 > Release 文案已经写好了:
 > - 1.21 ~ 1.21.10:[`docs/RELEASE_NOTES_1.21.x.md`](RELEASE_NOTES_1.21.x.md) —— 每个版本一节,连同"全系列共用段落"一起粘;
@@ -89,7 +89,7 @@ foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1
    - 模组加载器:**Fabric**
    - 许可:**MPL-2.0**(与上游一致,必须一致)
    - 分类建议:Optimization / Miscellaneous
-2. **上传文件**:10 个 jar **各传一个文件**,版本名用同一个格式 `1.0.0+mc<版本>`,并在文件设置里把**对应的那一个游戏版本**勾上(例如 `OptiFabric-1.0.0+mc1.21.8.jar` 只勾 1.21.8)。changelog 用 `docs/RELEASE_NOTES_1.21.x.md` 里对应那一节。
+2. **上传文件**:10 个 jar **各传一个文件**,版本名用同一个格式 `1.1.0+mc<版本>`,并在文件设置里把**对应的那一个游戏版本**勾上(例如 `OptiFabric-1.1.0+mc1.21.8.jar` 只勾 1.21.8)。changelog 用 `docs/RELEASE_NOTES_1.21.x.md` 里对应那一节。
    - 也可以先只发几个版本(1.21.1 / 1.21.4 / 1.21.8 这类用的人多),其余随时补传。
 3. **项目描述**:`docs/DESCRIPTION.md` 里给了成套文案 —— "简介"栏粘贴**简要描述**(英文在前、中文在后,CF 要求英文排最前),项目正文粘贴**详细描述**(有中文和英文两版,CF 支持 Markdown;里面已经带了"支持的版本"表)。
    GitHub 仓库的 About 也可以直接用那句简要描述。

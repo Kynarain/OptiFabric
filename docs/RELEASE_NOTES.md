@@ -1,10 +1,10 @@
-# GitHub Release notes — `v1.0.0+mc1.21.11`
+# GitHub Release notes — `v1.1.0+mc1.21.11`
 
 > 复制下面 `---` 之间的内容到 GitHub Release 的说明框里(标题用第一行)。英文在前,末尾附中文摘要。
 
 ---
 
-## OptiFabric 1.0.0+mc1.21.11 — OptiFine on Fabric 1.21.11
+## OptiFabric 1.1.0+mc1.21.11 — OptiFine on Fabric 1.21.11
 
 Run **OptiFine** and **Fabric** in the same 1.21.11 client. Drop OptiFabric and your own OptiFine jar into `mods/`; at startup OptiFabric runs OptiFine's installer, remaps its patches into Fabric's namespace, repairs the structural conflicts with Fabric API, and hands the result to Fabric Loader's class transformer.
 
@@ -24,7 +24,7 @@ Run **OptiFine** and **Fabric** in the same 1.21.11 client. Drop OptiFabric and 
 ### Install
 
 1. Install a 1.21.11 Fabric client (Loader 0.19.5+).
-2. Put `OptiFabric-1.0.0+mc1.21.11.jar` **and** your OptiFine 1.21.11 jar into that version's `mods/` folder. Do **not** run OptiFine's installer — dropping the file in is enough.
+2. Put `OptiFabric-1.1.0+mc1.21.11.jar` **and** your OptiFine 1.21.11 jar into that version's `mods/` folder. Do **not** run OptiFine's installer — dropping the file in is enough.
 3. Start the game with the **Fabric** profile. The first launch spends a few seconds patching and remapping (cached afterwards under `<game dir>/.optifine/<version>/`).
 
 ### What it took for 1.21.11
@@ -57,7 +57,7 @@ OptiFine's 1.21.11 build ships its class patches as xdelta diffs, and its recomp
 
 | File | SHA-256 |
 |---|---|
-| `OptiFabric-1.0.0+mc1.21.11.jar` (865,254 bytes) | `9419F203E51C0C567B66C359F30DC486CCF76C34625177E3765F0B72D249F3DE` |
+| `OptiFabric-1.1.0+mc1.21.11.jar` (865,253 bytes) | `B314887657CB78B1B4BD9A76CA1E0B57A0890C931BD9C05A3F8982D01CBE71D7` |
 
 The same source tree also builds the other Minecraft releases OptiFine ships a 1.21.x build for — 1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.6, 1.21.7, 1.21.8, 1.21.9 and 1.21.10 — with `.\gradlew build "-Pmc=<version>"`, and each of them passes the same offline verification (see [`docs/DEVELOPMENT.md`](DEVELOPMENT.md)).
 

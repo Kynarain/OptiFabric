@@ -6,7 +6,7 @@
 
 - 目标版本: **Minecraft 1.21 ~ 1.21.11**(OptiFine 出过构建的全部 10 个版本), Fabric Loader **≥ 0.19.5**, Java 21 及以上
 - 实测搭配(1.21.11): **Fabric API 0.141.6+1.21.11**、**OptiFine 1.21.11 HD_U J9**(build `20260205-175838`)、Java 25
-- 产物: 每个版本一个 jar,`build/libs/OptiFabric-1.0.0+mc<版本>.jar`
+- 产物: 每个版本一个 jar,`build/libs/OptiFabric-1.1.0+mc<版本>.jar`
 - 许可: **MPL-2.0**(`LICENSE.txt`),核心机制移植自 [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric)
 - 开发/验证记录(逐轮崩溃的根因、每个版本的差异、可复现的离线校验工具):[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 
@@ -14,16 +14,16 @@
 
 | Minecraft | 产出的 jar | OptiFine 构建 | 真机验证 |
 |---|---|---|---|
-| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar` | **已实测正常** |
-| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` | **已实测正常** |
-| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` | **已实测正常** |
-| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` | **已实测正常** |
-| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | **不推荐:该版 OptiFine 构建自身缺陷,启动即崩** |
-| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | **不推荐:同上** |
-| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | **已实测正常(多人崩溃已修)** |
-| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | **已实测正常(含抗锯齿)** |
-| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | **已实测正常(含抗锯齿)** |
-| 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` | **已实测正常** |
+| 1.21 | `OptiFabric-1.1.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar` | **已实测正常** |
+| 1.21.1 | `OptiFabric-1.1.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` | **已实测正常** |
+| 1.21.3 | `OptiFabric-1.1.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` | **已实测正常** |
+| 1.21.4 | `OptiFabric-1.1.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` | **已实测正常** |
+| 1.21.6 | `OptiFabric-1.1.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | **不推荐:该版 OptiFine 构建自身缺陷,启动即崩** |
+| 1.21.7 | `OptiFabric-1.1.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | **不推荐:同上** |
+| 1.21.8 | `OptiFabric-1.1.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | **已实测正常(多人崩溃已修)** |
+| 1.21.9 | `OptiFabric-1.1.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | **已实测正常(含抗锯齿)** |
+| 1.21.10 | `OptiFabric-1.1.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | **已实测正常(含抗锯齿)** |
+| 1.21.11 | `OptiFabric-1.1.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` | **已实测正常** |
 
 OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。上表**真机一列是 2026-09-12 两轮装机实测的结果**,五处已定位到根因并修复:
 
@@ -89,7 +89,7 @@ mods/OptiFine_1.21.11_HD_U_J9.jar
    ```
    gradlew build "-Pmc=1.21.11"     # 换成你要的版本;不带 -Pmc 则构建默认版本
    ```
-3. **安装**:把**对应版本**的 `build/libs/OptiFabric-1.0.0+mc<版本>.jar` 和 OptiFine 的 jar 一起放进 **该 Fabric 版本自己的 `mods` 目录**。**不要**同时放两份 OptiFine(会报 `DUPLICATED`),也不要放错版本的 OptiFabric jar(jar 里的映射表是绑定版本的)。
+3. **安装**:把**对应版本**的 `build/libs/OptiFabric-1.1.0+mc<版本>.jar` 和 OptiFine 的 jar 一起放进 **该 Fabric 版本自己的 `mods` 目录**。**不要**同时放两份 OptiFine(会报 `DUPLICATED`),也不要放错版本的 OptiFabric jar(jar 里的映射表是绑定版本的)。
    - PCL2/HMCL 若开启了**版本隔离**,游戏目录是 `versions/<版本名>/`,mods 目录也在那里;`.optifine/` 缓存同样会建在版本目录下。没开隔离才是 `.minecraft/mods`。
    - 用 **Fabric 版本**启动,不要用启动器装的 `1.21.x-OptiFine_xxx` 版本(那个是启动器自己在启动时注入 OptiFine,会和本模组重复)。
 4. **启动**:首次启动会多花几秒(实测 5–7 秒)做补丁+重映射(控制台里会看到 `[OptiFabric]` 前缀的输出),之后走缓存(1–2 秒)。成功的标志:标题界面出现 OptiFine 版本号,视频设置里出现 OptiFine 选项。

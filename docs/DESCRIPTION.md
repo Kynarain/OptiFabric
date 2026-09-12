@@ -4,7 +4,7 @@
 
 > ⚠️ CurseForge 审核规则:描述与简介**可以有其它语言,但英文必须排在其前面**。所以本文件把英文放在前两节、中文放后两节;往 CF 粘贴时,每个字段里都先贴英文、再贴中文即可(只想用英文就只贴英文那节)。
 > 另:简介(S) 建议不超过一句,用每个语言里的"一句版"最稳。
-> 本文件对应 **Minecraft 1.21.11** 版本(`OptiFabric-1.0.0+mc1.21.11.jar`)。
+> 本文件对应 **Minecraft 1.21.11** 版本(`OptiFabric-1.1.0+mc1.21.11.jar`)。
 
 ---
 
@@ -32,16 +32,16 @@ One jar per release (each carries that release's mappings), for every 1.21.x ver
 
 | Minecraft | OptiFabric file | OptiFine build |
 |---|---|---|
-| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar` (preview only) |
-| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` |
-| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
-| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
-| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
-| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
-| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
-| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
-| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
-| 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
+| 1.21 | `OptiFabric-1.1.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar` (preview only) |
+| 1.21.1 | `OptiFabric-1.1.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` |
+| 1.21.3 | `OptiFabric-1.1.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
+| 1.21.4 | `OptiFabric-1.1.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
+| 1.21.6 | `OptiFabric-1.1.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
+| 1.21.7 | `OptiFabric-1.1.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
+| 1.21.8 | `OptiFabric-1.1.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
+| 1.21.9 | `OptiFabric-1.1.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
+| 1.21.10 | `OptiFabric-1.1.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
+| 1.21.11 | `OptiFabric-1.1.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
 
 (OptiFine never shipped a build for 1.21.2 or 1.21.5, so there is no jar for those.) All ten pass the same offline verification — every patched class and every OptiFine class loaded and checked with the JVM verifier plus an ASM data-flow verifier, and five scanners on top; live-verified on 1.21.11 so far.
 
@@ -159,16 +159,16 @@ A port of [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric) by Mod
 
 | Minecraft | OptiFabric 文件 | OptiFine 构建 |
 |---|---|---|
-| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) |
-| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` |
-| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
-| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
-| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
-| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
-| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
-| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
-| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
-| 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
+| 1.21 | `OptiFabric-1.1.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) |
+| 1.21.1 | `OptiFabric-1.1.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` |
+| 1.21.3 | `OptiFabric-1.1.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
+| 1.21.4 | `OptiFabric-1.1.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
+| 1.21.6 | `OptiFabric-1.1.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
+| 1.21.7 | `OptiFabric-1.1.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
+| 1.21.8 | `OptiFabric-1.1.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
+| 1.21.9 | `OptiFabric-1.1.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
+| 1.21.10 | `OptiFabric-1.1.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
+| 1.21.11 | `OptiFabric-1.1.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
 
 (OptiFine 没出过 1.21.2 / 1.21.5 的构建,所以这两版没有对应 jar。)10 个版本都通过了同一套离线校验(每个补丁类与每个 OptiFine 类都在与游戏一致的单一加载器里用 JVM 验证器 + ASM 数据流验证器双向检查,再加 5 个扫描器);真机验收目前只有 1.21.11 完成 —— 其余版本装机实测过,发现的两处 `VerifyError`(补丁管线给未被 fixer 改动的类也重算了栈帧)已定位并修复,其余现象仍在排查,见 `docs/DEVELOPMENT.md` 文末。
 

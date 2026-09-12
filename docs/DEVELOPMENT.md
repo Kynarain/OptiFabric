@@ -702,7 +702,7 @@ java -cp ... VerifyPatched --verify-jar <Optifine-mapped.jar> <vanilla intermedi
 
 ### 全新安装模拟(与用户操作一致)
 
-在一个空目录里只放两个 jar(`OptiFabric-1.0.0+mc1.21.11.jar` + 官方命名的 `OptiFine_1.21.11_HD_U_J9.jar`),跑完整补丁管线:
+在一个空目录里只放两个 jar(`OptiFabric-1.1.0+mc1.21.11.jar` + 官方命名的 `OptiFine_1.21.11_HD_U_J9.jar`),跑完整补丁管线:
 
 ```
 首次补丁耗时 6.7 秒
@@ -739,7 +739,7 @@ OptiFine 在 1.21.x 上出过构建的版本一共 **10 个**:1.21、1.21.1、1.
 ```
 
 - 版本 → yarn 构建号的对应表在 `build.gradle` 的 `yarnBuilds`(yarn 的版本串里含版本号,必须逐个列出);加一个版本就是加一行。
-- 产物名固定为 `OptiFabric-<mod_version_base>+mc<版本>.jar`(例如 `OptiFabric-1.0.0+mc1.21.8.jar`),`mod_version_base` 在 `gradle.properties`。
+- 产物名固定为 `OptiFabric-<mod_version_base>+mc<版本>.jar`(例如 `OptiFabric-1.1.0+mc1.21.8.jar`),`mod_version_base` 在 `gradle.properties`。
 
 ### 每版离线验证(一条命令)
 
