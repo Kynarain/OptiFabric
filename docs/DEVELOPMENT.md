@@ -1143,3 +1143,10 @@ NullPointerException: Cannot read field "norm" because "multiTex" is null
 
 每版一条命令验证,断言必须包含 `Prepared … (0 skipped, 0 failed)`、`verified OK`、`ASM verifier problems: 0`、扫描器三列 0,
 且日志里不得出现 `Failed to prepare` / `define failed`。产物变了就抬 `CACHE_FORMAT`(现为 **24**),否则 harness 会复用旧缓存而看不到改动。
+### 1.21.11 真机确认(最后一个待复测版本)
+
+`HD_U_J9` 上单机、光影(Complementary)、抗锯齿、多人全部正常 —— 该项目最初的移植目标至此闭环。
+
+**最终成绩:十个版本里八个可用**(1.21、1.21.1、1.21.3、1.21.4、1.21.8、1.21.9、1.21.10、1.21.11),
+两个(1.21.6、1.21.7)因 OptiFine 预览构建自身缺陷按用户决定放弃。全部十版由**同一份源码**构建,
+每版一个 jar(缓存格式 24),`-Pmc=<版本>` 即可复现。
