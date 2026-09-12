@@ -46,6 +46,7 @@ public class OptifineFixer {
 		//fabric-screen-api-v1's KeyboardMixin injects into - so the fixer is registered again, now skipping the
 		//methods a release does not have instead of throwing over them.
 		registerFix("class_309", new KeyboardFix());
+		registerFix("class_1043", new GpuTextureLinkFix());
 
 		//net/minecraft/client/texture/SpriteAtlasTexture
 		registerFix("class_1059", new SpriteAtlasTextureFix());
@@ -196,7 +197,10 @@ public class OptifineFixer {
 	}
 
 	private void registerFix(String className, ClassFixer classFixer) {
-		classFixes.computeIfAbsent(RemappingUtils.getClassName(className), s -> new ArrayList<>()).add(classFixer);
+		//RemappingUtils prefixes "net.minecraft." - right for intermediary names and renames, wrong for the classes
+		//that keep their Mojang name (com/mojang/...), which the lookup asks for verbatim.
+		String key = className.indexOf('/') >= 0 ? className : RemappingUtils.getClassName(className);
+		classFixes.computeIfAbsent(key, s -> new ArrayList<>()).add(classFixer);
 	}
 
 	/** A class OptiFine does not patch, but that still needs one of our fixers (Fabric API injects into it). */
