@@ -170,7 +170,7 @@ A port of [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric) by Mod
 | 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
 | 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
 
-(OptiFine 没出过 1.21.2 / 1.21.5 的构建,所以这两版没有对应 jar。)10 个版本都通过了同一套离线校验(每个补丁类与每个 OptiFine 类都在与游戏一致的单一加载器里用 JVM 验证器 + ASM 数据流验证器双向检查,再加 5 个扫描器);真机验收目前只有 1.21.11 完成。
+(OptiFine 没出过 1.21.2 / 1.21.5 的构建,所以这两版没有对应 jar。)10 个版本都通过了同一套离线校验(每个补丁类与每个 OptiFine 类都在与游戏一致的单一加载器里用 JVM 验证器 + ASM 数据流验证器双向检查,再加 5 个扫描器);真机验收目前只有 1.21.11 完成 —— 其余版本装机实测过,发现的两处 `VerifyError`(补丁管线给未被 fixer 改动的类也重算了栈帧)已定位并修复,其余现象仍在排查,见 `docs/DEVELOPMENT.md` 文末。
 
 ### 为什么需要它
 

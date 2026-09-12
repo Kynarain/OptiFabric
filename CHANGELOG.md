@@ -61,7 +61,14 @@
 powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-version.ps1 -Version 1.21.8
 ```
 
-真机验证**目前只有 1.21.11 完成**(启动、主界面、单人、多人、方块/区块/物品渲染、光影、F3,`[ERROR]` 0 条);其余 9 个版本已通过全部离线校验,等待真机验收。
+真机验证只有 **1.21.11 完成**(启动、主界面、单人、多人、方块/区块/物品渲染、光影、F3,`[ERROR]` 0 条)。其余 9 个版本已通过全部离线校验并装机实测过,结果是:
+
+- **1.21.3 / 1.21.8** 崩在 `VerifyError: Bad type on operand stack in putfield`(`EntityRenderDispatcher.renderHitbox`、`ShoulderParrotFeatureRenderer.render`)。根因不在 fixer 上,而在管线自己:**未被任何 fixer 改动**的类也被重算栈帧(`MissingOverrideFix` 是全局的,于是全部 ~500 个补丁类都走了 `COMPUTE_FRAMES`),合并分支类型时退化成 `java/lang/Object`,游戏拒绝加载该类。现在这类类原样保留 OptiFine(经 tiny-remapper)的栈帧,只有真被改动的类才重算;`getCommonSuperClass` 退化时会打日志,验证器也不再依赖类加载顺序。**已修,待复测。**
+- **1.21 / 1.21.4** 崩在 `RuntimeException: Mixin transformation of net.minecraft.class_X failed`(Mixin 不把原因写进 `latest.log`,需启动器控制台输出或 `-Dmixin.debug.verbose=true`);
+- **1.21.6 / 1.21.7** 在 Mojang 徽标之后黑屏(日志里没有任何 `[ERROR]`,图集/声音/OptiFine 都正常加载);
+- **1.21.9 / 1.21.10** 光影不加载或渲染异常(`Failed to parse post chain … No key fragment_shader`)。
+
+后三类暂无指向本项目字节码的证据,需要上面列出的证据(控制台输出、黑屏期间的 `jstack`)继续定位;详见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) 文末。
 
 ---
 

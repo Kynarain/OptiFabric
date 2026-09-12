@@ -764,18 +764,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 
 | MC | OptiFine 目标构建 | 补丁类(JVM+ASM) | OptiFine 类(JVM+ASM) | @At | Refmap 缺失 | 契约扫描 | Lambda 句柄 | 真机 |
 |---|---|---|---|---|---|---|---|---|
-| 1.21 | `preview_..._J1_pre9` | 440/440 ✅ | 773/773 ✅ | 3(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
-| 1.21.1 | `OptiFine_1.21.1_HD_U_J1` | 425/425 ✅ | 783/783 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
-| 1.21.3 | `OptiFine_1.21.3_HD_U_J2` | 440/440 ✅ | 816/816 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
-| 1.21.4 | `OptiFine_1.21.4_HD_U_J3` | 474/474 ✅ | 812/812 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
-| 1.21.6 | `preview_..._J6_pre3` | 487/487 ✅ | 820/820 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
-| 1.21.7 | `preview_..._J6_pre7` | 500/500 ✅ | 823/823 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
-| 1.21.8 | `preview_..._J6_pre16` | 516/516 ✅ | 831/831 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
-| 1.21.9 | `preview_..._J7_pre2` | 519/519 ✅ | 832/832 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
-| 1.21.10 | `preview_..._J7_pre11` | 553/553 ✅ | 836/836 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21 | `preview_..._J1_pre9` | 440/440 ✅ | 773/773 ✅ | 3(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ 启动崩:Mixin 转换失败(原因待取) |
+| 1.21.1 | `OptiFine_1.21.1_HD_U_J1` | 425/425 ✅ | 783/783 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ 启动崩(报错未记录) |
+| 1.21.3 | `OptiFine_1.21.3_HD_U_J2` | 440/440 ✅ | 816/816 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ VerifyError → 已修,待复测 |
+| 1.21.4 | `OptiFine_1.21.4_HD_U_J3` | 474/474 ✅ | 812/812 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ 启动崩:Mixin 转换失败(原因待取) |
+| 1.21.6 | `preview_..._J6_pre3` | 487/487 ✅ | 820/820 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 徽标后黑屏(未定位) |
+| 1.21.7 | `preview_..._J6_pre7` | 500/500 ✅ | 823/823 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 徽标后黑屏(未定位) |
+| 1.21.8 | `preview_..._J6_pre16` | 516/516 ✅ | 831/831 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ VerifyError(日志)→ 已修,待复测 |
+| 1.21.9 | `preview_..._J7_pre2` | 519/519 ✅ | 832/832 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 光影不加载(未定位) |
+| 1.21.10 | `preview_..._J7_pre11` | 553/553 ✅ | 836/836 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 光影加载但渲染异常(未定位) |
 | 1.21.11 | `OptiFine_1.21.11_HD_U_J9` | 570/570 ✅ | 874/874 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ✅ 已实测 |
 
 「补丁类」= OptiFine 自己补丁的游戏类 + 本移植额外接管的类(1.21.6 及以上还多两个:`class_11681`、`class_11684`)。「OptiFine 类」= `Optifine-mapped.jar` 里 OptiFine 自身的类。两者相加就是每个版本通过 JVM 与 ASM 双向校验的类数(例:1.21.11 的 1444 个)。
+
+「真机」一列是 2026-09-12 装机实测的结果,不是推断:其中两处 `VerifyError` 已定位到根因并修复(见文末[多版本真机反馈](#多版本真机反馈2026-09-12未被-fixer-改动的类必须保留-optifine-自己的栈帧)),其余 ⚠️ 与两条"原因待取"所需的证据也列在那里。
 
 ### 逐版记录
 
@@ -819,3 +821,39 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 
 另外 `LambdaScan` 也修了一次误报:句柄指向继承自 `java/lang/Object` 的方法时(`class_3999.toString()`),继承链走到 `Object` 就断了(表里没有它),于是把合法的句柄判成 dangling。现在 `java/lang/Object` 的标准方法单独识别,遇到**其他**不认识的祖先类则记为"无法判定"(而不是有问题)。
 
+---
+
+## 多版本真机反馈(2026-09-12):未被 fixer 改动的类必须保留 OptiFine 自己的栈帧
+
+10 个版本的 jar 第一次全部装机实测,只有 1.21.11 正常。逐份 `latest.log` 看下来,能读出明确根因的那几个是**同一个**根因:
+
+```
+1.21.8   class_983.method_62593 @133  →  VerifyError: Bad type on operand stack in putfield
+                                          (java/lang/Object 不是 class_1297)
+1.21.3   class_898.method_3956 @206   →  VerifyError: Bad type on operand stack in putfield
+```
+
+`class_983` 是 `ShoulderParrotFeatureRenderer`、`class_898` 是 `EntityRenderDispatcher` —— 两个**跟 Fabric API / OptiFine 冲突毫无关系**的普通渲染类,没有任何 fixer 会碰它们。问题出在管线自己:
+
+- `patch()` 原来在跑完 fixer 之后统一重算栈帧:只要有**任意一个** fixer 报了改动,就把整个类用 `COMPUTE_FRAMES` 重新序列化;
+- 而 `MissingOverrideFix` 是**全局**的 —— 它在几乎每个类上都会报"有东西要补",于是全部 ~500 个补丁类**都**走了重算路径。本文档前面写下的设计意图("只有被 fixer 改过描述符的那几个类才重算栈帧")实际上从未生效;
+- ASM 重算栈帧要把两条分支上的类型合并,合并靠 `getCommonSuperClass`;它退化时返回 `java/lang/Object`,于是某个局部变量的类型从 `class_1297`(Entity)变成 `Object`,而下一句正是往 Entity 字段里 `putfield` → 游戏拒绝加载这个类。
+
+**为什么离线校验和 `LinkOne -Xverify:all` 都没抓到**:JVM 校验器的类型检查是**延迟**的 —— 字节码引用的类型在校验时**尚未加载**就只登记、不比较。1.21.8 那份里 `class_1297` 在链接该类时还没被加载,"Object 能否赋给 Entity"这一问被推到真正加载 Entity 时;游戏里 Entity 早就加载了,当场 VerifyError,harness 里加载顺序不同,于是全绿。这正是"离线全绿、真机必崩"的机制。
+
+修法两条:
+
+1. `OptifineInjector.patch()` 先用 `ClassWriter(0)` 序列化一遍**原始**字节再跑 fixer;**没有任何 fixer 改动**的类直接返回那份原始字节,栈帧就是 OptiFine(经 tiny-remapper 保留)的原帧,一个字节不动;只有真被改动的类才 `COMPUTE_FRAMES`;
+2. `FrameComputingWriter.getCommonSuperClass` 退化时**打日志**(`[OptiFabric] No common supertype for X and Y … java/lang/Object`),不再静默降级;`VerifyLoader.prepare()` 在链接前**先把字节码引用到的类型全部加载**,消掉 harness 对加载顺序的依赖 —— 否则它永远抓不到这类问题。
+
+复跑全系列:10 个版本都是 `Prepared N patched classes (0 skipped, 0 failed)` / `verified OK: N` / `FAILED: 0` / `ASM verifier problems: 0`,OptiFine 类 773–874 同样全通过,五个扫描器仍只剩 indigo 那几条,并且**没有出现任何一条 `No common supertype` 警告**(剩下几十个真被改动的类,类型合并都能解析出确切结果)。1.21.8 的 `class_983.method_62593` 再用 `javap` 复核:帧里已无 `java/lang/Object`。
+
+### 尚未定位的三类(下次真机复测需要的证据)
+
+| 现象 | 版本 | 需要的证据 |
+|---|---|---|
+| 启动崩:`RuntimeException: Mixin transformation of net.minecraft.class_X failed` | 1.21、1.21.4 | `latest.log` 里 Mixin **不写原因**,需要启动器控制台输出,或加 `-Dmixin.debug.verbose=true` 再跑一次 |
+| Mojang 徽标之后黑屏、进程未无响应 | 1.21.6、1.21.7 | 黑屏期间 `jstack <pid>` 一份,看 Render thread 卡在哪;以及日志里 OptiFine 着色器/后处理子系统是否报错 |
+| `[Shaders] No shaderpack loaded` + `Failed to parse post chain … No key fragment_shader` | 1.21.9、1.21.10 | 先用启动器**直接跑 OptiFine 版本**对比一次,确认是不是光影包与该 OptiFine 构建本身不匹配 |
+
+后两类目前没有指向本项目字节码的证据:1.21.9 / 1.21.10 的报错形态像是 OptiFine 的 preview 构建仍在用 1.21.6 之前的 post-effect 布局;1.21.6 / 1.21.7 的日志里连一条 `[ERROR]` 都没有(图集、声音、OptiFine 都正常加载,然后画面停在最后一帧)。

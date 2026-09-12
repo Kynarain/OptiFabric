@@ -37,6 +37,7 @@ OptiFine's 1.21.11 build ships its class patches as xdelta diffs, and its recomp
 - The same for the **moving-blocks** renderer hook, whose caller lives in *another* class — those call sites are redirected too, otherwise the hook fires from the injected copy (this one crashed multiplayer after ~30 seconds).
 - Fabric's renderer registry being empty while `contains_renderer` keeps Indigo away — an inert placeholder renderer is registered, which also stops the **F3 debug screen** from crashing.
 - Item models failing to bake (every item texture missing), chunk rendering NPEs from OptiFine's region constructor, obfuscated fields with mismatching descriptors, same-typed synthetic `this$0`/`val$…` fields, and `ChunkOF` object creation replacing Fabric's injection point.
+- Stack map frames were being recomputed for **every** patched class (the global override fixer always reports a change, so the patcher could not tell), and the merge degraded a local to `java/lang/Object` in classes as unrelated to Fabric as `ShoulderParrotFeatureRenderer` and `EntityRenderDispatcher` — the game rejects those with `VerifyError: Bad type on operand stack in putfield`. Classes no fixer modifies now keep OptiFine's own frames, and recomputation only happens where a fixer really changed the class.
 
 ### Verified
 
@@ -56,7 +57,7 @@ OptiFine's 1.21.11 build ships its class patches as xdelta diffs, and its recomp
 
 | File | SHA-256 |
 |---|---|
-| `OptiFabric-1.0.0+mc1.21.11.jar` (843,863 bytes) | `8B7874DEAA34C5DD025EB898EE0A639ACA445FECEF8A0CAE74BDA41EEF77E8BF` |
+| `OptiFabric-1.0.0+mc1.21.11.jar` (844,452 bytes) | `16D0533D0DE4B61AB2DB3DC9E0CC30FC8CA728F2BB78B20A26842FE1B3FDA2CD` |
 
 The same source tree also builds the other Minecraft releases OptiFine ships a 1.21.x build for — 1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.6, 1.21.7, 1.21.8, 1.21.9 and 1.21.10 — with `.\gradlew build "-Pmc=<version>"`, and each of them passes the same offline verification (see [`docs/DEVELOPMENT.md`](DEVELOPMENT.md)).
 

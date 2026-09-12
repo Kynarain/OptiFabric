@@ -14,18 +14,18 @@
 
 | Minecraft | 产出的 jar | OptiFine 构建 | 真机验证 |
 |---|---|---|---|
-| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) | ⏳ 待验收 |
-| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | **`OptiFine_1.21.1_HD_U_J1.jar`** | ⏳ 待验收 |
-| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | **`OptiFine_1.21.3_HD_U_J2.jar`** | ⏳ 待验收 |
-| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | **`OptiFine_1.21.4_HD_U_J3.jar`** | ⏳ 待验收 |
-| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | ⏳ 待验收 |
-| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | ⏳ 待验收 |
-| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | ⏳ 待验收 |
-| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | ⏳ 待验收 |
-| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | ⏳ 待验收 |
+| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) | ❌ 启动崩(Mixin 转换失败,原因待取) |
+| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | **`OptiFine_1.21.1_HD_U_J1.jar`** | ❌ 启动崩(报错未记录) |
+| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | **`OptiFine_1.21.3_HD_U_J2.jar`** | ❌ VerifyError → 已修,待复测 |
+| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | **`OptiFine_1.21.4_HD_U_J3.jar`** | ❌ 启动崩(Mixin 转换失败,原因待取) |
+| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | ⚠️ 徽标后黑屏(未定位) |
+| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | ⚠️ 徽标后黑屏(未定位) |
+| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | ❌ VerifyError → 已修,待复测 |
+| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | ⚠️ 光影不加载(未定位) |
+| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | ⚠️ 光影加载但渲染异常(未定位) |
 | 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | **`OptiFine_1.21.11_HD_U_J9.jar`** | ✅ 已实测 |
 
-OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md));真机验收目前只有 1.21.11 完成。
+OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。上表的**真机一列是 2026-09-12 装机实测的结果**:其中 1.21.3 / 1.21.8 的 `VerifyError` 已定位到根因 —— 补丁管线给**未被任何 fixer 改动**的类也重算了栈帧,合并类型时退化成 `java/lang/Object`,游戏拒绝加载该类 —— 现已修复(这类类保留 OptiFine 自己的栈帧),重新构建的 10 个 jar 也已放进各版本实例,等待复测;其余各项所需的证据与排查方向见 DEVELOPMENT.md 文末。
 
 **一个 jar 只能对应一个版本**:jar 里打包的是该版本的 `official→intermediary` 映射表(官方混淆名每版不同),`fabric.mod.json` 里的 `minecraft` 依赖也精确到该版本。构建任意版本:
 
