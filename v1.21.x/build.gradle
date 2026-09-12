@@ -83,17 +83,28 @@ dependencies {
 def targetJavaVersion = 21
 def mixinCompatibilityLevel = "JAVA_" + targetJavaVersion
 
+// fabric.mod.json is shared between the two lines, but its "custom" block is not. This line declares
+// "fabric-renderer-api-v1:contains_renderer" so that Indigo steps aside: IndigoMixinConfigPlugin then returns
+// false for every one of its mixins and it never registers a renderer. That is required here, because on
+// 1.21.x Indigo *is* the terrain renderer and its ChunkBuilderBuiltChunkRebuildTaskMixin targets a call that
+// OptiFine's rewrite of that loop removes - with "defaultRequire": 1 a missing injection point is fatal.
+// The 26.x line deliberately does not declare it; see v26.x/build.gradle.
+def indigoComment = "OptiFine is a terrain renderer, so Indigo must step aside. Fabric's own hook for that (Sodium declares the same value): IndigoMixinConfigPlugin.shouldApplyMixin returns false for every fabric-renderer-indigo mixin, and Indigo skips registering its renderer. Without it ChunkBuilderBuiltChunkRebuildTaskMixin fails fatally, because its @Inject targets BlockPos.iterate inside ChunkBuilder.BuiltChunk.RebuildTask.render and OptiFine's rewrite of that loop removes the call."
+def customMetadata = "\n    \"_comment\": \"" + indigoComment + "\",\n    \"fabric-renderer-api-v1:contains_renderer\": true"
+
 processResources {
     inputs.property "version", project.version
     inputs.property "minecraft_version", targetMc
     inputs.property "loader_version", project.loader_version
     inputs.property "mixin_compatibility_level", mixinCompatibilityLevel
+    inputs.property "optifabric_custom", customMetadata
     filteringCharset "UTF-8"
 
     filesMatching("fabric.mod.json") {
         expand "version": project.version,
                 "minecraft_version": targetMc,
-                "loader_version": project.loader_version
+                "loader_version": project.loader_version,
+                "optifabric_custom": customMetadata
     }
 
     // The shared config carries a placeholder: Mixin refuses to apply a mixin class compiled for a newer Java

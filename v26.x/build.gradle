@@ -54,17 +54,28 @@ dependencies {
 def targetJavaVersion = 25
 def mixinCompatibilityLevel = "JAVA_" + targetJavaVersion
 
+// fabric.mod.json is shared between the two lines, but its "custom" block is not. This line deliberately does
+// NOT declare "fabric-renderer-api-v1:contains_renderer", unlike the 1.21.x line next door: on 26.1.2 Indigo
+// is no longer a terrain renderer (Fabric API moved the terrain and submit-node integration into
+// fabric-renderer-api-v1 itself, leaving Indigo with one item mixin and two accessors), so the key would do
+// nothing but disable the very rendering plug-in Fabric API asks for - which is what left FRAPI mods with a
+// placeholder that draws nothing. Letting Indigo register itself is the fix; RendererApiFallback reads this
+// key back at runtime to decide whether it still has to supply a fallback.
+def customMetadata = "\n    \"_comment\": \"No 'fabric-renderer-api-v1:contains_renderer' here, unlike the 1.21.x line: on 26.1.2 Indigo is not a terrain renderer any more. Fabric API moved the terrain and submit-node integration into fabric-renderer-api-v1 itself, and what is left of Indigo is one item mixin plus two accessors whose targets all survive OptiFine's patching, so it registers a real renderer and Fabric API's own hooks can draw through it.\""
+
 processResources {
     inputs.property "version", project.version
     inputs.property "minecraft_version", targetMc
     inputs.property "loader_version", project.loader_version
     inputs.property "mixin_compatibility_level", mixinCompatibilityLevel
+    inputs.property "optifabric_custom", customMetadata
     filteringCharset "UTF-8"
 
     filesMatching("fabric.mod.json") {
         expand "version": project.version,
                 "minecraft_version": targetMc,
-                "loader_version": project.loader_version
+                "loader_version": project.loader_version,
+                "optifabric_custom": customMetadata
     }
 
     // The shared config carries a placeholder: Mixin refuses to apply a mixin class compiled for a newer Java

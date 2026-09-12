@@ -22,6 +22,16 @@
  * class name is what shows up behind "Renderer:" in F3. That is the honest description of the situation: a Fabric
  * renderer exists as far as the API is concerned, and it is OptiFine doing the rendering.
  *
+ * On 26.1.2 that stopped being the right answer. Fabric API moved the terrain and submit-node integration into
+ * fabric-renderer-api-v1 itself, and what Indigo has left there is one item mixin and two accessors - it is not a
+ * terrain renderer any more, so the key that tells it to step aside has nothing left to step aside from. All it
+ * did on that line was disable a rendering plug-in Fabric API keeps asking for: FRAPI mods emitted their quads
+ * into the inert placeholder, which is invisible geometry and no error at all. The 26.x line therefore does not
+ * declare the key, Indigo registers its own IndigoRenderer, and this class steps out of the way - see
+ * indigoWillRegister(). The 1.21.x line keeps the key, because there Indigo *is* the terrain renderer and what it
+ * steps aside from is an injection point OptiFine's rewrite of the chunk build removes (fatal under
+ * "defaultRequire": 1).
+ *
  * Two ordering rules come with it:
  *
  *   - it runs in the preLaunch entrypoint, after OptiFine's patched classes have been handed to Fabric Loader.
@@ -40,7 +50,20 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
+import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.ModContainer;
+
 public final class RendererApiFallback {
+	/**
+	 * The key Indigo reads ({@code IndigoMixinConfigPlugin}) and the one the two lines' {@code fabric.mod.json}
+	 * files differ in: declaring it says "another renderer is here, step aside", and this class reads it back to
+	 * know whether it still has to supply a fallback for the plug-in Indigo then never registers.
+	 */
+	private static final String CONTAINS_RENDERER = "fabric-renderer-api-v1:contains_renderer";
+
+	/** Where Indigo's entrypoint lives: enough to tell whether it is on the classpath at all. */
+	private static final String INDIGO_CLASS = "net/fabricmc/fabric/impl/client/indigo/Indigo.class";
+
 	/**
 	 * Where the interface lives, newest first. 26.1 moved it and its implementation down into the client package
 	 * ({@code api.renderer.v1.Renderer} became {@code api.client.renderer.v1.Renderer}, and the registry with it:
@@ -63,6 +86,12 @@ public final class RendererApiFallback {
 	}
 
 	public static void install() {
+		if (indigoWillRegister()) {
+			System.out.println("[OptiFabric] Indigo is present and nothing declared " + CONTAINS_RENDERER
+					+ ", so it registers Fabric's rendering plug-in itself - not registering a placeholder");
+			return;
+		}
+
 		Class<?> renderer = null;
 
 		for (String candidate : RENDERER_API_CLASSES) {
@@ -95,5 +124,40 @@ public final class RendererApiFallback {
 			System.err.println("[OptiFabric] Could not register a placeholder for Fabric's renderer API, "
 					+ "Fabric API hooks that ask for it may crash: " + t);
 		}
+	}
+
+	/**
+	 * Whether Indigo is about to register a rendering plug-in of its own, in which case it has to be left to do it:
+	 * {@code RendererManager} refuses a second registration, so registering the placeholder first would win the race
+	 * and hand Fabric API the inert one instead of the real one.
+	 *
+	 * The question asked is the one {@code IndigoMixinConfigPlugin.shouldApplyMixin} asks, in the same order: is
+	 * Indigo on the classpath, and has any mod declared the key that tells it to step aside. Reading the answer
+	 * back from the metadata rather than compiling it in is what lets one shared class serve both lines - the
+	 * 1.21.x jar declares the key and still needs the placeholder, the 26.x jar does not declare it and gets
+	 * Indigo's own {@code IndigoRenderer}.
+	 *
+	 * Indigo is looked up as a <em>resource</em>, never loaded: nothing here resolves a game type during preLaunch,
+	 * which is the mistake that once left the game running with vanilla classes for the whole session (see
+	 * RendererApiStubGenerator).
+	 */
+	private static boolean indigoWillRegister() {
+		if (RendererApiFallback.class.getClassLoader().getResource(INDIGO_CLASS) == null) {
+			return false; //No Indigo on the classpath: nobody else is going to register anything
+		}
+
+		try {
+			for (ModContainer mod : FabricLoader.getInstance().getAllMods()) {
+				if (mod.getMetadata().containsCustomValue(CONTAINS_RENDERER)) return false; //Told to step aside
+			}
+		} catch (Throwable t) {
+			//Reading metadata must never be what decides the game comes up without a renderer, so an unreadable
+			//mod list falls back to registering the placeholder: the behaviour that does not depend on the answer
+			System.err.println("[OptiFabric] Could not read the mod metadata to tell whether Indigo steps aside ("
+					+ t + "), registering a placeholder as before");
+			return false;
+		}
+
+		return true;
 	}
 }

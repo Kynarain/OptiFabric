@@ -300,6 +300,12 @@ public class OptifineFixer {
 		//(class_11681 / method_72998) by its official names: OptiFine does not patch this class, so it is taken
 		//over on our own, the method the hook injects into is moved aside as dead code carrying the vanilla body
 		//(the handler's @Local sugar needs its locals), and the real method keeps drawing through OptiFine.
+		//
+		//That redirect is what the 26.1.2 baseline was measured on, and it is kept for now. A real renderer does
+		//exist behind the hook again - the 26.x jar no longer declares contains_renderer, so Indigo registers its
+		//own (see RendererApiFallback) - which means the hook *could* be left live and these submits could go
+		//through Indigo instead. That is a different rendering path from the one verified in game today, so it is
+		//a change to measure on its own rather than assume.
 		registerExtraClass("net/minecraft/client/renderer/feature/BlockFeatureRenderer",
 				new StubInjectionTargetFix("renderMovingBlockSubmits", null, "optifabric$movingBlocks"));
 		registerExtraClass("net/minecraft/client/renderer/feature/BlockFeatureRenderer",
@@ -307,10 +313,11 @@ public class OptifineFixer {
 						"renderMovingBlockSubmits", null, "optifabric$movingBlocks",
 						"the hook has to inject into a copy nobody calls, and the real method still has to draw moving blocks"));
 
-		//...and the same for the ordinary block model path, which is the one that crashed next: its
-		//onReturnRenderBlockModelSubmits ends by asking the renderer for a QuadEmitter to put FRAPI's own quads
-		//through. With OptiFine drawing there are none (that is what contains_renderer declares), and the request
-		//is what fails. Inert again: the hook injects into the dead copy and the real method draws.
+		//...and the same for the ordinary block model path. Its onReturnRenderBlockModelSubmits ends by asking the
+		//renderer for a QuadEmitter to put FRAPI's own quads through, which is why it had to be inert while the
+		//only renderer around was a placeholder returning inert objects: the quads went nowhere and OptiFine drew
+		//the world. Kept inert for the same reason as the moving-block path above - the hook injects into the dead
+		//copy and the real method draws, which is the path this baseline was measured on.
 		registerExtraClass("net/minecraft/client/renderer/feature/BlockFeatureRenderer",
 				new StubInjectionTargetFix("renderBlockModelSubmits", null, "optifabric$blockModels"));
 		registerExtraClass("net/minecraft/client/renderer/feature/BlockFeatureRenderer",
