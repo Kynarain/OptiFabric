@@ -52,8 +52,11 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
@@ -81,6 +84,11 @@ public class OptifineJarFixer {
 
 				if ("net/optifine/shaders/Shaders.class".equals(name)) {
 					byte[] fixed = enableShaderPackLoad(zip, entry);
+					return fixed != null ? new ByteArrayInputStream(fixed) : zip.getInputStream(entry);
+				}
+
+				if ("net/optifine/shaders/SimpleShaderTexture.class".equals(name)) {
+					byte[] fixed = createGpuTexture(zip, entry);
 					return fixed != null ? new ByteArrayInputStream(fixed) : zip.getInputStream(entry);
 				}
 
@@ -189,6 +197,128 @@ public class OptifineJarFixer {
 		ClassWriter writer = new ClassWriter(0); //only whole instructions were dropped, so the frames still fit
 		node.accept(writer);
 		return writer.toByteArray();
+	}
+
+	/**
+	 * Gives SimpleShaderTexture the texture the game's API expects it to have.
+	 *
+	 * <p>The 1.21.6 and 1.21.7 preview builds load a shaderpack's custom textures with the pre-1.21.6 GL API:
+	 * {@code loadTexture} asks {@code AbstractTexture.getGlTextureId()} - which since 1.21.6 reads
+	 * {@code this.texture.getGlTextureId()} on a {@code GpuTexture} that the subclass is supposed to have
+	 * created - and then hands that id to {@code TextureUtils.prepareImage} and
+	 * {@code NativeImage.uploadTextureSub}. Nothing creates the texture, so the first custom texture of the
+	 * pack ends the game with</p>
+	 *
+	 * <pre>
+	 * NullPointerException: Cannot invoke "com.mojang.blaze3d.textures.GpuTexture.getGlTextureId()"
+	 *   because "this.field_56974" is null
+	 *   at net.minecraft.class_1044.getGlTextureId  &lt;- net.optifine.shaders.SimpleShaderTexture.loadTexture
+	 * </pre>
+	 *
+	 * <p>The 1.21.8 preview (and everything after) does it the way the game does, and those calls exist
+	 * unchanged in 1.21.6 - {@code GpuDevice.createTexture(String, int, TextureFormat, int, int, int, int)},
+	 * {@code GpuDevice.createTextureView(GpuTexture)}, {@code NativeImage.method_4307/method_4323} and the two
+	 * inherited fields. So the old sequence</p>
+	 *
+	 * <pre>this.getGlTextureId(); image.getWidth(); image.getHeight(); TextureUtils.prepareImage(id, w, h)</pre>
+	 *
+	 * <p>- which is stack neutral - is replaced by that creation, taken constant for constant from the 1.21.8
+	 * build (usage 5, RGBA8, one layer, one mip level, then the texture view). The upload call that follows is
+	 * left alone: it works on the image, not on an id.</p>
+	 */
+	private static byte[] createGpuTexture(ZipFile zip, ZipEntry entry) throws IOException {
+		ClassNode node = new ClassNode();
+
+		try (InputStream in = zip.getInputStream(entry)) {
+			new ClassReader(in).accept(node, ClassReader.EXPAND_FRAMES);
+		}
+
+		boolean changed = false;
+
+		for (MethodNode method : node.methods) {
+			if (!"loadTexture".equals(method.name)) continue;
+
+			MethodInsnNode prepare = null;
+
+			for (AbstractInsnNode insn : method.instructions.toArray()) {
+				if (insn instanceof MethodInsnNode call && "prepareImage".equals(call.name)) prepare = call;
+			}
+
+			if (prepare == null) continue; //already the new shape, or not this build at all
+
+			MethodInsnNode id = null;
+
+			for (AbstractInsnNode insn = prepare.getPrevious(); insn != null; insn = insn.getPrevious()) {
+				if (insn instanceof MethodInsnNode call && "getGlTextureId".equals(call.name)) {
+					id = call;
+					break;
+				}
+			}
+
+			if (id == null) continue;
+
+			AbstractInsnNode start = id.getPrevious(); //the ALOAD 0 of the receiver
+			if (start == null) continue;
+
+			method.instructions.insertBefore(start, creation());
+
+			for (AbstractInsnNode insn = start; insn != null; ) {
+				AbstractInsnNode next = insn.getNext();
+				boolean last = insn == prepare;
+
+				method.instructions.remove(insn);
+				if (last) break;
+
+				insn = next;
+			}
+
+			changed = true;
+
+			System.out.println("[OptiFabric] OptiFine's build for this release loads its custom shader textures through"
+					+ " the pre-1.21.6 GL API (getGlTextureId on a texture nothing created, then TextureUtils.prepareImage);"
+					+ " creating the GpuTexture the way the game does instead");
+		}
+
+		if (!changed) return null;
+
+		ClassWriter writer = new ClassWriter(0);
+		node.accept(writer);
+		return writer.toByteArray();
+	}
+
+	/** The creation block of the 1.21.8 build, instruction for instruction. */
+	private static InsnList creation() {
+		InsnList list = new InsnList();
+		String device = "com/mojang/blaze3d/systems/GpuDevice";
+		String texture = "com/mojang/blaze3d/textures/GpuTexture";
+		String format = "com/mojang/blaze3d/textures/TextureFormat";
+
+		list.add(new VarInsnNode(Opcodes.ALOAD, 0));
+		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "com/mojang/blaze3d/systems/RenderSystem", "getDevice",
+				"()L" + device + ";", false));
+		list.add(new VarInsnNode(Opcodes.ALOAD, 0));
+		list.add(new FieldInsnNode(Opcodes.GETFIELD, "net/optifine/shaders/SimpleShaderTexture", "texturePath", "Ljava/lang/String;"));
+		list.add(new InsnNode(Opcodes.ICONST_5)); //usage
+		list.add(new FieldInsnNode(Opcodes.GETSTATIC, format, "RGBA8", 'L' + format + ';'));
+		list.add(new VarInsnNode(Opcodes.ALOAD, 3));
+		list.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "net/minecraft/class_1011", "method_4307", "()I", false));
+		list.add(new VarInsnNode(Opcodes.ALOAD, 3));
+		list.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "net/minecraft/class_1011", "method_4323", "()I", false));
+		list.add(new InsnNode(Opcodes.ICONST_1)); //layers
+		list.add(new InsnNode(Opcodes.ICONST_1)); //mip levels
+		list.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, device, "createTexture",
+				"(Ljava/lang/String;IL" + format + ";IIII)L" + texture + ";", true));
+		list.add(new FieldInsnNode(Opcodes.PUTFIELD, "net/minecraft/class_1044", "field_56974", 'L' + texture + ';'));
+
+		list.add(new VarInsnNode(Opcodes.ALOAD, 0));
+		list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "com/mojang/blaze3d/systems/RenderSystem", "getDevice",
+				"()L" + device + ";", false));
+		list.add(new VarInsnNode(Opcodes.ALOAD, 0));
+		list.add(new FieldInsnNode(Opcodes.GETFIELD, "net/minecraft/class_1044", "field_56974", 'L' + texture + ';'));
+		list.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, device, "createTextureView", "(L" + texture + ";)Lcom/mojang/blaze3d/textures/GpuTextureView;", true));
+		list.add(new FieldInsnNode(Opcodes.PUTFIELD, "net/minecraft/class_1044", "field_60597", "Lcom/mojang/blaze3d/textures/GpuTextureView;"));
+
+		return list;
 	}
 
 	/** Whether a shader program of that id has a source of that stage in OptiFine's jar or in the game's. */

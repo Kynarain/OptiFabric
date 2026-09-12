@@ -997,3 +997,26 @@ NullPointerException: Cannot invoke "com.mojang.blaze3d.textures.GpuTexture.getG
 1.21.8 与 1.21.10 的日志里各有 30 条 `[Shaders] Invalid program name:`,查光影包本体确认:`photon_v1.2a.zip` 里有 `gbuffers_all_translucent`、`gbuffers_block_translucent`、`gbuffers_entities_translucent`、`gbuffers_particles_translucent` 以及 Distant Horizons 用的 `dh_terrain`/`dh_water`。`*_translucent` 是 Iris 一侧的命名,OptiFine 的固定程序表里没有,它只报错并跳过这些 pass。**注意 1.21 / 1.21.3 / 1.21.4 同样报这 30 条**(用户认为那三版"正常"),所以这条更像是"画面细节有出入",而不是致命问题 —— 需要用户描述具体现象或换包对比才能定性。
 
 1.21.9 本轮日志干净(无 ERROR),需要同样对比确认。
+
+### 第三轮补记:把 OptiFine 的纹理创建也补上(1.21.6 / 1.21.7)
+
+上一节说到 1.21.6 / 1.21.7 的光影在打开后会崩在 OptiFine 自己的 `SimpleShaderTexture.loadTexture`。继续查下来**可以修**,依据是同一份类在两个构建里的差异:
+
+| | 1.21.6 / 1.21.7(J6_pre3 / pre7) | 1.21.8 起 |
+|---|---|---|
+| 65 起 | `this.getGlTextureId()` → `TextureUtils.prepareImage(id, w, h)` | `RenderSystem.getDevice()` + `TextureFormat.RGBA8` + `createTexture(...)` + `createTextureView(...)`,把结果写回 `field_56974` / `field_60597` |
+| 之后 | `image.uploadTextureSub(...)` | 同样 `image.uploadTextureSub(...)`(只用了图片,不用 id) |
+
+两边前半段(取流、读 `NativeImage`、`loadTextureMetadataSection`)逐字节相同,说明只是尾巴没跟上 1.21.6 的贴图 API 改动。而且 `GpuDevice.createTexture(String,int,TextureFormat,int,int,int,int)`、`createTextureView(GpuTexture)`、`NativeImage.method_4307/method_4323`、`AbstractTexture` 的两个字段在 **1.21.6 里全都在**(逐个 `javap` 比对过),所以这段可以照抄 —— 常量也照抄:usage `5`、`RGBA8`、1 层、1 级 mip。
+
+`OptifineJarFixer` 现在多一条:`SimpleShaderTexture.loadTexture` 里如果出现"`getGlTextureId()` + `TextureUtils.prepareImage`"这对旧 API 调用(**只在**这两个构建里有),就把从接收者 `aload_0` 到 `prepareImage` 这一整段(它本身就是栈平衡的)替换成上面那个创建块。**只在这两个构建上触发**:1.21.8 起的方法里根本没有 `prepareImage`,其它版本原样通过。
+
+离线复核:1.21.6 / 1.21.7 的补丁日志出现 4 条修补(写死的 `cancelled`、FXAA JSON、纹理 API),补丁后的 OptiFine 类仍然 **820 / 823 个全部通过 JVM + ASM 双向校验,0 失败** —— 合成的 `loadTexture` 栈形状正确(这是我们离线能给出的最强证据;真正能不能跑,要看下一次真机)。
+
+### 天空与水面闪烁(1.21.8 / 1.21.9 / 1.21.10):目前排除掉的可能
+
+- **不是 OptiFine 设置差异**:四个实例的 `optionsof.txt` 关键项完全一致(`ofRenderRegions:false`、`ofSmartAnimations:false`、`ofAaLevel:0`、`ofChunkUpdates:1`…);
+- **不是光影程序没加载**:1.21.4(可用)、1.21.8、1.21.10 都加载了 **43 个程序**,而且 `gbuffers_skybasic`、`gbuffers_skytextured`、`gbuffers_water`、`gbuffers_hand_water` 四个天空/水面程序三版都在;
+- 三版共有的 30 条 `Invalid program name`(`gbuffers_*_translucent`、`dh_*`)在**可用的 1.21 / 1.21.3 / 1.21.4 上一条不少**,所以它解释不了"只有 1.21.8 起才闪"。
+
+要区分是"光影包/驱动一侧"还是"补丁一侧",只需要两个对照:关掉光影(还闪不闪)、换成 `ComplementaryReimagined_r5.9.1.zip`(还闪不闪)。这条还没做,所以本节不给结论。

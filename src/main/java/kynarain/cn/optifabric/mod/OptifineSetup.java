@@ -258,9 +258,12 @@ public class OptifineSetup {
 	 *     release parses, and the shaderpack load a 1.21.6 / 1.21.7 build cancels outright is enabled again.
 	 * 17: that repair reads the method's instructions without the labels between them (16 could not see the
 	 *     shaderpack load at all, so 16's artifacts are the unpatched ones).
+	 * 18: OptiFine's factory calls are aligned with the game's, so the mixins that wrap them find them.
+	 * 19: the custom shader textures of a 1.21.6 / 1.21.7 build are created through the game's GPU API instead
+	 *     of the pre-1.21.6 GL API that no longer has an id to hand out.
 	 * Every bump is required, not cosmetic: artifacts produced by an older pipeline must not be reused.
 	 */
-	private static final int CACHE_FORMAT = 18;
+	private static final int CACHE_FORMAT = 19;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {
