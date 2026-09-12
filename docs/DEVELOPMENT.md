@@ -1104,3 +1104,42 @@ UnsupportedOperationException: OptiFine is the active terrain renderer: Fabric's
 `BlockModelRenderer`,不会递归)。注意 `Renderer.render(...)` 返回 `void`,Fabric 那边没有"返回 false
 就让原版接管"的开关(`FabricBlockModelRenderer` 里只有 `Renderer.get()` 然后 `render(...)` 一路)。
 实现点在运行时生成占位类的那段字节码(`RendererApiStubGenerator` / `RendererApiFallback`)。
+## 收尾记录(1.21.x 全线)
+
+### 已修好并真机确认
+
+| 版本 | OptiFine 构建 | 结果 | 关键问题与修法 |
+|---|---|---|---|
+| 1.21 | `preview_..._J1_pre9` | ✅ | 工厂调用被 OptiFine 改体后错位 -> `VanillaFactoryCallFix` 对齐 |
+| 1.21.1 | `HD_U_J1` | ✅ | `Identifier.of` 与 FAPI 包装的 `ofVanilla` 不一致 -> 同上 |
+| 1.21.3 / 1.21.4 | `J2` / `J3` | ✅ | 区块 section 位置未传 -> `RegionSectionPosFix`;HUD 图层 lambda 名被换 -> `LambdaMethodRefFix` |
+| 1.21.8 | `J6_pre16` | ✅ | 多人:占位渲染器抛异常终结会话 -> 该重载改为返回默认值(见下) |
+| 1.21.9 / 1.21.10 | `J7_pre2` / `J7_pre11` | ✅ | FXAA 两条同名管线打架导致开抗锯齿黑屏 -> 补 OptiFine 自己的链 + 移除游戏的 post effect |
+
+### 放弃
+
+**1.21.6 / 1.21.7**(`J6_pre3` / `J6_pre7`,官方列表里已是最新)启动即崩:
+
+```
+NullPointerException: Cannot read field "norm" because "multiTex" is null
+  at net.optifine.shaders.ShadersTex.initDynamicTextureNS
+```
+
+它们既不关联纹理也不带 1.21.8 的 `GpuTexture.setParentTexture`,而**跨类调用另一个被打补丁的类新长出来的方法会被注入器拒绝**
+(`Failed to prepare the patched class net/minecraft/class_1043, it will not be replaced`),所以照搬 1.21.8 的关联补丁走不通;
+退一步"删掉那次 `initDynamicTextureNS` 调用"虽然离线全绿(487 类 / 0 failed / ASM 0),但按用户决定不再投入,已取消注册。
+
+### B 的现状与下一步
+
+占位渲染器(`RendererApiStubGenerator` 运行时生成的那段字节码)现在对"接收原版参数"的那个重载**返回默认值而不抛异常**,
+会话不再被打断。真机已确认 1.21.8 正常。
+
+**仍未做的是真正的绘制回落**:把同一批参数转交原版 `class_778` 的渲染方法。参数天生为它准备(第一个参数就是模型渲染器本身),
+缺的只是**该方法在当前映射里的名字** —— 而生成器**不得解析游戏类**(头注释记着当年因此提前加载游戏类、随后
+`NoSuchMethodError: class_2680.getBlockStateBaseCacheClass()` 的教训)。正确路径:补丁器手里就有映射表,
+用 `RemappingUtils` 按成员查出这个名字,再作为字符串传进生成器;不要用反射绕过。
+
+### 纪律(仍然适用)
+
+每版一条命令验证,断言必须包含 `Prepared … (0 skipped, 0 failed)`、`verified OK`、`ASM verifier problems: 0`、扫描器三列 0,
+且日志里不得出现 `Failed to prepare` / `define failed`。产物变了就抬 `CACHE_FORMAT`(现为 **24**),否则 harness 会复用旧缓存而看不到改动。
