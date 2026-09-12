@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "optifabric",
+  "id": "${optifabric_id}",
   "version": "${version}",
 
-  "name": "OptiFabric",
-  "description": "Loads OptiFine into Fabric. Put the OptiFine jar for ${minecraft_version} into the mods folder next to this mod; OptiFabric patches, remaps and applies it at runtime. OptiFine itself is not bundled or redistributed.",
+  "name": "${optifabric_name}",
+  "description": "Loads OptiFine into Fabric. Put the OptiFine jar for ${minecraft_version} into the mods folder next to this mod; ${optifabric_name} ${optifabric_verbs} it at runtime. OptiFine itself is not bundled or redistributed.",
   "authors": [
     "kynarain (1.21.11 port)",
     "Modmuss50",

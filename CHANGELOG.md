@@ -4,13 +4,15 @@
 
 **Minecraft 26.1.2** —— 26.1 起游戏**未混淆**,这是一条与 1.21.x 完全独立的线,两边的 jar **不能互相替代**。
 
+**这一线的 mod id 与显示名也是它自己的**:`optifabric_reforged` / **OptiFabric Reforged**(1.21.x 仍为 `optifabric`,已发布的 1.1.0 不动)。理由是实际的:有模组声明 `"breaks": {"optifabric": "*"}`(LambdaBetterGrass 就是),而 Fabric Loader 按 **id** 匹配 —— 只改显示名无效;独立 id 之后这类声明不再拦 26.x。实测上游**未修改**的 LBG jar 可与本模组共存,更好的草与连接纹理正常。
+
 官方名就是运行名,既没有 yarn 也没有真正的 intermediary 可重映射(26.1.2 只发布占位 `intermediary:0.0.0`)。
 因此 26.x 用 Loom 的**非重映射** flavour(`net.fabricmc.fabric-loom`)、不写 `mappings`、运行期命名空间是
 `official` 而不是 `intermediary`;1.21.x 那套按 `class_XXXX` 注册的 fixer 判据在这一线指向的类**根本不存在**,
 所以另建了一张"官方名"注册表。
 
 ```powershell
-.\gradlew -p v26.x build        →  OptiFabric-1.2.0+mc26.1.2.jar
+.\gradlew -p v26.x build        →  OptiFabric-Reforged-1.2.0+mc26.1.2.jar
 ```
 
 ### 本版修复
@@ -53,8 +55,8 @@
 (`[Indigo] Registering Indigo renderer!`),Fabric API 自己的渲染钩子从它上面绘制;**装 LambdaBetterGrass 实测:
 "更好的草"正常、连接纹理正确(光影开启)**。
 
-产物:`OptiFabric-1.2.0+mc26.1.2.jar` — 177142 字节
-`SHA-256: 840A50009F3076D26C625ACD79ECB45639155FBA4DB7AFEE91D0F8621A09F59C`
+产物:`OptiFabric-Reforged-1.2.0+mc26.1.2.jar` — 177165 字节
+`SHA-256: 56F86125D34D6B08391159799C8C3E8451B493FF31999511ED3A21D9960311DC`
 
 ## 1.0.0+mc1.21 … 1.0.0+mc1.21.11 — 1.21.x 全系列
 

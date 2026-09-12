@@ -104,7 +104,12 @@ processResources {
         expand "version": project.version,
                 "minecraft_version": targetMc,
                 "loader_version": project.loader_version,
-                "optifabric_custom": customMetadata
+                "optifabric_custom": customMetadata,
+                // This line keeps the original id and name: it is what the published 1.1.0 jars are, and the
+                // 26.x project next door carries "optifabric_reforged" instead (see its build file for why).
+                "optifabric_id": "optifabric",
+                "optifabric_name": "OptiFabric",
+                "optifabric_verbs": "patches, remaps and applies"
     }
 
     // The shared config carries a placeholder: Mixin refuses to apply a mixin class compiled for a newer Java

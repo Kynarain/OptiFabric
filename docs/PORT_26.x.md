@@ -671,6 +671,23 @@ ASM 0、OptiFine 879/0、五个扫描器全 0。
 **仍然有意保持惰性的两处**:`BlockFeatureRenderer.renderMovingBlockSubmits` / `renderBlockModelSubmits` 照旧改名成死代码
 (移动方块与"方块模型提交"仍由原版/OptiFine 路径绘制)。这条桥只解决**地形**(区块构建)这一路。
 
+### 6. 26.x 用独立 mod id 绕开"被声明的"不兼容
+
+`fabric.mod.json` 里 `"breaks": {"optifabric": "*"}`(LambdaBetterGrass 就有)是**加载器层面**的硬拦,发生在任何代码
+运行之前,而且它匹配的是 **mod id**、不是显示名 —— 于是有两条路:让上游去掉它,或者这一线不做 `optifabric`。
+
+选了后者:26.x 用 **`optifabric_reforged` / "OptiFabric Reforged"**(`v26.x/gradle.properties` 的
+`archives_base_name`、`build.gradle` 里注入 metadata 的 `optifabric_id`/`optifabric_name`,产物名
+`OptiFabric-Reforged-1.2.0+mc26.1.2.jar`);1.21.x 仍是 `optifabric`,已发布的 1.1.0 与 `dist/` 里那十个 jar 一个字节都不动。
+
+效果与代价:
+
+- 不止 LBG —— **所有**声明 `breaks: optifabric` 的模组都不再拦 26.x;而 1.21.x 那条线(Indigo 仍需让位、FRAPI 几何确实
+  不渲染)保留原 id,上游当年的声明在那里依然成立;
+- 我们自己的逻辑不受影响:`RendererApiFallback` 判断 `contains_renderer` 是**遍历所有模组的 metadata**,与 id 无关;
+- 实测:上游**未经修改**的 `lambdabettergrass-2.7.2+26.1.1.jar`(SHA-256 `CEC0CDD7CDAF1730C9DE6866764FB474D6EFD1418FB51E375EBA9CA782B1AC40`)
+  与本模组一起启动成功,更好的草与连接纹理正常;不再需要改别人的 jar。
+
 ### 进世界的最终判定
 
 ```

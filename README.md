@@ -6,7 +6,7 @@
 
 - 两条**独立**发布线(jar 不能互相替代):
   - **1.21.x** —— Minecraft 1.21 ~ 1.21.11(OptiFine 出过构建的全部 10 个版本),产物 `OptiFabric-1.1.0+mc1.21.x.jar`;
-  - **26.x** —— Minecraft 26.1.2。**26.1 起游戏未混淆**,官方名即运行名,没有 yarn、也没有真正的 intermediary 可重映射,因此走另一套构建与运行期路径,产物 `OptiFabric-1.2.0+mc26.1.2.jar`(移植记录见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md))。
+  - **26.x** —— Minecraft 26.1.2。**26.1 起游戏未混淆**,官方名即运行名,没有 yarn、也没有真正的 intermediary 可重映射,因此走另一套构建与运行期路径,产物 `OptiFabric-Reforged-1.2.0+mc26.1.2.jar`(移植记录见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md))。
 - 目标环境:两条线都要求 Fabric Loader **≥ 0.19.5** 与**客户端**;1.21.x 用 **Java 21+**,**26.1.2 要求 Java 25**(该版本自身的硬要求)
 - 实测搭配:**(1.21.11)** Fabric API `0.141.6+1.21.11` + OptiFine `1.21.11 HD_U J9`;**(26.1.2)** Fabric API `0.155.3+26.1.2` + `preview_OptiFine_26.1.2_HD_U_K1_pre2`
 - 产物位置:两个项目各自输出,`v1.21.x/build/libs/` 与 `v26.x/build/libs/`(根目录不再是 Gradle 项目,构建要带 `-p`,见下)
@@ -34,9 +34,11 @@
 
 | Minecraft | 产出的 jar | OptiFine 构建 | Java | 真机验证 |
 |---|---|---|---|---|
-| 26.1.2 | `OptiFabric-1.2.0+mc26.1.2.jar` | `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar` | **25** | **已实测正常**(启动/进世界/方块物品生物渲染/抗锯齿/光影/多人) |
+| 26.1.2 | `OptiFabric-Reforged-1.2.0+mc26.1.2.jar` | `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar` | **25** | **已实测正常**(启动/进世界/方块物品生物渲染/抗锯齿/光影/多人) |
 
 26.x 一行**只对应 26.1.2**:26.1 的其他小版本与 26.2+ 需要各自重新移植。两线的 jar 名字里都带 `mc` 版本,那是唯一的区分点,别发错。
+
+**26.x 这条线有自己的 mod id 与显示名**:`optifabric_reforged` / **OptiFabric Reforged**(1.21.x 仍是 `optifabric` / OptiFabric,已发布的 1.1.0 原样不动)。原因很实际:有些模组声明 `"breaks": {"optifabric": "*"}` —— LambdaBetterGrass 就是 —— 而 Fabric Loader **按 id 匹配**,只改显示名没用;用独立 id 之后这些声明不再拦 26.x。实测:上游**未经修改**的 `lambdabettergrass-2.7.2+26.1.1.jar` 现在能与本模组一起启动,更好的草与连接纹理都正常。
 
 OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。1.21.x 这 10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。**1.21.x 表里真机一列是 2026-09-12 两轮装机实测的结果**,五处已定位到根因并修复:
 
@@ -108,7 +110,7 @@ mods/OptiFine_1.21.11_HD_U_J9.jar
    gradlew -p v1.21.x build "-Pmc=1.21.11"     # 1.21.x:换成你要的版本;不带 -Pmc 则构建默认版本
    gradlew -p v26.x   build                    # 26.x:目标版本写在 v26.x/gradle.properties 里,没有 -Pmc
    ```
-3. **安装**:把**对应版本**的 jar(`v1.21.x/build/libs/OptiFabric-1.1.0+mc<版本>.jar` 或 `v26.x/build/libs/OptiFabric-1.2.0+mc26.1.2.jar`)和 OptiFine 的 jar 一起放进 **该 Fabric 版本自己的 `mods` 目录**。**不要**同时放两份 OptiFine(会报 `DUPLICATED`),也不要放错版本的 OptiFabric jar,更不要拿 1.21.x 的 jar 去跑 26.1.2(或反过来)。
+3. **安装**:把**对应版本**的 jar(`v1.21.x/build/libs/OptiFabric-1.1.0+mc<版本>.jar` 或 `v26.x/build/libs/OptiFabric-Reforged-1.2.0+mc26.1.2.jar`)和 OptiFine 的 jar 一起放进 **该 Fabric 版本自己的 `mods` 目录**。**不要**同时放两份 OptiFine(会报 `DUPLICATED`),也不要放错版本的 OptiFabric jar,更不要拿 1.21.x 的 jar 去跑 26.1.2(或反过来)。
    - PCL2/HMCL 若开启了**版本隔离**,游戏目录是 `versions/<版本名>/`,mods 目录也在那里;`.optifine/` 缓存同样会建在版本目录下。没开隔离才是 `.minecraft/mods`。
    - 用 **Fabric 版本**启动,不要用启动器装的 `1.21.x-OptiFine_xxx` 版本(那个是启动器自己在启动时注入 OptiFine,会和本模组重复)。
 4. **启动**:首次启动会多花几秒(实测 5–7 秒)做补丁+重映射(控制台里会看到 `[OptiFabric]` 前缀的输出),之后走缓存(1–2 秒)。成功的标志:标题界面出现 OptiFine 版本号,视频设置里出现 OptiFine 选项。

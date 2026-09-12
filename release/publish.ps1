@@ -34,6 +34,10 @@ $root = Split-Path -Parent $PSScriptRoot
 $versions = @("1.21", "1.21.1", "1.21.3", "1.21.4", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11", "26.1.2")
 $defaultModVersion = "1.1.0"
 $modVersions = @{ "26.1.2" = "1.2.0" }
+# 26.x 那条线的产物名也是它自己的:它的 mod id 是 optifabric_reforged(见 v26.x/build.gradle),
+# 所以 jar 名与 1.21.x 不同,发布脚本必须按线取文件名。
+$defaultArtifact = "OptiFabric"
+$modArtifacts = @{ "26.1.2" = "OptiFabric-Reforged" }
 
 if ($Version -ne "all") {
 	if ($versions -notcontains $Version) { throw "未知版本: $Version(可选:" + ($versions -join ", ") + ")" }
@@ -49,7 +53,8 @@ $unsupported = @("1.21.6", "1.21.7")
 foreach ($mc in $versions) {
 	$modVersion = if ($modVersions.ContainsKey($mc)) { $modVersions[$mc] } else { $defaultModVersion }
 
-	$jar = Join-Path $root "dist\OptiFabric-$modVersion+mc$mc.jar"
+	$artifact = if ($modArtifacts.ContainsKey($mc)) { $modArtifacts[$mc] } else { $defaultArtifact }
+$jar = Join-Path $root "dist\$artifact-$modVersion+mc$mc.jar"
 	$notes = Join-Path $root "release\notes\mc$mc.md"
 	$tag = "v$modVersion+mc$mc"
 	$title = "OptiFabric $modVersion+mc$mc"

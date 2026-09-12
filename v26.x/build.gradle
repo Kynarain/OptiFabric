@@ -54,6 +54,13 @@ dependencies {
 def targetJavaVersion = 25
 def mixinCompatibilityLevel = "JAVA_" + targetJavaVersion
 
+// The 26.x line carries its own mod id, and that is not cosmetic: mods that declare "breaks": {"optifabric": "*"}
+// (LambdaBetterGrass does) are refusing the 1.21.x line, where Indigo has to step aside - and Fabric Loader
+// matches on the id, not on the display name, so the only way to be a different mod to them is to *be* a
+// different mod id. The 1.21.x project next door keeps "optifabric" and the published 1.1.0 jars are untouched.
+def modId = "optifabric_reforged"
+def modName = "OptiFabric Reforged"
+
 // fabric.mod.json is shared between the two lines, but its "custom" block is not. This line deliberately does
 // NOT declare "fabric-renderer-api-v1:contains_renderer", unlike the 1.21.x line next door: on 26.1.2 Indigo
 // is no longer a terrain renderer (Fabric API moved the terrain and submit-node integration into
@@ -69,13 +76,17 @@ processResources {
     inputs.property "loader_version", project.loader_version
     inputs.property "mixin_compatibility_level", mixinCompatibilityLevel
     inputs.property "optifabric_custom", customMetadata
+    inputs.property "optifabric_id", modId
     filteringCharset "UTF-8"
 
     filesMatching("fabric.mod.json") {
         expand "version": project.version,
                 "minecraft_version": targetMc,
                 "loader_version": project.loader_version,
-                "optifabric_custom": customMetadata
+                "optifabric_custom": customMetadata,
+                "optifabric_id": modId,
+                "optifabric_name": modName,
+                "optifabric_verbs": "patches and applies"
     }
 
     // The shared config carries a placeholder: Mixin refuses to apply a mixin class compiled for a newer Java
