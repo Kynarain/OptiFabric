@@ -1,5 +1,46 @@
 # 更新日志
 
+## 1.1.0+mc26.1.2 — 26.x 线的第一版(未混淆)
+
+**Minecraft 26.1.2** —— 26.1 起游戏**未混淆**,这是一条与 1.21.x 完全独立的线,两边的 jar **不能互相替代**。
+
+官方名就是运行名,既没有 yarn 也没有真正的 intermediary 可重映射(26.1.2 只发布占位 `intermediary:0.0.0`)。
+因此 26.x 用 Loom 的**非重映射** flavour(`net.fabricmc.fabric-loom`)、不写 `mappings`、运行期命名空间是
+`official` 而不是 `intermediary`;1.21.x 那套按 `class_XXXX` 注册的 fixer 判据在这一线指向的类**根本不存在**,
+所以另建了一张"官方名"注册表。
+
+```powershell
+.\gradlew -p v26.x build        →  OptiFabric-1.1.0+mc26.1.2.jar
+```
+
+### 本版修复
+
+- **注入点(最主要的一类)**:OptiFine 重编译时把原版方法**削成薄壳**、真正的实现搬进它自己加的重载,
+  而 Fabric API 用**不带描述符**的 `method = "..."` 指名目标 —— 恢复原版方法体之后类里出现两个同名方法,
+  MixinExtras 建不出局部变量上下文,整个类变换失败。逐处消歧:`LevelRenderer`、`SectionCompiler`、
+  `CuboidItemModelWrapper`、`ScreenEffectRenderer`、`ModelManager`;
+- **渲染器占位**:26.1 把 Fabric 渲染器 API 挪进了 `api.client.renderer.v1`,按旧名字查找失败使占位
+  **从未注册**,第一个 `Renderer.get()` 就把游戏带走;并且占位**不再抛异常** —— Fabric API 自己的渲染钩子
+  会在普通帧里调用它,现在返回形状正确的惰性对象(Fabric API 想画的 quad 哪儿也不去,世界由 OptiFine 绘制);
+- **抗锯齿**:26.x 从 `post_effect/` 读后处理链,而 1.21.x 那套修复的做法是**删掉该文件**、补写老位置的链 ——
+  在这一线正好是反的。现在按版本线分开处理;
+- **渲染路径**:移动方块与普通方块模型这两处 Fabric API 钩子改为惰性(世界仍由 OptiFine 绘制)。
+
+### 要求与实测
+
+| 项 | 值 |
+|---|---|
+| Minecraft | 26.1.2(**只支持这一个版本**) |
+| Fabric Loader | >= 0.19.5 |
+| Java | **25**(与 1.21.x 的 Java 21 不同,26.1.2 本身要求 25) |
+| OptiFine | `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar`(目前只有 preview) |
+| Fabric API | 0.155.3+26.1.2 |
+
+实测:启动、进世界、方块/物品/生物渲染、抗锯齿、光影、多人全部正常。
+
+产物:`OptiFabric-1.1.0+mc26.1.2.jar` — 163164 字节
+`SHA-256: A23D420D0D17395782A58735A2AD97A55F7A06463F54EA2A2E0800986F6DCF0D`
+
 ## 1.0.0+mc1.21 … 1.0.0+mc1.21.11 — 1.21.x 全系列
 
 **一份源码,覆盖 OptiFine 出过 1.21.x 构建的全部 10 个版本**,每个版本一个 jar:

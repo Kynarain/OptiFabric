@@ -1,5 +1,8 @@
 # 手动发布清单(1.21.x,逐版一个发布条目)
 
+> 本文件只覆盖 **1.21.x 线**。26.1 起 Minecraft 未混淆,构建与运行期路径都不同,那一线有自己的清单:
+> [`MANUAL_RELEASE_26.x.md`](MANUAL_RELEASE_26.x.md)。两条线的 jar 不能互相替代。
+
 版本号与标签统一为 1.1.0+mc<版本> / v1.1.0+mc<版本>。正文直接用 release/notes/mc<版本>.md(已是 Markdown,含安装步骤、已知限制、该 jar 的尺寸与 SHA-256)。
 
 > 建议不发 1.21.6 / 1.21.7:这两版的 OptiFine 预览构建自身有缺陷(启动即崩于 ShadersTex.initDynamicTextureNS),官方列表里已是最新构建。

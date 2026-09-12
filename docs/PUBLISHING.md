@@ -2,18 +2,41 @@
 
 本文档记录"把本项目发出去"需要做的步骤。仓库里已经准备好的东西、以及**你还需要自己做的部分**都写在下面。
 
-> 本仓库现在有两条发布线:
-> - **`main` 分支** = `1.1.0+mc1.20.6`(第一个发布版)
-> - **`mc1.21.11` 分支** = `1.1.0+mc1.21.11`(当前这一版,**下面以它为例**)
+> 本仓库有**两条独立的发布线**,jar 不能互相替代,发哪条就 checkout 哪个分支构建;
+> tag 名里带 MC 版本,不会互相冲突:
 >
-> 两个分支都是独立可用的,发哪一版就 checkout 哪个分支构建;tag 名里带 MC 版本,不会互相冲突。
+> - **`mc1.21.x` 分支** = `1.1.0+mc1.21` … `1.1.0+mc1.21.11`(10 个版本,一份源码一个项目 `v1.21.x/`。
+>   本文下面第三节起**以它为例**);
+> - **`26.x` 分支** = `1.1.0+mc26.1.2`(26.1 起游戏**未混淆**,是另一套构建与运行期路径,项目 `v26.x/`)。
+>   它有自己的清单 [`release/MANUAL_RELEASE_26.x.md`](../release/MANUAL_RELEASE_26.x.md) 与移植记录
+>   [`PORT_26.x.md`](PORT_26.x.md),差异见下面第二节末尾。
+>
+> 历史:`main` 分支 = `1.1.0+mc1.20.6`(第一个发布版)。
+
+## 〇、如果你发的是 26.x 线(与 1.21.x 的差别)
+
+26.1 起 Minecraft **未混淆**,官方名即运行名,没有 yarn、也没有真正的 intermediary 可重映射
+(26.1.2 只发布占位 `intermediary:0.0.0`)。所以这一线:
+
+```powershell
+cd C:\Users\kynar\IdeaProjects\OptiFabric
+git checkout 26.x
+.\gradlew -p v26.x build --offline
+Copy-Item "v26.x\build\libs\OptiFabric-1.1.0+mc26.1.2.jar" dist -Force
+```
+
+- **没有 `-Pmc=`**:26.x 项目的目标版本就是 `v26.x/gradle.properties` 里那一个值,一个项目一个版本;
+- **Java 25**(1.21.x 是 21),发布说明里要提醒用户;
+- 离线校验用 `test-downloads\verify-26.ps1`(不是 `verify-version.ps1`,后者是 yarn/intermediary 那一线的);
+- 正文、逐版数据、三个平台要填的字段都在 `release/MANUAL_RELEASE_26.x.md` 里;
+- 别把 26.x 的 jar 传成 1.21.x 的版本、也别反过来 —— 文件名里的 `mc` 版本是唯一的区分点。
 
 ## 一、已经准备好的东西
 
 | 项目 | 位置 | 说明 |
 |---|---|---|
 | 源码仓库 | 仓库根目录 | 已配好 `.gitignore`(不含 OptiFine、测试工件、构建产物) |
-| 构建配置 | `build.gradle` / `gradle.properties` | 版本号 `1.1.0+mc1.21.11`,产物名 `OptiFabric-1.1.0+mc1.21.11.jar` |
+| 构建配置 | `v1.21.x/build.gradle` / `gradle.properties` | 版本号 `1.1.0+mc1.21.11`,产物名 `OptiFabric-1.1.0+mc1.21.11.jar` |
 | 许可 | `LICENSE.txt` | MPL-2.0(上游 OptiFabric 的许可,移植必须保留) |
 | 使用者文档 | `README.md` | 原理、安装、已知问题、排查(已按 1.21.11 更新) |
 | 开发记录 | `docs/DEVELOPMENT.md` | 逐轮排查与可复现的离线校验工具(1.21.11 的 9 类崩溃都在里面) |
@@ -109,7 +132,14 @@ foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1
 
 ## 六、后续版本怎么发
 
-1. 改 `gradle.properties` 里的 `mod_version`(例如 `1.0.1+mc1.21.11`);
-2. 在 `CHANGELOG.md` 顶部加一节;
-3. `.\gradlew build --offline`;
-4. 打 tag、发 Release、在 CurseForge 上传新文件。
+1. 改**该项目**的 `gradle.properties` 里的 `mod_version_base`(例如 `1.0.1`);
+2. 在 `CHANGELOG.md` 顶部加一节(写清新的版本号,例如 `1.0.1+mc1.21.11` 或 `1.1.0+mc26.1.2`);
+3. 构建对应项目(1.21.x 还要带 `-Pmc=`):
+   ```powershell
+   .\gradlew -p v1.21.x build "-Pmc=1.21.11" --offline
+   .\gradlew -p v26.x   build --offline
+   ```
+4. 跑对应的离线校验(`verify-version.ps1 -Version <版本>` / `verify-26.ps1`);
+5. 复制到 `dist\`,同步 `release/notes/mc<版本>.md` 与对应清单里的字节数 / SHA-256
+   (两个清单:`release/MANUAL_RELEASE.md`、`release/MANUAL_RELEASE_26.x.md`);
+6. `.\release\publish.ps1 -DryRun` 先看一眼要发什么,再打 tag、发 Release、上传三个平台。

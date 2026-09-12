@@ -27,7 +27,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$versions = @("1.21", "1.21.1", "1.21.3", "1.21.4", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11")
+# 1.21.x 与 26.1.2 是两条独立发布线,jar 与标签各发各的(见 release\MANUAL_RELEASE*.md)
+$versions = @("1.21", "1.21.1", "1.21.3", "1.21.4", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11", "26.1.2")
+$modVersion = "1.1.0"
 
 if ($Version -ne "all") {
 	if ($versions -notcontains $Version) { throw "未知版本: $Version(可选:" + ($versions -join ", ") + ")" }
@@ -41,10 +43,10 @@ New-Item -ItemType Directory -Force $tmp | Out-Null
 $unsupported = @("1.21.6", "1.21.7")
 
 foreach ($mc in $versions) {
-	$jar = Join-Path $root "dist\OptiFabric-1.0.0+mc$mc.jar"
+	$jar = Join-Path $root "dist\OptiFabric-$modVersion+mc$mc.jar"
 	$notes = Join-Path $root "release\notes\mc$mc.md"
-	$tag = "v1.0.0+mc$mc"
-	$title = "OptiFabric 1.0.0+mc$mc"
+	$tag = "v$modVersion+mc$mc"
+	$title = "OptiFabric $modVersion+mc$mc"
 
 	if (-not (Test-Path $jar)) { Write-Warning "跳过 $mc :没有 $jar"; continue }
 	if (-not (Test-Path $notes)) { Write-Warning "跳过 $mc :没有 $notes"; continue }
@@ -64,7 +66,7 @@ foreach ($mc in $versions) {
 	$mrMeta = Join-Path $tmp "modrinth-$mc.json"
 	$payload = [ordered]@{
 		name           = $title
-		version_number = "1.0.0+mc$mc"
+		version_number = "$modVersion+mc$mc"
 		changelog      = [System.IO.File]::ReadAllText($notes, [System.Text.Encoding]::UTF8)
 		dependencies   = @()
 		game_versions  = @($mc)
