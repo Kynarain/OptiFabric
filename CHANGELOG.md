@@ -26,6 +26,14 @@
   键一声明就把 Fabric API 唯一能问到的那个渲染器关掉,模组生成的网格进了惰性占位 —— **不报错,也不显示**。
   本版**不再声明该键**,`RendererApiFallback` 把它读回来、只在确实被声明时才补占位器,否则由 Indigo 注册自己的
   `IndigoRenderer`(F3 的 `Renderer:` 一行因此显示 `IndigoRenderer`,而不再是 `OptifineRendererPlaceholder`);
+- **实时几何(FRAPI)**:Fabric 的地形渲染钩子注入在原版 `compile` 的 `BlockPos.betweenClosed` 循环上,而 OptiFine
+  的区块构建方法里那个循环**一次都不出现** —— 钩子只落在没人调用的补丁方法里,注入成功、永不执行,于是需要按位置
+  实时生成几何的模型(例如 LambdaBetterGrass 的"更好的草")`emitQuads` 一次都没被问过、几何**静默消失**。
+  新增 `FrapiTesselateBridgeFix` + `OptifineFrapiBridge`:把 OptiFine 循环里那次方块 tessellate 调用改到桥上,
+  几何由 Fabric 的渲染器产出(AO / 染色 / 光照齐),**顶点交给 OptiFine 传进来的 `BlockQuadOutput` 写** ——
+  顶点格式、层级缓冲、光照与光影属性全归 OptiFine,桥上不碰任何顶点缓冲(第一版直接写区块缓冲,会把整层数据写成垃圾,
+  表现为"一切方块透明",原因见 `docs/PORT_26.x.md` 第 5 节)。只路由 `emitQuads` 声明在游戏之外的模型,
+  原版方块一律留在 OptiFine 的路由上(否则光影下会把 OptiFine 的额外顶点属性弄丢:实测发黑/光照怪);
 - **抗锯齿**:26.x 从 `post_effect/` 读后处理链,而 1.21.x 那套修复的做法是**删掉该文件**、补写老位置的链 ——
   在这一线正好是反的。现在按版本线分开处理;
 - **渲染路径**:移动方块与普通方块模型这两处 Fabric API 钩子仍改为惰性(由原版/OptiFine 路径绘制);方块破坏
@@ -42,10 +50,11 @@
 | Fabric API | 0.155.3+26.1.2 |
 
 实测:启动、进世界、方块/物品/生物渲染、抗锯齿、光影、多人全部正常;进世界时 Indigo 注册真正的渲染器
-(`[Indigo] Registering Indigo renderer!`),Fabric API 自己的渲染钩子从它上面绘制。
+(`[Indigo] Registering Indigo renderer!`),Fabric API 自己的渲染钩子从它上面绘制;**装 LambdaBetterGrass 实测:
+"更好的草"正常、连接纹理正确(光影开启)**。
 
-产物:`OptiFabric-1.2.0+mc26.1.2.jar` — 163776 字节
-`SHA-256: 00E0BB0ACD05B5DCC18AFBA408F093067F72E4308E3D4ABC99F8A9E48287160F`
+产物:`OptiFabric-1.2.0+mc26.1.2.jar` — 177142 字节
+`SHA-256: 840A50009F3076D26C625ACD79ECB45639155FBA4DB7AFEE91D0F8621A09F59C`
 
 ## 1.0.0+mc1.21 … 1.0.0+mc1.21.11 — 1.21.x 全系列
 

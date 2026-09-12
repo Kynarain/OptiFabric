@@ -547,7 +547,7 @@ UnsupportedOperationException: ...（OptifineRendererPlaceholder 那段话）
 代价是明确的:**Fabric API 想画的 quad 哪儿也不去,世界由 OptiFine 自己画** —— 这正是
 `contains_renderer: true` 声明的东西。
 
-### 4. Indigo 在 26.x 上根本不是地形渲染器(所以那个键是多余的)
+### 3. Indigo 在 26.x 上根本不是地形渲染器(所以那个键是多余的)
 
 上面那句"Fabric API 想画的 quad 哪儿也不去"是当时诚实的描述,但它把 **1.21.x 的取舍带到了这一线**。
 两条线上的 indigo 不是同一个东西:
@@ -597,7 +597,7 @@ mod 生成的网格**静默消失**(不报错、不显示),F3 那行 `Renderer: 
 收不到调用、由原版方法体绘制(见 `OptifineFixer.registerOfficialNameFixes`)。渲染器现在是真的了,理论上
 可以把它们放回去、让那些提交走 Indigo —— 但那是与**已实测的绘制路径**不同的另一条路,要单独测过再动。
 
-### 3. 抗锯齿的 post chain 被我们弄坏了(第三次进世界的日志)
+### 4. 抗锯齿的 post chain 被我们弄坏了(第三次进世界的日志)
 
 ```
 ShaderManager$CompilationException: Could not find post chain with id: minecraft:fxaa_of_2x
@@ -608,6 +608,68 @@ ShaderManager$CompilationException: Could not find post chain with id: minecraft
 `assets/minecraft/shaders/post/` 读链),所以它**补写老式文件、并把新式的 `post_effect/*.json` 删掉**。
 而 26.1.2 读的正是 `post_effect/` —— 删掉它才是链加载失败的原因,补写的老式文件根本没人读。
 现在这一支只在混淆线(intermediary)执行,未混淆线原样保留 OptiFine 自带的 `post_effect/`。
+
+### 5. 实时生成的几何:把 Fabric 的 FRAPI 钩子搬进 OptiFine 的循环(本轮)
+
+第 3 节让 Indigo 注册了真渲染器,但**渲染器存在 ≠ 几何会被画**:Fabric 的地形 FRAPI 入口是
+`fabric-renderer-api-v1` 的 `SectionCompilerMixin`,它对 `compile` 下两个注入 ——
+
+```
+@Inject  method="compile"  at=INVOKE Lnet/minecraft/core/BlockPos;betweenClosed(...)   → 建立 altBlockRenderer / altQuadOutput
+@Redirect method="compile" at=INVOKE ModelBlockRenderer.tesselateBlock(...)            → 把模型交给 AltModelBlockRenderer
+```
+
+而 OptiFine 的 `optifabric$compile` 里 **`betweenClosed` 出现 0 次**(整个循环被它换成了自己的实现),所以那两个注入
+只落在我们补回的、**没有任何调用者**的原版方法里:mixin 注入成功、不报错、永不执行。需要按方块位置看邻居来生成几何的模型
+(LBG 的"更好的草"就是),`emitQuads` 一次都没被问过,几何**静默消失**。
+
+**第一版(错在哪)**:照抄 Fabric 的做法,把 quad 直接写进区块层缓冲 —— 用 `SectionCompiler.getOrBeginLayer(map, pack, layer)`
+拿 BufferBuilder 然后 `quad.buffer(...)`。真机上表现为**一切方块透明**,而且症状与光影无关(关掉光影照旧)。原因在链路上:
+
+```
+[OptiFabric] … failed on …LBGLayerBakedModel: layer CUTOUT has no buffer in the section's empty started-layers map
+```
+
+**那张 map 是空的** —— OptiFine 不用 `startedLayers` 存放它的层级缓冲,它把缓冲留在自己的 `BlockQuadOutput` lambda
+(`RenderEnv.setCompileParams`)里。于是 `getOrBeginLayer` 在同一个 `ByteBufferBuilder` 上**又造了一个 BufferBuilder**,
+两个写入者互相覆盖顶点 → 整层数据成垃圾 → 方块全透明。
+
+**第二版(现在的做法)**:几何由 Fabric 产出,**顶点交给 OptiFine 写**。
+
+1. `AltModelBlockRenderer.tesselateBlock(emitter, 0,0,0, level, pos, state, model, seed)` —— 偏移传 0,让 quad 保持
+   方块局部坐标(这正是 `BakedQuad` 的坐标系),AO / 染色 / 光照由 Indigo 的这套实现算好;
+2. 每个 quad:`QuadView.toBakedQuad(sprite)`(Fabric 自己的默认方法)转成原版 `BakedQuad`,精灵从**方块图集**里查;
+3. `QuadInstance` 填 `color(i)` / `lightmap(i)` / `NO_OVERLAY`;
+4. 交给**OptiFine 传进来的那个 `BlockQuadOutput`**:顶点格式、层级缓冲、光照、光影属性全归 OptiFine 自己
+   —— 这里一次都没有碰过顶点缓冲。
+
+踩到的三个坑(都已修,记下来省下一次):
+
+- **图集 id 变了**:`AtlasManager.getAtlasOrThrow(TextureAtlas.LOCATION_BLOCKS)` 直接抛
+  `IllegalArgumentException: Invalid atlas id: minecraft:textures/atlas/blocks.png` —— 26.x 的图集键不是这个。
+  改成用 `AtlasManager.forEach` 按图集**自己报告的 `location()`** 找,并且每 256 个 quad 复查一次(资源重载会换掉图集对象);
+- **调用的描述符**:OptiFine 那个 `ModelBlockRenderer.tesselateBlock` 是**静态**方法、**渲染器本身是它的第一个参数**。
+  我用"匹配用的描述符"去构造替换调用,于是渲染器那个值留在了栈上 → 管线给改动过的类重算栈帧时在 ASM 里
+  `ArrayIndexOutOfBoundsException: Frame.merge`,整个 `SectionCompiler` 被丢弃(`Prepared 566 (0 skipped, 1 failed)`)——
+  比没有功能严重得多。正确做法是匹配用 9 参、替换用 10 参+额外状态;
+- **只接管该接管的模型**:Fabric 的钩子对**每个**方块都替换 tessellate 调用,但在 OptiFine 下这不能照搬 ——
+  OptiFine 的 `ModelBlockRenderer` 会写它光影管线要用的额外顶点属性(它 `setMidBlock` 的那套),把所有方块都交给
+  Fabric 就会"画面变了但不对"(实测:发黑 / 光照怪)。所以只路由**`emitQuads` 声明在游戏之外**的模型(模组模型),
+  原版模型一律留在 OptiFine 的路由上。
+
+**真机结果**(光影开启,用户确认):**LBG 的更好的草正常、连接纹理正确**;日志顺序为
+
+```
+[OptiFabric] …LBGBakedModel emits quads of its own, so those blocks are tesselated through Fabric's renderer …
+[OptiFabric] OptiFine's chunk build reaches Fabric's block renderer through the block bridge … the compile loop was carrying 0 started layer buffer(s)
+[OptiFabric] Fabric's first block quad was handed to OptiFine's own quad output, so its vertex format, layers and lighting stay OptiFine's
+```
+
+没有任何 `Falling back`,也没有崩点。离线校验同日复跑:`Prepared 567 (0 skipped, 0 failed)`、`verified OK 567`、
+ASM 0、OptiFine 879/0、五个扫描器全 0。
+
+**仍然有意保持惰性的两处**:`BlockFeatureRenderer.renderMovingBlockSubmits` / `renderBlockModelSubmits` 照旧改名成死代码
+(移动方块与"方块模型提交"仍由原版/OptiFine 路径绘制)。这条桥只解决**地形**(区块构建)这一路。
 
 ### 进世界的最终判定
 

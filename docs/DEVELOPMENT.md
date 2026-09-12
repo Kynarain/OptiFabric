@@ -160,7 +160,7 @@ public boolean shouldApplyMixin(...) { return indigoApplicable; }        // 整�
 
 关键点是**这个键必须由"另一个渲染器"声明**(Sodium 用的就是它),而 OptiFine 本身就是地形渲染器,所以语义上是诚实的,不是绕过检查。注意上一轮设的 `fabric-renderer-indigo:force_compatibility` **达不到这个效果** —— 它只切换 indigo 的兼容渲染路径,照样会应用在那条会崩的 mixin 上。代价是:依赖 FRAPI/indigo 的模组不再拿到 indigo 的自定义渲染,改由 OptiFine 渲染地形;需要换回去就删掉这个键,但那样 `class_846$class_851$class_4578` 一加载就会崩。
 
-**这段只适用于 1.21.x 线。** 26.1.2 上的 indigo 不再是地形渲染器(Fabric API 把地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己,indigo 只剩 1 条物品 mixin + 2 个 accessor),那个键在那条线上只会关掉 Fabric API 唯一能问到的渲染器,所以 26.x 的 jar **不声明它** —— 见 `docs/PORT_26.x.md` 第 4 节。
+**这段只适用于 1.21.x 线。** 26.1.2 上的 indigo 不再是地形渲染器(Fabric API 把地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己,indigo 只剩 1 条物品 mixin + 2 个 accessor),那个键在那条线上只会关掉 Fabric API 唯一能问到的渲染器,所以 26.x 的 jar **不声明它** —— 见 `docs/PORT_26.x.md` 第 3 节。
 
 最后,用 `-ea` 打开断言跑了一遍管线(生产环境断言默认关闭),又发现一个隐患:`ChunkRendererFix` 是上游针对 **Forge** 的修复,它断言那段调用带的是 1.16–1.18 的 `IModelData`,而 1.20.6 的 OptiFine 用的是 1.19+ 改名后的 `ModelData`,断言直接不成立:
 
