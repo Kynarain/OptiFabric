@@ -41,19 +41,42 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
 public final class RendererApiFallback {
-	private static final String RENDERER_API_CLASS = "net.fabricmc.fabric.api.renderer.v1.Renderer";
+	/**
+	 * Where the interface lives, newest first. 26.1 moved it and its implementation down into the client package
+	 * ({@code api.renderer.v1.Renderer} became {@code api.client.renderer.v1.Renderer}, and the registry with it:
+	 * {@code impl.renderer.RendererManager} became {@code impl.client.renderer.RendererManager}). Looking up the
+	 * old name there throws ClassNotFoundException, and because that is the documented "no Fabric API" path the
+	 * method used to return quietly - so the placeholder was never registered at all and the first
+	 * {@code Renderer.get()} from a rendering hook took the game down:
+	 *
+	 * <pre>UnsupportedOperationException: Attempted to retrieve active rendering plug-in before one was registered.
+	 *   at net.fabricmc.fabric.impl.client.renderer.RendererManager.getRenderer
+	 *   at net.fabricmc.fabric.api.client.renderer.v1.Renderer.get
+	 *   at ...BlockFeatureRenderer.handler$znj000$fabric-renderer-api-v1$beforeInitBlockRenderer</pre>
+	 */
+	private static final String[] RENDERER_API_CLASSES = {
+			"net.fabricmc.fabric.api.client.renderer.v1.Renderer", //26.1 and newer
+			"net.fabricmc.fabric.api.renderer.v1.Renderer", //1.21.x
+	};
 
 	private RendererApiFallback() {
 	}
 
 	public static void install() {
-		Class<?> renderer;
+		Class<?> renderer = null;
 
-		try {
-			//Asked for directly rather than through FabricLoader.isModLoaded: the only thing that matters is whether the
-			//interface is there, and this way a missing Fabric API is not an error path at all
-			renderer = Class.forName(RENDERER_API_CLASS, false, RendererApiFallback.class.getClassLoader());
-		} catch (ClassNotFoundException e) {
+		for (String candidate : RENDERER_API_CLASSES) {
+			try {
+				//Asked for directly rather than through FabricLoader.isModLoaded: the only thing that matters is
+				//whether the interface is there, and this way a missing Fabric API is not an error path at all
+				renderer = Class.forName(candidate, false, RendererApiFallback.class.getClassLoader());
+				break;
+			} catch (ClassNotFoundException ignored) {
+				//try the next location
+			}
+		}
+
+		if (renderer == null) {
 			return; //No Fabric API renderer API on the classpath: nothing ever asks for a rendering plug-in
 		}
 
@@ -64,8 +87,8 @@ public final class RendererApiFallback {
 			register.invoke(placeholder);
 
 			System.out.println("[OptiFabric] Registered " + placeholder.getClass().getSimpleName()
-					+ " as Fabric's rendering plug-in: Fabric API expects one to exist even though OptiFine is the"
-					+ " renderer and Indigo steps aside, and its own hooks crash without it (the F3 renderer line does)");
+					+ " as Fabric's rendering plug-in (" + renderer.getName() + "): Fabric API expects one to exist"
+					+ " even though OptiFine is the renderer and Indigo steps aside, and its own hooks crash without it");
 		} catch (UnsupportedOperationException e) {
 			System.out.println("[OptiFabric] Another rendering plug-in is already registered, leaving it alone");
 		} catch (Throwable t) {

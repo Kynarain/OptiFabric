@@ -63,14 +63,25 @@ public final class OptifineMappings {
 	private OptifineMappings() {
 	}
 
+	/**
+	 * Whether this jar carries official -> intermediary mappings, i.e. whether it was built for an obfuscated
+	 * release. A build for an unobfuscated release (Minecraft 26.1 and newer) bundles none, because the game's own
+	 * names already are the runtime names there and there is nothing to rename.
+	 */
+	public static boolean hasBundledMappings() {
+		return OptifineMappings.class.getResource("/mappings/mappings.tiny") != null;
+	}
+
 	public static synchronized MemoryMappingTree get() {
 		if (mappings != null) return mappings;
 
 		InputStream bundled = OptifineMappings.class.getResourceAsStream("/mappings/mappings.tiny");
 
 		if (bundled == null) {
-			throw new IllegalStateException("OptiFabric is missing its bundled intermediary mappings (/mappings/mappings.tiny),"
-					+ " the jar was built incorrectly");
+			throw new IllegalStateException("OptiFabric is missing its bundled official -> intermediary mappings"
+					+ " (/mappings/mappings.tiny). Either the jar was built incorrectly, or it was built for an"
+					+ " unobfuscated release (Minecraft 26.1 and newer), which carries none because it needs none -"
+					+ " in that case nothing should be asking for them (see OptifineSetup and findFieldRenames).");
 		}
 
 		MemoryMappingTree tree = new MemoryMappingTree();
@@ -103,6 +114,10 @@ public final class OptifineMappings {
 	 * @param patchedClasses the already remapped patched classes, by internal name
 	 */
 	public static List<FieldRename> findFieldRenames(Map<String, ClassNode> patchedClasses) {
+		//Nothing was renamed into intermediary in the first place, so nothing can have been left under an obfuscated
+		//name either - and the repair is asked for on every run, including the ones whose jar carries no mappings.
+		if (!hasBundledMappings()) return List.of();
+
 		MappingTreeView tree = get();
 		int from = tree.getNamespaceId(OFFICIAL);
 		int to = tree.getNamespaceId(INTERMEDIARY);

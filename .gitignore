@@ -20,6 +20,9 @@ hs_err_pid*
 # Common working directory
 run
 
+# The game writes its logs beside its working directory, so launching one from this folder leaves them here
+logs
+
 # Downloaded OptiFine test jar (do not redistribute)
 test-downloads/
 

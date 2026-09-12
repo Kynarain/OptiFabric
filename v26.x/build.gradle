@@ -1,0 +1,106 @@
+plugins {
+    // Minecraft 26.1 and newer ships unobfuscated, so this is Loom's non-remapping flavour: it applies no
+    // mappings and produces the jar exactly as compiled. (The obfuscated 1.21.x line next door uses the
+    // legacy `fabric-loom` id instead - see v1.21.x/build.gradle.)
+    id 'net.fabricmc.fabric-loom' version '1.17-SNAPSHOT'
+}
+
+// The 26.x line. One project per release line, so the target comes from this project's gradle.properties
+// alone - there is no -Pmc here, and there is no yarn: 26.1.2 has no yarn build at all (the metadata for it
+// is an empty array) and no real intermediary either (maven.fabricmc.net/net/fabricmc/intermediary/26.1.2/
+// is a 404; 26.1.2 only publishes the placeholder net.fabricmc:intermediary:0.0.0).
+def targetMc = project.minecraft_version.toString()
+
+version = "${project.mod_version_base}+mc${targetMc}"
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    // Loom already adds the repositories needed for Minecraft and Fabric Loader.
+}
+
+// Everything that is not version specific lives in common/ and is compiled into this project as well. The
+// two mixins are NOT shared: they name the game, and this project names it by its official names.
+def sharedSources = file('../common/src/main')
+
+sourceSets {
+    main {
+        java.srcDirs = [new File(sharedSources, 'java'), file('src/main/java')]
+        resources.srcDirs = [new File(sharedSources, 'resources'), file('src/main/resources')]
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${targetMc}"
+
+    // No `mappings` dependency exists for these releases, and Loader comes in as a plain dependency: the
+    // mod-augmented variants (modImplementation and friends) exist to remap a dependency into the development
+    // namespace, which the non-remapping flavour has no notion of.
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // All of these are provided at runtime by Fabric Loader / its launch libraries:
+    // ASM and Mixin are launch libraries, and tiny-remapper + mapping-io are shaded inside the loader jar
+    // (net.fabricmc.loader.impl.lib.tinyremapper / ...mappingio). Nothing is bundled into this mod.
+    compileOnly "org.ow2.asm:asm:${project.asm_version}"
+    compileOnly "org.ow2.asm:asm-tree:${project.asm_version}"
+    compileOnly "org.ow2.asm:asm-commons:${project.asm_version}"
+    compileOnly "org.ow2.asm:asm-analysis:${project.asm_version}"
+}
+
+// The release itself requires Java 25.
+def targetJavaVersion = 25
+def mixinCompatibilityLevel = "JAVA_" + targetJavaVersion
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "minecraft_version", targetMc
+    inputs.property "loader_version", project.loader_version
+    inputs.property "mixin_compatibility_level", mixinCompatibilityLevel
+    filteringCharset "UTF-8"
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version,
+                "minecraft_version": targetMc,
+                "loader_version": project.loader_version
+    }
+
+    // The shared config carries a placeholder: Mixin refuses to apply a mixin class compiled for a newer Java
+    // version than its config declares, so this line has to follow the compile release of the project.
+    filesMatching("optifabric.mixins.json") {
+        expand "mixin_compatibility_level": mixinCompatibilityLevel
+    }
+
+    // No intermediary mappings are bundled here: the runtime namespace is already the official one, so
+    // OptiFine's official -> intermediary remap is the identity and OptifineSetup skips it.
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = "UTF-8"
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+        it.options.release.set(targetJavaVersion)
+    }
+}
+
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+    withSourcesJar()
+}
+
+jar {
+    from(file('../LICENSE.txt')) {
+        rename { "${it}_${project.archives_base_name}" }
+    }
+}
+
+tasks.named("build") {
+    doFirst {
+        println "Building ${project.archives_base_name} ${project.version} (Minecraft ${targetMc}," +
+                " official (unobfuscated) names, Fabric Loader ${project.loader_version})"
+    }
+}

@@ -116,12 +116,17 @@ public class OptifineSetup {
 			}
 		}
 
+		//Which namespace the game actually runs in, which is what decides whether OptiFine's classes have to be
+		//renamed at all. Fabric Loader says "intermediary" for the obfuscated releases this mod started on, but
+		//"official" for a release that ships unobfuscated (Minecraft 26.1 and newer): those publish only the empty
+		//placeholder intermediary 0.0.0, so MappingConfiguration.hasAnyMappings() is false and
+		//computeRuntimeNamespace() falls back to "official" instead of entering its intermediary branch.
 		String namespace = FabricLoader.getInstance().getMappingResolver().getCurrentRuntimeNamespace();
 
-		if (!"intermediary".equals(namespace)) {
+		if (!"intermediary".equals(namespace) && !"official".equals(namespace)) {
 			throw new IllegalStateException("OptiFabric can currently only load OptiFine in a production runtime"
-					+ " (namespace \"intermediary\"), but this instance runs in the \"" + namespace + "\" namespace.\n"
-					+ "Run the built OptiFabric jar in a normal launcher with Fabric Loader and OptiFine 1.20.6 in the"
+					+ " (namespace \"intermediary\" or \"official\"), but this instance runs in the \"" + namespace + "\" namespace.\n"
+					+ "Run the built OptiFabric jar in a normal launcher with Fabric Loader and OptiFine in the"
 					+ " mods folder instead of launching it from a development environment.");
 		}
 
@@ -191,9 +196,22 @@ public class OptifineSetup {
 		}, jarOfTheFree);
 		rebuilder.close();
 
-		System.out.println("[OptiFabric] Remapping OptiFine from official to " + namespace);
-		File completeJar = new File(workDir, "Optifine-remapped.jar");
-		remapOptifine(jarOfTheFree, getLibs(), completeJar, createMappings("official", namespace));
+		//In the "official" namespace the game's own names already are the runtime names, so OptiFine's patches are
+		//named correctly as they stand and the whole official -> intermediary remap is the identity. It cannot just be
+		//left in and allowed to be a no-op either: a jar is built for exactly one of the two worlds, and the build for
+		//an unobfuscated release deliberately bundles no mappings at all (there would be nothing for the remapper to
+		//read), so the step is skipped outright.
+		File completeJar;
+
+		if (OptifineMappings.OFFICIAL.equals(namespace)) {
+			System.out.println("[OptiFabric] Minecraft " + OptifineVersion.minecraftVersion + " ships unobfuscated"
+					+ " (runtime namespace \"" + namespace + "\"), so OptiFine needs no remapping");
+			completeJar = jarOfTheFree;
+		} else {
+			System.out.println("[OptiFabric] Remapping OptiFine from official to " + namespace);
+			completeJar = new File(workDir, "Optifine-remapped.jar");
+			remapOptifine(jarOfTheFree, getLibs(), completeJar, createMappings(OptifineMappings.OFFICIAL, namespace));
+		}
 
 		File completedJar = completeJar;
 
@@ -233,7 +251,24 @@ public class OptifineSetup {
 		//shape that release cannot parse, and a preview build that cancels the shaderpack load outright); those
 		//entries are repaired in the jar that is about to go on the class path.
 		OptifineJarFixer.fix(remappedJar, getMinecraftJar());
-		OptifinePostChainFixer.fix(remappedJar);
+
+		//The post chain repair is for the obfuscated line only. It exists because those releases read OptiFine's
+		//anti-aliasing chain from the pre-1.21.6 location (assets/minecraft/shaders/post/), which OptiFine's build
+		//stopped filling in, so the fixer wrote that file and removed the new-style one so the two chain runners
+		//would not fight. A 26.x launch showed the assumption is backwards there: the game reads post_effect/ now,
+		//so removing it is what breaks the chain -
+		//
+		//  ShaderManager$CompilationException: Could not find post chain with id: minecraft:fxaa_of_2x
+		//    at ShaderManager.getPostChain -> GameRenderer.render
+		//
+		// - and the old-style file it wrote is never read. On the unobfuscated line OptiFine's own new-style post
+		//effect is left exactly as it ships.
+		if (OptifineMappings.OFFICIAL.equals(namespace)) {
+			System.out.println("[OptiFabric] Leaving OptiFine's post_effect/ files alone: this release reads the"
+					+ " post chain from there, not from the pre-1.21.6 shaders/post/ location");
+		} else {
+			OptifinePostChainFixer.fix(remappedJar);
+		}
 
 		Files.writeString(cacheStamp.toPath(), String.valueOf(CACHE_FORMAT), StandardCharsets.UTF_8);
 

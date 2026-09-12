@@ -89,7 +89,516 @@ if (targetYarn == null) throw new GradleException("No yarn build is listed for M
 
 26.1.2 没有 yarn(实测元数据为空),所以 `-Pmc=26.1.2` 会**立刻抛这个异常**。要做的分叉:
 
-1. 26.x 分支改用**官方映射**(Loom 的 official mappings 路径),不走 yarn;
+1. 26.x 分支改用**官方映射**(下文实测更正:不是"Loom 的 official mappings 路径",而是换一个**插件**),
+   不走 yarn;
 2. **跳过"把 intermediary mappings 打进 jar"**那一步(未混淆下不重映射,`Patcher.process(...)` 的 official->intermediary 阶段成为恒等);
 3. `gradle.properties` 的 `minecraft_version` 指到 `26.1.2`;
 4. 之后再谈 `patcher/fixes/*` 按官方名重写(本轮主要工作量,逐个 fixer 的注册名与判据字符串都要换)。
+
+## 已完成:两个项目分离(实测通过)
+
+两条线不能共用一份源码 —— 同一份 mixin 不可能既是 yarn 名又是官方名 —— 所以按用户决定把
+**1.21.x 与 26.x 拆成两个完全独立的 Gradle 项目**,各自有自己的 `gradle.properties`:
+
+```
+OptiFabric/
+  common/src/main/            共享源码:patcher、fixer、mod、util 与资源(与版本无关,两边一起编译)
+  v1.21.x/                    1.21.x 项目:fabric-loom + yarn + intermediary,Java 21
+    settings.gradle  gradle.properties(minecraft_version=1.21.11)  build.gradle
+    src/main/java/.../mixin/  yarn 名的两个 mixin
+  v26.x/                      26.x 项目:net.fabricmc.fabric-loom,无 mappings,Java 25
+    settings.gradle  gradle.properties(minecraft_version=26.1.2)   build.gradle
+    src/main/java/.../mixin/  官方名的两个 mixin
+  gradlew(.bat)  gradle/      共用的 wrapper(根目录不再是 Gradle 项目)
+```
+
+构建(两条线互不干扰):
+
+```
+.\gradlew.bat -p v1.21.x build "-Pmc=1.21.11" --offline   # -> BUILD SUCCESSFUL(含 remapJar/remapSourcesJar)
+.\gradlew.bat -p v26.x build                              # -> BUILD SUCCESSFUL
+```
+
+**1.21.x 未被触动**:`v1.21.x/build/libs/OptiFabric-1.1.0+mc1.21.11.jar` 与已发布的
+`dist/OptiFabric-1.1.0+mc1.21.11.jar` **逐字节相同**(SHA-256 `B3148876…BE71D7`,865253 字节)。
+`v1.21.x` 仍保留 `yarnBuilds` 表与 `-Pmc=` 覆盖,所以十个 1.21.x 版本照旧从这一个项目构建。
+
+**26.x 现在也能出 jar 了**:`v26.x/build/libs/OptiFabric-1.1.0+mc26.1.2.jar`,156769 字节。
+`v26.x` 没有 `-Pmc`:它的目标版本就是 `v26.x/gradle.properties` 里那一个值。
+
+> 本机 shell 会把**未加引号**的 `-Pmc=1.21.11` 拆成 `-Pmc=1` + `.21.11`(实测 `cmd /c echo -Pmc=1.21.11`
+> 输出 `-Pmc=1 .21.11`),Gradle 于是收到 `mc=1` 并抛出"没有 yarn 构建"。加引号写成 `"-Pmc=1.21.11"` 即可。
+> 这是执行环境的参数解析问题,不是仓库问题。
+
+### 实测更正:Fabric 官方 26.1.2 移植文档给出的真实做法
+
+`https://docs.fabricmc.net/26.1.2/develop/porting/` 与 `fabric-example-mod` 的 `26.1` 分支写明:
+
+| 项 | 1.21.x(混淆) | 26.1+(未混淆) |
+|---|---|---|
+| Loom 插件 id | `fabric-loom`(遗留 id,即 remap 版) | **`net.fabricmc.fabric-loom`**(非重映射版) |
+| `mappings` 依赖 | `net.fabricmc:yarn:<ver>:v2` | **整行删掉**(非重映射 Loom 没有 mappings 概念) |
+| Loader 依赖 | `modImplementation` | `implementation` |
+| Java | 21 | **25** |
+| 打包任务 | `remapJar`(+ `remapSourcesJar`) | 只有 `jar` |
+
+也就是说 PORT_26.x.md 原先"改用官方映射"的说法不准确:26.x 不是"用官方 mappings",而是**换插件 + 不要 mappings**。
+intermediary 元数据也印证了这点:`maven.fabricmc.net/net/fabricmc/intermediary/26.1.2/` 是 **404**,
+26.1.2 只发布占位 `net.fabricmc:intermediary:0.0.0`。
+
+### 26.1.2 产物实测(不是推断)
+
+```
+v26.x\build\libs\OptiFabric-1.1.0+mc26.1.2.jar        156769 字节
+  fabric.mod.json        minecraft "26.1.2", fabricloader ">=0.19.5"
+  mappings/mappings.tiny  不存在          <- intermediary 打包在 v26.x 里根本不注册
+  Optifabric.class        主版本 69       <- Java 25
+  optifabric.mixins.json  compatibilityLevel "JAVA_25"
+```
+
+`compatibilityLevel` 必须跟着编译版本走:Mixin 拒绝套用"比 config 声明的 Java 版本更新"的 mixin 类。
+共享的 `optifabric.mixins.json` 里放的是 `${mixin_compatibility_level}` 占位符,由各项目的
+`processResources` 展开 —— 实测 `v1.21.x` 得到 `JAVA_21`、`v26.x` 得到 `JAVA_25`。
+
+### 两个 mixin 的官方名对照(逐个 `javap` 读 26.1.2 真实 jar 得到)
+
+按用户决定,**1.21.x 那两个 mixin 保持 yarn 名不动**(优先保障 1.21.x,且已验证产物逐字节相同);
+26.x 的对应实现写在 `v26.x/src/main/java/.../mixin/`。下表就是 `v26.x` 里那份用的对照:
+
+`mixin/CrashReportMixin.java`:
+
+| 1.21.x (yarn) | 26.1.2 (官方) |
+|---|---|
+| `net.minecraft.util.crash.CrashReport` | `net.minecraft.CrashReport` |
+| `net.minecraft.util.crash.CrashReportSection` | `net.minecraft.CrashReportCategory` |
+| `CrashReportSection.add(name, value)` | `CrashReportCategory.setDetail(name, value)` |
+| `CrashReportSection.addStackTrace(StringBuilder)` | `CrashReportCategory.getDetails(StringBuilder)` |
+| `CrashReport.addDetails(StringBuilder)` | `CrashReport.getDetails(StringBuilder)` |
+
+注意最后一行:26.1.2 的 `CrashReport` **同时**有 `getDetails()`(无参,返回 String)和 `getDetails(StringBuilder)`,
+所以 `@Inject(method = "getDetails(Ljava/lang/StringBuilder;)V", ...)` 必须写描述符,光写名字会有歧义。
+
+`mixin/MixinTitleScreen.java`:
+
+| 1.21.x (yarn) | 26.1.2 (官方) |
+|---|---|
+| `client.gui.screen.TitleScreen / Screen / ConfirmScreen` | `client.gui.screens.*` |
+| `client.gui.DrawContext` | **`client.gui.GuiGraphicsExtractor`** |
+| `Screen.render(DrawContext, int, int, float)` | **`Screen.extractRenderState(GuiGraphicsExtractor, int, int, float)`** |
+| `Screen#textRenderer` / `#client` | `Screen#font` / `#minecraft` |
+| `TitleScreen#doBackgroundFade` / `#backgroundFadeStart` | `TitleScreen#fading` / `#fadeInStart` |
+| `text.Text` | `network.chat.Component` |
+| `Text.literal(x).formatted(F)` | `Component.literal(x).withStyle(F)` |
+| `util.Formatting` | `ChatFormatting` |
+| `util.math.MathHelper` | `util.Mth` |
+| `DrawContext#drawTextWithShadow(font, s, x, y, colour)` | `GuiGraphicsExtractor#text(font, s, x, y, colour)` |
+| `Util.getOperatingSystem().open(x)` | `Util.getPlatform().openUri(String)` / `.openFile(File)` |
+| `Util.getMeasuringTimeMs()` | `Util.getMillis()` |
+| `MinecraftClient#keyboard` | `Minecraft#keyboardHandler` |
+
+**尚未在游戏内验证**:26.1 把"往 draw context 里画"改成了"抽取渲染状态(render state)+ 独立渲染器",
+所以版本号角标是从 `extractRenderState` 里加进去,而不是原来的 `render`。这是对新 API 的忠实读法,
+但要真的看到字出现在屏幕上才算数。
+
+**另一条好消息**:当初 26.x 编译失败时,37 个错误**只出在这两个 mixin 文件里**。`mod/*`、`patcher/*`、
+`patcher/fixes/*`、`util/*` 全部在官方名命名空间下**原样编译通过** —— 因为 fixer 是用**字符串**
+写类名/方法名的(`class_XXXX` 只是字符串常量),不依赖编译期的游戏类型。也就是说
+`patcher/fixes/*` 的官方名重写是**运行期行为**问题(注册名与判据字符串要换),不是编译问题。
+
+## 运行期管线分叉(已完成)
+
+### 关键发现:26.x 的 runtime namespace 是 `official`,不是 `intermediary`
+
+这条此前只是推测,现在从 Fabric Loader 0.19.5 的字节码里读实了。`MappingConfiguration.computeRuntimeNamespace()`:
+
+```java
+String ns = "official";                                  // 没有映射时的默认值
+if (hasAnyMappings()) {                                  // = getMappings().getClasses().isEmpty() 取反
+    ns = launcher.isDevelopment() ? "named" : "intermediary";
+    if (!getNamespaces().contains(ns)) ns = "official";
+}
+return gameProvider.getRuntimeNamespace(ns);
+```
+
+26.1.2 只发布占位的 `intermediary:0.0.0`(空映射),所以 `hasAnyMappings()` 为 **false**,命名空间落在 **`official`**。
+
+**这直接推翻了两处原有假设**:
+
+1. `OptifineSetup` 原来的守卫是 `if (!"intermediary".equals(namespace)) throw ...` —— 在 26.x 上会**直接抛异常**,
+   OptiFine 根本load不起来;
+2. 原计划写的"official -> intermediary 重映射成为恒等,可以留着不管"也不对:**不能留**。
+   jar 是为两个世界之一构建的,26.x 的产物**根本不带 mappings**,重映射器没有东西可读。
+
+### 实际改动(`common/`,运行期判断,不分目录)
+
+| 位置 | 改动 |
+|---|---|
+| `OptifineSetup.getRuntime()` | 守卫接受 `intermediary` **或** `official`;`official` 时**整段跳过** `remapOptifine(...)`,直接拿 de-volderfy 之后的 jar 往下走 |
+| `OptifineMappings.hasBundledMappings()` | 新增:`/mappings/mappings.tiny` 在不在 |
+| `OptifineMappings.findFieldRenames(...)` | 没有自带映射时直接返回空表 |
+
+第三处是必须的:`OptifineInjector` **每次运行都会调** `findFieldRenames`(它修的是 OptiFine 把某些字段
+留成混淆名的情况,比如粒子工厂表 `k` vs `field_3835`)。26.x 下 OptiFine 的补丁本来就是按官方名编的,
+没有"遗留混淆名"可修,语义上返回空表才对;同时这也避开了那条会去读不存在映射的路径。
+
+### 还没做的,以及为什么
+
+**`RemappingUtils` 这轮故意没动。** 它服务于 `patcher/fixes/*` 的判据字符串(`getClassName("class_437")` 之类),
+只有等 fixer 换成官方名之后,改它才有可观测效果、也才可验证。现在改属于无法验证的瞎动 —— 而且
+`docs/DEVELOPMENT.md` 的"A. 1.21.6/1.21.7 启动崩溃"一节正好记着这块前缀行为踩过的坑
+(`registerFix` 内部会过一遍 `getClassName`)。
+
+好消息是它**不会炸**:`MappingResolverImpl.mapClassName` 对未知名字是**原样返回**(只在名字含 `/` 时报格式错),
+所以 26.x 下 fixer 注册表能正常初始化,只是每个 fixer 的判据都匹配不上 —— 也就是"找到就跳过",
+正好是这一步留给下一步的基线状态。
+
+### 1.21.x 的行为未变(推理 + 实跑回归验证)
+
+新增分支只在 `namespace == "official"` 时生效;1.21.x 是 `intermediary`,所以守卫、重映射、`findFieldRenames`
+三条路径的走向与改动前**逐条相同**。注意:这次**产物哈希必然变了**(改的是源码,不是构建配置),
+所以先前"与 dist 逐字节相同"那条验收标准在这一步**不适用** —— 真实验收是仓库自己的离线校验,已实跑:
+
+```
+powershell -File test-downloads\verify-version.ps1 -Version 1.21.11 -SkipBuild
+  Prepared 570 patched classes (0 skipped, 0 failed)
+  verified OK: 570        FAILED: 0        ASM verifier problems: 0
+  OptiFine 自己的类: 874 全过,FAILED 0,ASM problems 0
+  RefmapScan      MISSING members: 0
+  RuntimeContractScan  broken 0 / lost 0 / unresolvable 0
+  LambdaScan      DANGLING handles: 0
+  AtTargetScan    PROBLEMS: 4
+```
+
+`AtTargetScan PROBLEMS: 4` **不是回归**:未被我碰过的 `verify-1.21.10.log` 里是**一字不差的同样 4 条**
+(`class_776` 两条、`class_9810` 两条),整个 1.21.8–1.21.11 家族的基线都是 4(1.21.1/1.21.3/1.21.4 是 2,1.21 是 3)。
+这是已知基线,不是这次改动引入的。
+
+> 跑校验时踩到一处**搬家留下的坑**,已修:`test-downloads/harness-cp.txt` 里把 mod 的编译产物
+> 硬编码成了 `<根>\build\classes\java\main` 与 `<根>\build\resources\main`。根目录不再是 Gradle 项目后
+> 这两条已失效,`VerifyPatched` 直接 `NoClassDefFoundError: OptifineSetup`。现已指向
+> `v1.21.x\build\classes\java\main` / `v1.21.x\build\resources\main`。
+> 另外首次跑之前要清掉 `test-downloads\mc<版本>\game\.optifine` 缓存,否则管线走的是缓存、**不会**执行改过的代码。
+
+## 26.x 离线校验通道(已完成,一条命令)
+
+`test-downloads\verify-26.ps1` —— 1.21.x 那套 `verify-version.ps1` 的 26.x 对应物:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-26.ps1
+```
+
+与 1.21.x 版的四处不同,每一处都是未混淆这件事逼出来的:
+
+| 项 | 1.21.x | 26.x |
+|---|---|---|
+| 映射文件 | 该版本的 yarn tiny | **没有**(26.1.2 不发 yarn),所以给扫描器一个**不存在的路径** |
+| 游戏 jar 与校验 jar | 混淆客户端 vs intermediary 客户端 | **同一份**(official 命名空间下两者就是一个) |
+| 校验 classpath | Loom 产出的未签名 jar | 自行去签名的客户端 jar(见下) |
+| 传递命名空间 | 默认 `intermediary` | `-Dharness.namespace=official` |
+
+**两个坑值得记住**:
+
+1. **扫描器会静默加载 `test-downloads\yarn-mappings.tiny`。** 那个文件是仓库里 1.21.x 的一份遗留,
+   扫描器只在"给的路径存在"时才加载 —— 不显式给一个不存在的路径,它就会拿 1.21.x 的 yarn 表去解释
+   26.x 的官方名,把每个引用都解析错。脚本里显式传不存在的路径,让扫描器进入"名字已经是运行期名字"模式。
+2. **校验 classpath 必须是未签名的客户端 jar。** 直接拿 Mojang 那份签名 jar,`VerifyLoader` 会抛
+   `SecurityException: signer information does not match`——我们的补丁类没签名,不能和已签名类同包。
+   这不是 mod 的问题(Fabric Loader 在真实启动里会剥掉签名),是 harness 口径问题;
+   脚本会自动去签名(`META-INF/*.SF|RSA|DSA` + 重写 `MANIFEST.MF`),产出的状态与 Loom 为 1.21.x 产出的那份一致。
+
+### fixer 的命名空间分叉
+
+`RemappingUtils.hasOfficialNames()`(运行时问 `getCurrentRuntimeNamespace()` 是不是 `official`)
+现在是两条 fixer 注册表的总开关:
+
+- `registerIntermediaryNameFixes()` —— **原有那一整块,一字未改**(`class_XXXX` 键),1.21.x 走它;
+- `registerOfficialNameFixes()` —— 26.x 走它,**刻意很短**,由基线驱动而不是照着翻译。
+
+为什么不照翻译:把整张 intermediary 表在 26.x 上留成死表跑基线,得到的已经是
+`Prepared 566 (0 skipped, 0 failed)` + RefmapScan `MISSING 0` + RuntimeContractScan `0/0/0`
++ LambdaScan `DANGLING 0`。也就是说 1.21.x 那些条目所修的冲突**在 26.1.2 上大多根本不存在**,
+把名字照搬过去等于给不存在的字节码形状注册修补。只有扫描器真正报出来的才登记。
+
+### 26.1.2 基线(实测)
+
+```
+powershell -File test-downloads\verify-26.ps1
+  [OptiFabric] Minecraft 26.1.2 ships unobfuscated (runtime namespace "official"), so OptiFine needs no remapping
+  [OptiFabric] Restored vanilla net/minecraft/client/resources/model/ModelManager.lambda$loadBlockModels$2(...)
+  [OptiFabric] Wrote assets/minecraft/shaders/post/fxaa_of_2x.json / _4x.json
+  [OptiFabric] Dropped assets/minecraft/post_effect/fxaa_of_2x.json / _4x.json
+  Prepared 566 patched classes (0 skipped, 0 failed)
+  verified OK: 566   FAILED: 0   ASM verifier problems: 0
+  OptiFine 自己的类: 881 个,879 全过,FAILED 0,not applicable(NeoForge)2,ASM 0
+  AtTargetScan PROBLEMS 0 / RefmapScan MISSING 0 / RuntimeContractScan 0-0-0 / LambdaScan DANGLING 0
+```
+
+对照 1.21.11(`Prepared 570`、`AtTargetScan PROBLEMS 4`),26.x **全绿且问题更少**。
+
+### 基线里唯一一个真实问题(已修)
+
+唯一的 `AtTargetScan` 问题:
+
+```
+[NO INSTRUCTION] net/minecraft/client/resources/model/ModelManager.lambda$loadBlockModels$2(Ljava/util/Map$Entry;)
+                 Lcom/mojang/datafixers/util/Pair; has no INVOKE of Pair.of(...)
+  -> net.fabricmc.fabric.mixin.client.model.loading.ModelManagerMixin.actuallyDeserializeModel
+```
+
+这就是 1.21.x 那条 `class_1092 / method_65750` 的同一个冲突、换了形状:那边 OptiFine 重编译把 lambda
+**改了名**,这边 lambda **名字与描述符都在**,但重编译把 mixin 的 `@At` 需要的 `Pair.of` 调用**删掉了**。
+两边 jar 都实测过(不是推断):
+
+```
+javap -c <原版>  ... lambda$loadBlockModels$2 ...  invokestatic com/mojang/datafixers/util/Pair.of   (1 处)
+javap -c <补丁>  ... lambda$loadBlockModels$2 ...  Pair.of 出现次数 0
+```
+
+于是 `registerOfficialNameFixes()` 里登记 `RestoreVanillaMethodsFix(true, "lambda$loadBlockModels$2")`,
+用原版方法体盖掉 OptiFine 那份 —— 这个 fixer 只按名字+描述符匹配,不含任何 intermediary 字符串,
+换官方名直接用。修完 `PROBLEMS: 0`。
+
+### FXAA 那条路也是对的(顺带核过)
+
+26.1.2 的 OptiFine 只带新式 `assets/minecraft/post_effect/fxaa_of_*.json`,老式
+`assets/minecraft/shaders/post/fxaa_of_*.json`(它自己按老位置去找的那个)没有:
+
+- `OptifineJarFixer` **正确地没动**:那份新式 json 用的是 `"vertex_shader"`/`"fragment_shader"` 键、
+  blit pass 的顶点级是 `minecraft:core/screenquad`,形状本来就是这个版本能读的(它修的是 1.21.6/1.21.7/1.21.9 那几种坏形状);
+- `OptifinePostChainFixer` **按设计生效**:补写老式链、并把新式 effect 拿掉,让抗锯齿只走 OptiFine 自己那条链。
+
+### harness 口径 bug(已修)
+
+`VerifyPatched --verify-jar` 把 26.1.2 OptiFine 里两个 **NeoForge-only** 类记成了 FAILED
+(`optifine.OptiFineClassProcessor` 实现 `net.neoforged.neoforgespi.*`、`optifine.VirtualJarContents` 实现
+`net.neoforged.fml.jarcontents.*`)。两个原因:
+
+1. `externalOnly` 只认 `net/minecraftforge/` 与 `cpw/mods/`,不认 `net/neoforged/`(NeoForge 是 Forge 的后续,
+   26.x 的 OptiFine 构建按它写 Forge 集成);
+2. 更要紧的是**计数与打印口径不一致**:打印 `define:` 时传了失败原因文本,计数时却只传类名 + `null`,
+   而类名本身完全看不出 NeoForge(`optifine.OptiFineClassProcessor` 看着就是个普通 OptiFine 类)。
+
+两处都修了,现在 `FAILED 0 / not applicable 2`。—— 这类"看着像缺陷其实不是"的口径问题必须修掉,
+否则下一轮会有人去追一个不存在的问题。
+
+## 剩下的事:必须真机(游戏内)测试
+
+离线能查的已经查完了。以下几条**静态查不出来**,需要在 26.1.2 + Fabric Loader 0.19.5 + OptiFine HD_U_K1_pre2
+的真实启动里看:
+
+1. **两个 mixin 能不能套上**。`MixinTitleScreen` 用的是 `@Inject(method = "init")`(没写描述符)
+   和 `extractRenderState`;`CrashReportMixin` 用 `getDetails(Ljava/lang/StringBuilder;)V`。
+   Mixin 解析失败会**整个类失败**——离线校验看不到。
+2. **版本号角标画不画得出来**。26.1 把"往 draw context 里画"改成了"抽取渲染状态 + 独立渲染器",
+   我们把角标加在 `extractRenderState` 里。这是对新 API 的忠实读法,**但没在屏幕上见过**。
+3. **OptiFine 真的跑起来**——shaderpack 能加载、抗锯齿、区块渲染、多人。
+   即 1.21.x 那条"单机 + 光影 + 抗锯齿 + 多人全部正常"的验收,在 26.x 上重跑一遍。
+4. **崩溃报告里那节 `OptiFabric` 分类**是否出现(`CrashReportMixin` 的效果)。
+
+在此之前不要发布 26.x 的 jar。1.21.x 不受影响,它的八个版本照旧可用。
+
+## 26.x 已经能跑起来(实机,本机启动)
+
+```
+Prepared 566 patched classes (0 skipped, 0 failed)
+mixin 变换失败: 0     Minecraft has crashed: 0     管线失败: 0
+[OptiFine] Disable Forge light pipeline   <- OptiFine 真的加载了
+标题界面(panorama + ResourceManager)已到达
+```
+
+### 关键工具:在自己机器上复现 + 看 Mixin 的真实报错
+
+`latest.log` **看不到真因**:stdout 没写进日志,而崩溃报告也写不出来 —— 写报告会跑 OptiFine 的 `Reflector`,
+正好去 load 那个刚失败的类,于是 `Caused by` 链条被 `... 3 more` 吃掉。
+
+`test-downloads/launch-26.ps1` 解决这件事:从版本 json 重建启动命令(7 个 Fabric 库没有 `downloads` 块,
+按坐标解析)加 `-Dmixin.debug.verbose=true` 直接起游戏,输出落到 `test-downloads/launch-26.log`。
+**这是这一轮最重要的能力**:排查不再需要用户跑一次。
+
+### 修掉的四类冲突
+
+`registerOfficialNameFixes()` 现在有 6 条注册,对应实测出来的冲突:
+
+| 类 | 修法 | 1.21.x 对应条目 |
+|---|---|---|
+| `ModelManager` | `RestoreVanillaMethodsFix(true, "lambda$loadBlockModels$2")` | `class_1092 / method_65750` |
+| `ClientChunkCache` | `ObjectCreationPointFix(".../LevelChunk", "net/optifine/ChunkOF", "replaceWithPacketData")` | `class_631 / method_16020` |
+| `ScreenEffectRenderer` | `RestoreVanillaMethodsFix(true, "getViewBlockingState")` | `class_4603 / method_24225` |
+| `LevelRenderer` | restore `extractBlockOutline` + drop 掉 OptiFine 的多余重载 | `class_761` |
+| `CuboidItemModelWrapper` | restore `update` + drop 掉 9 参重载 | `class_10430 / method_65584` |
+| `SectionCompiler` | restore `compile` + **rename** OptiFine 重载 + 重定向调用者 | `class_6850` 同族 |
+
+### 这一类冲突的根因(值得记住)
+
+OptiFine 重编译时会把**原版方法削成薄壳**,把真正的实现搬进**自己加的一个重载**:
+`extractBlockOutline(Camera, LevelRenderState)` 只转发给 `extractBlockOutline(..., boolean)`,
+`update(7 参)` 只转发给 `update(9 参)`,`compile(4 参)` 只转发给 `compile(..., ChunkCacheOF, III)`。
+
+于是:原版方法体连同 Fabric API 注入点需要的调用一起没了。而 Fabric API 的写法是
+`method = "extractBlockOutline"` —— **不带描述符**。恢复原版方法体之后类里就有两个同名方法,
+MixinExtras 建局部变量上下文时**找不到方法**,报:
+
+```
+LVTGeneratorError: Could not locate method metadata for update generating LVT in .../CuboidItemModelWrapper
+```
+
+`Scanned 0 target(s)` 是同一件事的另一种表现。**所以 restore 必须配一个"消歧"**,而消歧有两种:
+
+- **drop**(删掉 OptiFine 的多余重载):只有当**没有任何类**还在调它时才安全;
+- **rename**(改名 + 把调用者重定向过去):当还有调用者时必须走这条。
+
+`DropVanillaAbsentOverloadsFix` 就是干这个的,规则是**按可见性定可靠性**:`private` 方法只有本类能调,
+所以类内扫描是完备的;非 `private` 的方法可能被**另一个单独变换的类**调用,所以默认拒绝,
+要显式传 `allowNonPrivate = true` —— 而且只在核实过"这个名字+描述符在整个游戏 jar 里都不出现"之后才传。
+
+**这条规则不是理论**:`SectionCompiler.compile(SectionPos, ChunkCacheOF, ...)` 是 public 且被
+`SectionRenderDispatcher$RenderSection$RebuildTask.doTask` 调用,当时"类内没人调"就 drop 了,
+**离线扫描器逮住了它**:
+
+```
+[patched caller] SectionRenderDispatcher$RenderSection$RebuildTask.doTask -> SectionCompiler.compile(...)
+```
+
+这是世界加载后第一次区块重建就会踩的 `NoSuchMethodError`。正确做法是 rename + `CallSiteRedirectFix` 重定向,
+现在两者都在,`unresolvable member references: 0`。
+
+### 顺带修掉的一个真 bug:`RemappingUtils` 的前缀
+
+`getClassName` 无条件加 `net.minecraft.`,于是 `CallSiteRedirectFix` 传完整官方名时抛:
+
+```
+IllegalArgumentException: Class names must be provided in dot format:
+net.minecraft.net/minecraft/client/renderer/chunk/SectionCompiler
+```
+
+整个 fixer 表在静态初始化阶段就炸了(`ExceptionInInitializerError`),游戏"继续但不带 OptiFine" ——
+**表面看 0 崩溃、0 mixin 失败,其实是没加载**。这类假成功是最危险的,判断标志是日志里
+`[OptiFabric] Failed to set up OptiFine, the game will continue without it` 和没有 `[OptiFine]` 行。
+
+修法按 PORT_26.x.md 原本的建议:前缀**按名字形态判断**(短 id 加前缀,已经是全路径的不加);
+但描述符里的类名要另走一条路 —— `CLASS_FINDER` 捕获的是 `Lnet/minecraft/` **之后**的部分,
+在未混淆版本里那是 `core/SectionPos` 这样的片段,必须无条件补回前缀,否则会拼出 `Lcore/SectionPos;`。
+1.21.x 的短 id 不含 `/`,两条路径的结果都与改动前逐字节一致(已用离线校验确认)。
+
+### 26.1.2 最终基线
+
+| 检查 | 1.21.11 | **26.1.2** |
+|---|---|---|
+| Prepare | 570 (0 skipped, 0 failed) | **566 (0 skipped, 0 failed)** |
+| JVM verify | 570 OK / 0 FAILED | **566 OK / 0 FAILED** |
+| ASM verifier | 0 | **0** |
+| AtTargetScan PROBLEMS | 4(已知基线) | **0** |
+| RefmapScan MISSING | 0 | **0** |
+| RuntimeContractScan | 0 / 0 / 0 | **0 / 0 / 0** |
+| LambdaScan DANGLING | 0 | **0** |
+
+## 还需要用户实际用一遍的部分
+
+离线全绿 + 启动成功之后,剩下的是**玩法层面**的确认(我这边只能到"起来了"):
+
+1. **进世界**:区块重建走的是 `SectionCompiler.optifine$compile` 那条被重定向的路,标题界面碰不到它;
+2. **光影**:shaderpack 能加载(抗锯齿走 `OptifinePostChainFixer` 补写的那条老式链);
+3. **物品模型 / 生物 / 方块渲染**:`CuboidItemModelWrapper.update` 与 `LevelRenderer.extractBlockOutline`
+   都用原版方法体盖掉了 OptiFine 的实现,OptiFine 自己那条渲染路径是否还完整需要看画面;
+4. **多人**;5. 崩溃报告里 `OptiFabric` 那节。
+
+## 进世界之后暴露的问题(已修)
+
+标题界面碰不到渲染管线,所以真机进世界才是这一轮的试金石。用 `launch-26.ps1 -World <世界名>`
+(`--quickPlaySingleplayer`)直接进世界,逐个修掉:
+
+### 1. Fabric 渲染器占位注册不上(第一次进世界就崩)
+
+```
+UnsupportedOperationException: Attempted to retrieve active rendering plug-in before one was registered.
+  at net.fabricmc.fabric.impl.client.renderer.RendererManager.getRenderer
+  at net.fabricmc.fabric.api.client.renderer.v1.Renderer.get
+  at ...BlockFeatureRenderer.handler$znj000$fabric-renderer-api-v1$beforeInitBlockRenderer
+```
+
+`RendererApiFallback` 查的是 `net.fabricmc.fabric.api.renderer.v1.Renderer`,而 **26.1 把接口和它的注册表
+一起挪进了 client 包**(`api.client.renderer.v1.Renderer` / `impl.client.renderer.RendererManager`)。
+查不到就 `ClassNotFoundException`,而那条路径原本是"没有 Fabric API"的正常分支 —— 于是**静默返回**,
+占位从来没注册过。现在按新→旧顺序尝试两个位置。1.21.x 走旧名字,行为不变。
+
+### 2. 占位自己抛异常(第二个崩点)
+
+注册成功之后,第一个画方块的帧就崩在**我们自己的占位**上:
+
+```
+UnsupportedOperationException: ...（OptifineRendererPlaceholder 那段话）
+  at ...OptifineRendererPlaceholder.quadEmitter
+  at ...BlockFeatureRenderer.renderBreakingBlockModelSubmits
+  at ...BlockFeatureRenderer.renderTranslucent
+  at ...GameRenderer.renderItemInHand
+```
+
+`BlockFeatureRenderer` **不是 OptiFine 打的补丁类**,所以那些调用是 **Fabric API 自己的代码**被注入进原版方法后
+在普通绘制路径上跑的 —— 1.21.x 时代只有 F3 那条调试行会碰它,"抛异常"才是诚实的做法;26.x 不是。
+
+先按 1.21.x 的老办法把 `renderMovingBlockSubmits` / `renderBlockModelSubmits` 用 `StubInjectionTargetFix`
+改成死代码,但**这条路走不通**:Fabric API 的调用是内联在多个方法体里的,逐个堵是打地鼠。
+
+所以改成让占位**返回形状正确的惰性对象**:`RendererApiStubGenerator` 现在会递归生成返回类型对应的接口
+占位(实测 7 个类),fluent 接口(抽象方法返回自身)直接把 `this` 还回去,其余返回默认值。
+依然是"只读 class 文件、绝不解析参数类型"那套(见该文件头部:曾经因为 `getMethods()` 提前加载
+游戏类而崩在 `getBlockStateBaseCacheClass`)。
+
+代价是明确的:**Fabric API 想画的 quad 哪儿也不去,世界由 OptiFine 自己画** —— 这正是
+`contains_renderer: true` 声明的东西。
+
+### 3. 抗锯齿的 post chain 被我们弄坏了(第三次进世界的日志)
+
+```
+ShaderManager$CompilationException: Could not find post chain with id: minecraft:fxaa_of_2x
+  at ShaderManager.getPostChain -> GameRenderer.render
+```
+
+`OptifinePostChainFixer` 的整个前提在 26.x 上是**反的**:它为 1.21.x 写(那些版本从
+`assets/minecraft/shaders/post/` 读链),所以它**补写老式文件、并把新式的 `post_effect/*.json` 删掉**。
+而 26.1.2 读的正是 `post_effect/` —— 删掉它才是链加载失败的原因,补写的老式文件根本没人读。
+现在这一支只在混淆线(intermediary)执行,未混淆线原样保留 OptiFine 自带的 `post_effect/`。
+
+### 进世界的最终判定
+
+```
+mixin 变换失败 0 | crash 0 | 未捕获异常 0 | post chain 失败 0 | 干净退出(Stopping!)
+```
+
+### 26.1.2 基线(增加一个类:我们接管的 BlockFeatureRenderer)
+
+| 检查 | 1.21.11 | **26.1.2** |
+|---|---|---|
+| Prepare | 570 (0 skipped, 0 failed) | **567 (0 skipped, 0 failed)** |
+| JVM verify / ASM | 0 / 0 | **0 / 0** |
+| AtTargetScan PROBLEMS | 4(已知) | **0** |
+| RefmapScan MISSING | 0 | **0** |
+| RuntimeContractScan | 0 / 0 / 0 | **0 / 0 / 0** |
+| LambdaScan DANGLING | 0 | **0** |
+
+## 真机验收:通过
+
+用户在自己的 26.1.2 实例里实际用了一遍,**确认完全没问题**。这份清单就是当时的验收项:
+
+1. 启动、OptiFine 加载、标题界面、进入世界;
+2. 方块 / 物品 / 生物渲染;
+3. 抗锯齿(链能加载之后,画面效果也对);
+4. 光影(shaderpack 加载并渲染);
+5. 多人;
+6. 崩溃报告里 `OptiFabric` 那节。
+
+至此 26.x 这一轮的移植闭环。1.21.x 未受影响:八个版本照旧可用(见 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的最终成绩),
+`v1.21.x` 项目的离线校验在改动前后数字完全一致。
+
+发布材料(`release/` 那一套、`docs/PUBLISHING.md` 的流程)这一轮**没有**为 26.x 准备;
+要把 26.1.2 正式发出去,还需要按 1.21.x 的先例补:版本备注、`dist/` 里的 jar、`release/publish.ps1` 的版本列表。
+
+## 之前顺带改掉的路径引用
+
+分离之后,原来指向"根目录就是唯一项目"的地方都已更新:`test-downloads/verify-version.ps1`(构建命令与产物路径)、
+`test-downloads/version-setup.ps1`(提示语)、`test-downloads/CheckFixerIds.ps1`(源码目录 → `common/`)、
+`test-downloads/harness-cp.txt`(mod 编译产物 → `v1.21.x/build/...`)、
+`docs/PUBLISHING.md`、`docs/DEVELOPMENT.md`、`docs/RELEASE_NOTES*.md` 的构建命令。
+
+**注意**:根目录不再有 `build.gradle` / `settings.gradle` / `gradle.properties`,所以裸敲 `.\gradlew build`
+会失败 —— 必须带 `-p v1.21.x` 或 `-p v26.x`。IntelliJ 里也需要把这两个文件夹重新作为两个 Gradle 项目导入。
