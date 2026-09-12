@@ -48,3 +48,48 @@
 
 `26.x` 从 `mc1.21.x` 建立。1.21.x 的成果不受影响:八个版本可用、发布材料在 `release/`,
 `mc1.21.x` 分支保持不动。
+## 已确认的事实(实测,可直接作为动手起点)
+
+### 1. 26.1.2 确实是未混淆的(读真实 jar 得到)
+
+```
+versions\26.1.2-Fabric 0.19.5\26.1.2-Fabric 0.19.5.jar
+  net/minecraft/client/Minecraft.class        <- 官方名
+  net/minecraft/client/Camera.class
+  net/minecraft/client/AttackIndicatorStatus.class
+  ...
+  class_ 形态的条目数: 0                        <- 没有任何 intermediary 名
+```
+
+### 2. OptiFine 26.1.2 已就位(BMCLAPI 镜像下载)
+
+```
+文件      preview_OptiFine_26.1.2_HD_U_K1_pre2.jar   (另有 pre1)
+大小      7797229 字节
+SHA-256   F8EB9026E4DA2444E18D5601D3DEDE2BD19CF514D02095FFCDB0E101687C2172
+镜像      https://bmclapi2.bangbang93.com/optifine/26.1.2/HD_U_K1/pre2
+          (URL 规律:/optifine/<MC 版本>/<类型>/<补丁号>)
+落位      test-downloads\  +  versions\26.1.2-Fabric 0.19.5\mods\
+```
+
+镜像列表用 `https://bmclapi2.bangbang93.com/optifine/versionList` 查(497 条,含 mcversion/type/patch/filename)。
+
+它**同时带了新式与旧式的 FXAA 资源**(`post_effect/fxaa_of_2x.json` 与 `shaders/post/fxaa_of_2x.{vsh,fsh}`),
+也就是说 `OptifinePostChainFixer` 的前提条件成立 —— 1.21.9/1.21.10 那个抗锯齿黑屏的修法应可平移,不必重踩。
+
+### 3. 构建侧第一处要改的地方(当前会直接抛错)
+
+`build.gradle` 现在这样:
+
+```groovy
+def yarnBuilds = [ "1.21" : "1.21+build.9", ..., "1.21.11" : "1.21.11+build.6" ]
+def targetYarn = yarnBuilds[targetMc]
+if (targetYarn == null) throw new GradleException("No yarn build is listed for Minecraft " + targetMc + ...)
+```
+
+26.1.2 没有 yarn(实测元数据为空),所以 `-Pmc=26.1.2` 会**立刻抛这个异常**。要做的分叉:
+
+1. 26.x 分支改用**官方映射**(Loom 的 official mappings 路径),不走 yarn;
+2. **跳过"把 intermediary mappings 打进 jar"**那一步(未混淆下不重映射,`Patcher.process(...)` 的 official->intermediary 阶段成为恒等);
+3. `gradle.properties` 的 `minecraft_version` 指到 `26.1.2`;
+4. 之后再谈 `patcher/fixes/*` 按官方名重写(本轮主要工作量,逐个 fixer 的注册名与判据字符串都要换)。
