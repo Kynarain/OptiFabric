@@ -70,6 +70,8 @@ foreach ($mc in $versions) {
 		game_versions  = @($mc)
 		version_type   = "release"
 		loaders        = @("fabric")
+		client_side    = "required"       # OptiFabric 是客户端模组:OptiFine 本身只在客户端
+		server_side    = "unsupported"
 		featured       = $false
 		project_id     = $env:MODRINTH_PROJECT_ID
 		file_parts     = @("file")
