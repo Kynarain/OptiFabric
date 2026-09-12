@@ -224,12 +224,35 @@ if ($RecordDigest) {
 
 		$paragraphs = [regex]::Split($text, '(\r?\n[ \t]*\r?\n)')
 		$changes = 0
+		$previousMatched = $false
 
 		for ($i = 0; $i -lt $paragraphs.Count; $i++) {
-			if ($paragraphs[$i] -notmatch $artifactPattern -and $paragraphs[$i] -notmatch $versionPattern) { continue }
+			$paragraph = $paragraphs[$i]
 
-			$before = $paragraphs[$i]
+			# The split keeps the blank-line separators as elements of their own; they must not clear the
+			# "previous paragraph named the artifact" flag, or a digest written under a blank line gets missed.
+			if ($paragraph -match '^(\r?\n[ \t]*\r?\n)$') { continue }
+
+			# A paragraph about a *different* version of this artifact is history (an earlier release's figures),
+			# not the current state: leave it alone. The changelog keeps exactly such a section. The lookahead
+			# matters: without it this also matches this release's own name, and then nothing is ever updated.
+			$otherVersion = [regex]::IsMatch($paragraph,
+				[regex]::Escape($lines[$Line].artifact) + '-(?!' + [regex]::Escape($current) + ')\d+\.\d+\.\d+[^\s`]*\+mc')
+			$mentionsCurrent = [regex]::IsMatch($paragraph, [regex]::Escape($lines[$Line].artifact) + '-' + [regex]::Escape("$current+mc")) -or
+				$paragraph -match $versionPattern
+			$matched = $mentionsCurrent -and -not $otherVersion
+
+			# The digest is often written on its own line under the file name, separated by a blank line; treat such
+			# a paragraph as the continuation of the one that named the artifact.
+			if (-not $matched -and $paragraph -match '^[`\s]*SHA-256[:`\s]*[0-9A-Fa-f]{64}') { $matched = $previousMatched }
+
+			if (-not $matched) { $previousMatched = $false; continue }
+			$previousMatched = $true
+
+			$before = $paragraph
 			$after = [regex]::Replace($before, $sizePattern, { param($m) "$size 字节" })
+			# In a markdown table the size is a bare cell next to the digest, with no "字节" after it.
+			$after = [regex]::Replace($after, '\|\s*[\d,]{4,}\s*\|', { param($m) "| $size |" })
 			$after = [regex]::Replace($after, $hashPattern, $hash)
 			if ($after -ne $before) { $paragraphs[$i] = $after; $changes++ }
 		}

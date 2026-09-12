@@ -33,11 +33,14 @@ $root = Split-Path -Parent $PSScriptRoot
 # 版本基数也按线分:1.21.x 的 1.1.0 已经发布出去、就此冻结,26.x 从 1.2.1 起。
 $versions = @("1.21", "1.21.1", "1.21.3", "1.21.4", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11", "26.1.2")
 $defaultModVersion = "1.1.0"
-$modVersions = @{ "26.1.2" = "1.2.1" }
+$modVersions = @{ "26.1.2" = "2.0.0" }
 # 26.x 那条线的产物名也是它自己的:它的 mod id 是 optifabric_reforged(见 v26.x/build.gradle),
 # 所以 jar 名与 1.21.x 不同,发布脚本必须按线取文件名。
 $defaultArtifact = "OptiFabric"
 $modArtifacts = @{ "26.1.2" = "OptiFabric-Reforged" }
+# The display name follows the artifact: the 26.x line renamed itself, see v26.x/build.gradle.
+$defaultModName = "OptiFabric"
+$modNames = @{ "26.1.2" = "OptiFabric Reforged" }
 
 if ($Version -ne "all") {
 	if ($versions -notcontains $Version) { throw "未知版本: $Version(可选:" + ($versions -join ", ") + ")" }
@@ -54,10 +57,16 @@ foreach ($mc in $versions) {
 	$modVersion = if ($modVersions.ContainsKey($mc)) { $modVersions[$mc] } else { $defaultModVersion }
 
 	$artifact = if ($modArtifacts.ContainsKey($mc)) { $modArtifacts[$mc] } else { $defaultArtifact }
+	$modName = if ($modNames.ContainsKey($mc)) { $modNames[$mc] } else { $defaultModName }
 $jar = Join-Path $root "dist\$artifact-$modVersion+mc$mc.jar"
 	$notes = Join-Path $root "release\notes\mc$mc.md"
-	$tag = "v$modVersion+mc$mc"
-	$title = "OptiFabric $modVersion+mc$mc"
+	# Tag shape follows the releases this repo already has (v1.1.0, v1.2.0): the version number alone. The MC
+	# version stays in the artifact name and in the release title, not in the tag.
+	$tag = "v$modVersion"
+	$title = "$modName $modVersion+mc$mc"
+	# Which branch the tag is made on. gh would otherwise tag the default branch (main), which is not where either
+	# release line lives - the first 26.x release was tagged through the web UI and ended up pointing at main.
+	$tagTarget = if ($mc -eq "26.1.2") { "26.x" } else { "mc1.21.x" }
 
 	if (-not (Test-Path $jar)) { Write-Warning "跳过 $mc :没有 $jar"; continue }
 	if (-not (Test-Path $notes)) { Write-Warning "跳过 $mc :没有 $notes"; continue }
@@ -66,10 +75,10 @@ $jar = Join-Path $root "dist\$artifact-$modVersion+mc$mc.jar"
 	Write-Host "=== $title ==="
 
 	#GitHub
-	$gh = "gh release create `"$tag`" `"$jar`" --title `"$title`" --notes-file `"$notes`""
+	$gh = "gh release create `"$tag`" `"$jar`" --title `"$title`" --notes-file `"$notes`" --target `"$tagTarget`""
 	if ($DryRun) { Write-Host "  [github]     $gh" }
 	else {
-		git push origin $tag
+		git push origin $tagTarget
 		Invoke-Expression $gh
 	}
 

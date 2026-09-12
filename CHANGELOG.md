@@ -1,6 +1,11 @@
 # 更新日志
 
-## 1.2.1+mc26.1.2 — 26.x 线的第一版(未混淆)
+## 2.0.0+mc26.1.2 — 26.x 线的第二版(mod id 改名 + 实时几何)
+
+> **主版本号递增的依据**(SemVer §8,规则见 [`docs/VERSIONING.md`](docs/VERSIONING.md)):这一版把 mod id 从
+> `optifabric` 改成 `optifabric_reforged`,对任何 `depends`/`breaks` 那个 id 的东西都是**不兼容修改** ——
+> 升级时请**删掉旧的 `OptiFabric-1.2.0+mc26.1.2.jar`**,换成 `OptiFabric-Reforged-2.0.0+mc26.1.2.jar`。
+> 同一版里那些"向下兼容的新功能"被主版本号一并吸收(§8:主版本号递增时次版本号与修订号归零)。
 
 **Minecraft 26.1.2** —— 26.1 起游戏**未混淆**,这是一条与 1.21.x 完全独立的线,两边的 jar **不能互相替代**。
 
@@ -12,7 +17,7 @@
 所以另建了一张"官方名"注册表。
 
 ```powershell
-.\gradlew -p v26.x build        →  OptiFabric-Reforged-1.2.1+mc26.1.2.jar
+.\gradlew -p v26.x build        →  OptiFabric-Reforged-2.0.0+mc26.1.2.jar
 ```
 
 ### 本版修复
@@ -55,8 +60,18 @@
 (`[Indigo] Registering Indigo renderer!`),Fabric API 自己的渲染钩子从它上面绘制;**装 LambdaBetterGrass 实测:
 "更好的草"正常、连接纹理正确(光影开启)**。
 
-产物:`OptiFabric-Reforged-1.2.1+mc26.1.2.jar` — 177165 字节
-`SHA-256: D7CD02A83E84D67C3D147A1DEE97D5ACAD2C6461D62D07D7EF53873D6D7E9352`
+产物:`OptiFabric-Reforged-2.0.0+mc26.1.2.jar` — 177166 字节
+`SHA-256: FBB432C2D9C8B0E7E06F0FDA4A0C1B6A8F302D5D09ABD7CE67F13CBE04A5CF60`
+
+## 1.2.0+mc26.1.2 — 26.x 线的第一版(已发布 2026-09-12)
+
+[GitHub release](https://github.com/Kynarain/OptiFabric-Reforged/releases/tag/v1.2.0) ——
+`OptiFabric-1.2.0+mc26.1.2.jar`,163164 字节,
+`SHA-256: 672F3895AB656FACDA42C93218F885BA21487D929A92C9E05D542A4D0A20B64A`
+
+当时的状态:26.x 走通了"未混淆 + 官方名"的独立构建与运行期路径,能构建出一个可玩的 jar;但 mod id 仍是
+`optifabric`,Fabric 的渲染器由一个**惰性占位**顶着(Indigo 让位),**需要按方块位置实时生成的几何画不出来**
+—— 设置与取舍见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md) 第 2、3 节。`2.0.0` 修掉的正是后者。
 
 ## 1.0.0+mc1.21 … 1.0.0+mc1.21.11 — 1.21.x 全系列
 

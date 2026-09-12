@@ -11,23 +11,23 @@
 
 | 版本 | 版本号 / 标签 | jar | 字节 | SHA-256 | 正文 |
 |---|---|---|---|---|---|
-| 26.1.2 | 1.2.1+mc26.1.2 / v1.2.1+mc26.1.2 | dist\OptiFabric-Reforged-1.2.1+mc26.1.2.jar | 177165 | D7CD02A83E84D67C3D147A1DEE97D5ACAD2C6461D62D07D7EF53873D6D7E9352 | release/notes/mc26.1.2.md |
+| 26.1.2 | 2.0.0+mc26.1.2 / v2.0.0 | dist\OptiFabric-Reforged-2.0.0+mc26.1.2.jar | 177166 | FBB432C2D9C8B0E7E06F0FDA4A0C1B6A8F302D5D09ABD7CE67F13CBE04A5CF60 | release/notes/mc26.1.2.md |
 
 ## 三处平台各自要填什么
 
 ### GitHub Release
 
-- **Tag**:`v1.2.1+mc26.1.2`,Create new tag on publish,target 选 **`26.x` 分支的当前提交**;
-- **Release title**:OptiFabric 1.2.1+mc26.1.2;
+- **Tag**:`v2.0.0`(本仓库的 tag 只写版本号,已发布的 `v1.1.0`/`v1.2.0` 就是这样;MC 版本留在产物名与标题里),target 选 **`26.x` 分支的当前提交**;
+- **Release title**:OptiFabric Reforged 2.0.0+mc26.1.2;
 - **Describe this release**:粘贴 `release/notes/mc26.1.2.md`(Markdown);
-- **Attach binaries**:上传 `dist\OptiFabric-Reforged-1.2.1+mc26.1.2.jar`(正文里已写好尺寸与 SHA-256,方便用户校验)。
+- **Attach binaries**:上传 `dist\OptiFabric-Reforged-2.0.0+mc26.1.2.jar`(正文里已写好尺寸与 SHA-256,方便用户校验)。
 
 ### Modrinth
 
 | 字段 | 填什么 |
 |---|---|
-| Name | OptiFabric 1.2.1+mc26.1.2 |
-| Version number | 1.2.1+mc26.1.2 |
+| Name | OptiFabric Reforged 2.0.0+mc26.1.2 |
+| Version number | 2.0.0+mc26.1.2 |
 | Release channel | Release |
 | Game versions | 只勾 **26.1.2** |
 | Loaders | Fabric |
@@ -40,7 +40,7 @@
 
 | 字段 | 填什么 |
 |---|---|
-| Display name | OptiFabric 1.2.1+mc26.1.2 |
+| Display name | OptiFabric Reforged 2.0.0+mc26.1.2 |
 | Release type | Release |
 | Game version | Minecraft **26.1.2** 加 Fabric(只勾该版) |
 | Changelog | 粘贴 `release/notes/mc26.1.2.md`,格式选 Markdown |
@@ -52,7 +52,7 @@
 
 - [ ] **版本号已按 SemVer 改好**:`.\release\version.ps1 -Line 26.x -Kind <major|minor|patch>`(规则见
       [`docs/VERSIONING.md`](../docs/VERSIONING.md);不要手改 —— 一次要动 9 个文件);
-- [ ] `.\gradlew -p v26.x build --offline` 通过,且产物名是 `OptiFabric-Reforged-1.2.1+mc26.1.2.jar`;
+- [ ] `.\gradlew -p v26.x build --offline` 通过,且产物名是 `OptiFabric-Reforged-2.0.0+mc26.1.2.jar`;
 - [ ] `.\release\version.ps1 -Line 26.x -RecordDigest` 跑过,正文里的尺寸与 SHA-256 与 `dist\` 里的 jar 一致;
 - [ ] jar 里**没有** OptiFine 的类或资源、没有 `mappings/mappings.tiny`(26.x 本就不该有映射表);
 - [ ] `LICENSE.txt_OptiFabric` 在,`fabric.mod.json` 的 `license` 仍是 `MPL-2.0`;
