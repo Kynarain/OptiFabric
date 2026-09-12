@@ -31,3 +31,5 @@ dist/
 build-log.txt
 *.log
 
+# release/publish.ps1 生成的提交载荷,只是留档用
+release/tmp/
