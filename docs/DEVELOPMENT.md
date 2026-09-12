@@ -388,6 +388,7 @@ Unable to bake model: 0       Mixin transformation: 0      InjectionError: 0
 | `NamedResolver` | 具名→intermediary 解析(供上面几个工具用) | yarn 映射驱动 |
 | `RendererStubTest` | 用一个假接口离线跑"运行时生成的占位渲染器"的字节码(抽象/默认/静态方法、各种返回类型) | 全部通过 |
 | `FapiRendererFallbackTest` | 拿**真实** `fabric-renderer-api-v1` + intermediary 游戏 jar + **构建产物 jar** 跑一遍:F3 那行 `Renderer.get().getClass().getSimpleName()` 读到什么、被真调用时抛什么 | 全部通过 |
+| `LambdaScan` | 补丁类里每个 **invokedynamic** 的 bootstrap 方法/字段句柄,在"游戏真正会加载的那份类"(补丁类或原版)里是否还存在 —— `LambdaRebuilder` 要修的正是这个,而 JVM 与 ASM 验证器都**不解析** invokedynamic 目标(它们只在首次执行时才链接,也就是在游戏里) | 各版本 **0 dangling** |
 
 扫描器自身踩过的坑也记录在案:`@Mixin(targets = "...")` 与 `@At(target = "...")` 里的目标是**具名字符串**、NEW 点的目标是**裸类名**、以及 `INVOKE_ASSIGN`/`CONSTANT` 等注入类型不建模 —— 这些都会导致**静默跳过**,让真实冲突藏起来。
 
@@ -714,4 +715,107 @@ verified OK: 570 / FAILED: 0 / ASM verifier problems: 0
 
 安装位置注意:这台机器的启动器(PCL)对版本目录做了**版本隔离**,该实例的 mods 目录是
 `%APPDATA%\.minecraft\versions\1.21.11-Fabric 0.19.5\mods\`,而不是 `.minecraft\mods\`;要启动的是 **Fabric 0.19.5** 那个版本(不是 `1.21.11-OptiFine_J9`)。
+
+---
+
+## 多版本:1.21.x 全系列
+
+OptiFine 在 1.21.x 上出过构建的版本一共 **10 个**:1.21、1.21.1、1.21.3、1.21.4、1.21.6、1.21.7、1.21.8、1.21.9、1.21.10、1.21.11(1.21.2、1.21.5 没有)。分支 `mc1.21.x` 用**一套源码**覆盖全部,每个版本产出一个 jar。
+
+### 为什么能一套源码覆盖
+
+两条实测依据:
+
+1. **intermediary id 在 1.21.x 各版本之间是稳定的**。对比 1.21.10 与 1.21.11 的 intermediary 映射,本移植用到的类 id(`class_761`、`class_11681`、`class_11684`、`class_1088`、`class_10430`、`class_4603`、`class_6850`、`class_775`、`class_631`、`class_1092`、`class_3898`、`class_5619`、`class_5944`、`class_702`、`class_1059` 等)两边**都在**,方法 id 也都在(描述符里的类型名在 official 命名空间当然不同,但经映射后一致)。fixer 全部以 intermediary 名义注册,所以能跨版本复用。
+2. **fixer 的行为是"找到就修、找不到就跳过"**,而且它读的是**当前版本游戏 jar 里的原版字节码**(`RestoreVanillaMethodsFix` 这类),不存在"把 1.21.11 的方法体塞进 1.21.10"的问题。于是版本差异自然退化为"某些 fixer 在某版本不触发",真正要处理的只有**该版本新出现的冲突** —— 由扫描器逐版暴露。
+
+**但一个 jar 只能对应一个版本**:jar 里打包的是该版本的 `official→intermediary` 映射表(官方混淆名每版不同),用错版本会把 OptiFine 重映射成乱码。所以构建带版本参数,`fabric.mod.json` 里的 `minecraft` 依赖也精确到该版本。
+
+### 构建
+
+```powershell
+.\gradlew build "-Pmc=1.21.8"      # PowerShell 里必须给参数加引号,否则 1.21.8 会被拆成 1
+.\gradlew build                     # 不带参数 = gradle.properties 里的 minecraft_version
+```
+
+- 版本 → yarn 构建号的对应表在 `build.gradle` 的 `yarnBuilds`(yarn 的版本串里含版本号,必须逐个列出);加一个版本就是加一行。
+- 产物名固定为 `OptiFabric-<mod_version_base>+mc<版本>.jar`(例如 `OptiFabric-1.0.0+mc1.21.8.jar`),`mod_version_base` 在 `gradle.properties`。
+
+### 每版离线验证(一条命令)
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-version.ps1 -Version 1.21.8
+```
+
+依次做六件事,全部离线可重复:
+
+1. `gradlew build "-Pmc=<版本>"` —— 用该版本的 MC / yarn / intermediary 编译;
+2. `test-downloads/version-setup.ps1` —— 从 loom 缓存取**混淆客户端 jar** 与 **intermediary 客户端 jar**,从 gradle 缓存取该版本的 **yarn 映射**,把该版本 **OptiFine 安装器**放进 harness 的游戏目录;
+3. 下载并解包该版本 **Fabric API** 的 43 个模块 jar(扫描器要读每个模块的 mixin 注解);
+4. `VerifyPatched --setup` —— 跑真实补丁管线,再对补丁类做 **JVM + ASM 双向校验**;
+5. `VerifyPatched --verify-jar` —— 同样两种校验,对象是 **OptiFine 自己的类**;
+6. `AtTargetScan` / `RefmapScan` / `RuntimeContractScan` / `LambdaScan` —— mixin 注入点、成员引用、抽象契约/覆写/引用,以及 **invokedynamic 句柄**。
+
+产物:`test-downloads/verify-<版本>.log`(完整输出)、`test-downloads/out/final-<版本>/`(补丁类转储)、`test-downloads/scan-<版本>/*.log`(三份扫描报告)。
+
+### 各版本状态
+
+全部 10 个版本都跑过完整的离线链路(构建 → 补丁流水线 → JVM/ASM 双向校验 → 5 个扫描器)。「@At」一列剩下的全是**已被停用**的 indigo 注入点(它们不会应用,因为 `contains_renderer` 让 indigo 让位),其它三列是 0 才算通过。
+
+| MC | OptiFine 目标构建 | 补丁类(JVM+ASM) | OptiFine 类(JVM+ASM) | @At | Refmap 缺失 | 契约扫描 | Lambda 句柄 | 真机 |
+|---|---|---|---|---|---|---|---|---|
+| 1.21 | `preview_..._J1_pre9` | 440/440 ✅ | 773/773 ✅ | 3(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21.1 | `OptiFine_1.21.1_HD_U_J1` | 425/425 ✅ | 783/783 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21.3 | `OptiFine_1.21.3_HD_U_J2` | 440/440 ✅ | 816/816 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21.4 | `OptiFine_1.21.4_HD_U_J3` | 474/474 ✅ | 812/812 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21.6 | `preview_..._J6_pre3` | 487/487 ✅ | 820/820 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21.7 | `preview_..._J6_pre7` | 500/500 ✅ | 823/823 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21.8 | `preview_..._J6_pre16` | 516/516 ✅ | 831/831 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21.9 | `preview_..._J7_pre2` | 519/519 ✅ | 832/832 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21.10 | `preview_..._J7_pre11` | 553/553 ✅ | 836/836 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⏳ 待测 |
+| 1.21.11 | `OptiFine_1.21.11_HD_U_J9` | 570/570 ✅ | 874/874 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ✅ 已实测 |
+
+「补丁类」= OptiFine 自己补丁的游戏类 + 本移植额外接管的类(1.21.6 及以上还多两个:`class_11681`、`class_11684`)。「OptiFine 类」= `Optifine-mapped.jar` 里 OptiFine 自身的类。两者相加就是每个版本通过 JVM 与 ASM 双向校验的类数(例:1.21.11 的 1444 个)。
+
+### 逐版记录
+
+**1.21.10**(第一个非 1.21.11 的目标):同一份源码**直接编译通过**(mixin 用的 yarn 名字在该版本也存在),补丁流水线一次命中 —— 所有 fixer 都用与 1.21.11 相同的 intermediary id 触发,只有两类差异由既有机制自动吸收:
+
+- `class_1092$1` 的捕获字段名字不同(`val$mapStitchIn` vs 1.21.11 的 `val$prepBlocksIn`)→ `SyntheticFieldFix` 按声明位置配对;
+- 该版本多了一个需要桥接的方法(`class_156$4.onStart()V`)→ `MissingOverrideFix` 自动补。
+
+唯一的新发现是 `RefmapScan` 报的 2 个"缺失成员"(`class_11659.method_73480` / `method_73484`),查证后是**扫描器自身的盲区**,不是补丁问题:`method_73484`/`method_73480` **声明在父接口 `class_11785`**,而 Fabric API 的 mixin 用子接口 `class_11659` 当 `@At(target=...)` 的 owner(`invokeinterface` 允许这么写,运行时会沿继承链解析)。`RefmapScan.hasMethod/hasField` 原来只沿 `superName` 走、**不跟 `interfaces`**,于是把继承来的成员判成缺失。已修(两处都补上接口遍历),1.21.10 复跑得到 **0 缺失**。
+
+**1.21.9**(519 个补丁类 / 832 个 OptiFine 类):同样一次通过,fixer 触发集合与 1.21.10 完全一致(含 `class_156$4.onStart()` 的桥接)。
+
+**1.21.8**(516 / 831)—— 第一个需要为版本差异改代码的目标,而且暴露了**两个成体系的教训**:
+
+1. **写死描述符的 fixer 会在别的版本上静默失效。** `class_761.method_62210` 在 1.21.8 的描述符是 `(class_4184, class_4597$class_4598, class_4587, Z)`,在 1.21.11 是 `(class_4597$class_4598, class_4587, Z, class_11658)`。`StubInjectionTargetFix`/`CallSiteRedirectFix` 原本按"名字+描述符"匹配,于是 1.21.8 上**没命中**:方块描边钩子留在了活代码上,而它需要的 `INVOKE class_315.method_64858()` 在 OptiFine 重编译后的方法体里并不存在 → 真机必崩(fabric-rendering-v1 的 `WorldRendererMixin.onDrawBlockOutline`)。两个 fixer 现在都**按方法名匹配、描述符可选**,并且用"实际找到的那个方法"的描述符去改调用点。
+2. **"副本"必须是原版身体,不能是 OptiFine 身体。** 改完上一条后那条 `@At` 依然报缺 —— 因为副本是 OptiFine 重编译后的字节码,而 Mixin 要注入的是方法体内的一个 INVOKE,OptiFine 早就把那句调用重写掉了;Mixin 找得到方法却找不到注入点,照样整类失败。所以副本现在优先取**游戏 jar 里原版方法的字节码**(副本是死代码,身体只需要"长得像原版";Mixin 本来就是照着原版写的),取不到才退回 OptiFine 的身体。
+
+另外两点:
+
+- `class_11681` / `class_11684` 在 1.21.8 上**不存在**(它们从 1.21.6 才有),接管被跳过 —— 这是正常的,日志会说明;
+- 新增的 `LambdaScan` 抓到了 `LambdaRebuilder` 的一个隐患:上游在 `pairUp` 里写了一句 `assert`,而**断言只在 `-ea` 时生效**(harness 带 `-ea`,游戏不带),所以游戏里遇到"两侧名字不同、且都已不在待配对表里"的情况会**静默跳过**这对 lambda。现在改成计数 + 明确警告,并用 `LambdaScan` 验证后果:**0 dangling**(那三处跳过是良性的 —— 对应的调用点确实能在类里解析到)。`LambdaScan` 自己也踩了一个坑:record 的 `equals/hashCode/toString` 用的是**字段句柄**(`REF_getField`),当成方法查会误报 604 条,已按 handle tag 区分。
+
+**1.21.7 / 1.21.6**:一次通过(500 / 487 个补丁类,823 / 820 个 OptiFine 类),fixer 触发集合与 1.21.8 一致。
+
+**1.21.4 / 1.21.3 / 1.21.1 / 1.21**(这一批是 1.21.6 渲染重写**之前**的版本,Fabric API 的 mixin 集合与 OptiFine 的补丁都不一样)需要补两类修复,都属于"同一套 fixer、只是多几个该版本才存在的 id":
+
+1. **被 OptiFine 重编译丢掉的方法**(Fabric API 仍往它们里注入,`require = 1` → 找不到就整类失败):
+
+   | 版本 | 缺失的方法 | 谁要它 |
+   |---|---|---|
+   | 1.21.4 | `class_1088.method_65737` | fabric-model-loading-api-v1 的 ModelBakerMixin |
+   | 1.21.1 | `class_1088.method_61072` | 同上(该版本的 ModelLoaderMixin) |
+   | 1.21 起 ≤1.21.4 | `class_329.method_55806 / 55807 / 55808` | fabric-rendering-v1 的 InGameHudMixin(三个 HUD 层) |
+   | 1.21 / 1.21.1 | `class_309.method_1454` | fabric-screen-api-v1 的 KeyboardMixin |
+
+   全部由 `RestoreVanillaMethodsFix` 解决(把原版方法加回补丁类旁边)。这些 id 在**没有**它们的新版本上自动不触发,所以可以直接堆在同一个注册表里。
+
+   其中 `KeyboardFix` 值得一提:它在 1.20.6 线上用过,在本分支被停用(1.21.11 根本没有 `method_1454/1458/1473/1466`)。现在改成**容错** —— 只 revert "游戏里确实存在"的那几个方法,其余跳过并打一行说明。上游当年是**直接抛异常**(`Failed to find Keyboard methods: ...`),所以它只能在方法全都在的版本上用;改成跳过之后,同一个 fixer 能同时服务 1.21 到 1.21.11。
+
+2. **`RefmapScan` 漏了一种注解目标语法**:Mixin 同时接受 `Lowner;name(desc)ret` 和**点号形式** `owner.name(desc)ret`,而 Fabric API 在 **1.21.5 及更早**写的是点号形式(例如 `java/util/concurrent/CompletableFuture.thenApplyAsync(Ljava/util/function/Function;Ljava/util/concurrent/Executor;)...`、`com/mojang/datafixers/util/Pair.of(...)`)。扫描器只认前者,于是把 owner 切错位置、描述符还丢了左括号,报出三条"补丁类里没有这个调用"——而调用**就在那里**(javap 一查即知)。已修 `parseRef`:支持点号形式。修的过程里还踩了一次自己的坑:第一版守卫用"成员部分不能含斜杠"来判断,结果**描述符里全是斜杠**,点号形式仍然落到 `parseBareRef` 上,于是仍然误报;现在只检查**成员名**里有没有分隔符。
+
+另外 `LambdaScan` 也修了一次误报:句柄指向继承自 `java/lang/Object` 的方法时(`class_3999.toString()`),继承链走到 `Object` 就断了(表里没有它),于是把合法的句柄判成 dangling。现在 `java/lang/Object` 的标准方法单独识别,遇到**其他**不认识的祖先类则记为"无法判定"(而不是有问题)。
 

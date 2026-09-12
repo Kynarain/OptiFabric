@@ -39,18 +39,27 @@ public class KeyboardFix implements ClassFixer {
 	public void fix(ClassNode optifine, ClassNode minecraft) {
 		Validate.noNullElements(revertMethods, "Failed to remap Keyboard method name %d"); //ImmutableSet iteration order is stable
 
-		//Remove the "broken" OptiFine methods
-		optifine.methods.removeIf(method -> revertMethods.contains(method.name));
-
-		//Find the vanilla methods to revert back to
+		//Find the vanilla methods to revert back to. A release whose game no longer has one of them (1.21.6 rewrote
+		//the key dispatch, and 1.21.11 does not have any of them) simply has nothing to revert for that one:
+		//upstream threw "Failed to find Keyboard methods" here, which is exactly why this fixer had to be retired for
+		//1.21.11. Skipping the ones that are gone is what makes it usable for 1.21 through 1.21.11 at once.
 		List<MethodNode> lambdas = minecraft.methods.stream().filter(method -> revertMethods.contains(method.name)).collect(Collectors.toList());
-		if (lambdas.size() != revertMethods.size()) {
-			Set<String> foundLambdas = lambdas.stream().map(method -> method.name).collect(Collectors.toSet());
-			throw new RuntimeException(revertMethods.stream().filter(name -> !foundLambdas.contains(name)).collect(Collectors.joining(", ", "Failed to find Keyboard methods: ", "")));
-		}
+
+		if (lambdas.isEmpty()) return;
+
+		Set<String> available = lambdas.stream().map(method -> method.name).collect(Collectors.toSet());
+
+		//Remove OptiFine's "broken" versions of those methods - only the ones we have a vanilla replacement for, so
+		//that a class never loses a method entirely
+		optifine.methods.removeIf(method -> available.contains(method.name));
 
 		//Add the vanilla methods back in
 		optifine.methods.addAll(lambdas);
+
+		if (available.size() != revertMethods.size()) {
+			System.out.println("[OptiFabric] Reverted " + available.size() + " of " + revertMethods.size()
+					+ " Keyboard methods in " + optifine.name + ": the rest do not exist in this Minecraft version");
+		}
 
 		//lambda$chatTyped(Screen,int,int)void
 		String targetDescC = RemappingUtils.mapMethodDescriptor("(Lnet/minecraft/class_437;CI)V"); // method_1473

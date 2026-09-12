@@ -41,9 +41,11 @@ public class OptifineFixer {
 
 		//net/minecraft/client/Keyboard
 		//1.21.11 rewrote the key dispatch: the methods upstream reverted (method_1454/1458/1473 and the
-		//five argument method_1466) no longer exist in the game at all, so there is nothing left to revert.
-		//OptiFine's Keyboard is applied as it comes; the scanners check that Fabric API's Keyboard mixins still
-		//find their targets in it.
+		//five argument method_1466) no longer exist in the game at all, so there is nothing left to revert there.
+		//The releases before 1.21.6 still have them, and OptiFine's build for those drops method_1454, which
+		//fabric-screen-api-v1's KeyboardMixin injects into - so the fixer is registered again, now skipping the
+		//methods a release does not have instead of throwing over them.
+		registerFix("class_309", new KeyboardFix());
 
 		//net/minecraft/client/texture/SpriteAtlasTexture
 		registerFix("class_1059", new SpriteAtlasTextureFix());
@@ -107,10 +109,11 @@ public class OptifineFixer {
 		registerFix("class_1088$class_7778", new RestoreVanillaMethodsFix(true, "method_45873"));
 
 		//The Fabric API releases of 1.21.5 and older inject into helpers OptiFine's recompile dropped on those
-		//releases: the model baker's deserialisation helper and three InGameHud layers (fabric-model-loading-api-v1
-		//and fabric-rendering-v1). Same recipe as above - the vanilla method is added back next to OptiFine's code.
-		//Those ids do not exist on the releases where OptiFine kept the methods, and the fixer then does nothing.
-		registerFix("class_1088", new RestoreVanillaMethodsFix("method_65737"));
+		//releases: the model baker's deserialisation helper (method_65737 on 1.21.4, method_61072 on 1.21.1) and
+		//three InGameHud layers (fabric-model-loading-api-v1 and fabric-rendering-v1). Same recipe as above - the
+		//vanilla method is added back next to OptiFine's code. Those ids do not exist on the releases where OptiFine
+		//kept the methods, and the fixer then does nothing.
+		registerFix("class_1088", new RestoreVanillaMethodsFix("method_65737", "method_61072"));
 		registerFix("class_329", new RestoreVanillaMethodsFix("method_55806", "method_55807", "method_55808"));
 
 		//net/minecraft/client/world/ClientChunkManager (fabric-lifecycle-events-v1)
