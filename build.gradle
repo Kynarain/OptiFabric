@@ -2,7 +2,42 @@ plugins {
     id 'fabric-loom' version '1.17-SNAPSHOT'
 }
 
-version = project.mod_version
+// Which Minecraft release this build targets.
+//
+// Every release needs its own official -> intermediary mappings bundled into the jar (the obfuscated names differ
+// per version, so a wrongly built jar would remap OptiFine into nonsense), which is why one jar is always built for
+// exactly one version. The default comes from gradle.properties and -Pmc=<version> builds another of them from the
+// same source tree:
+//
+//   .\gradlew build -Pmc=1.21.8
+//
+// The fixers in patcher/fixes are written against intermediary ids, which are stable across the 1.21.x releases, so
+// the same sources serve all of them; what differs per version is which of them find a target and which new
+// conflicts OptiFine's build for that release brings (see docs/DEVELOPMENT.md).
+def targetMc = (project.findProperty("mc") ?: project.minecraft_version).toString()
+
+// Yarn is published per release and its build number is part of the version string, so the supported releases are
+// listed here (latest yarn build of each). Adding a release is one line.
+def yarnBuilds = [
+        "1.21"    : "1.21+build.9",
+        "1.21.1"  : "1.21.1+build.3",
+        "1.21.3"  : "1.21.3+build.2",
+        "1.21.4"  : "1.21.4+build.8",
+        "1.21.6"  : "1.21.6+build.1",
+        "1.21.7"  : "1.21.7+build.8",
+        "1.21.8"  : "1.21.8+build.1",
+        "1.21.9"  : "1.21.9+build.1",
+        "1.21.10" : "1.21.10+build.3",
+        "1.21.11" : "1.21.11+build.6",
+]
+
+def targetYarn = yarnBuilds[targetMc]
+
+if (targetYarn == null) {
+    throw new GradleException("No yarn build is listed for Minecraft " + targetMc + "; add it to yarnBuilds in build.gradle")
+}
+
+version = "${project.mod_version_base}+mc${targetMc}"
 group = project.maven_group
 
 base {
@@ -20,11 +55,11 @@ configurations {
 }
 
 dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    minecraft "com.mojang:minecraft:${targetMc}"
+    mappings "net.fabricmc:yarn:${targetYarn}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    intermediaryMappings "net.fabricmc:intermediary:${project.minecraft_version}:v2"
+    intermediaryMappings "net.fabricmc:intermediary:${targetMc}:v2"
 
     // All of these are provided at runtime by Fabric Loader / its launch libraries:
     // ASM and Mixin are launch libraries, and tiny-remapper + mapping-io are shaded inside the loader jar
@@ -37,13 +72,13 @@ dependencies {
 
 processResources {
     inputs.property "version", project.version
-    inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "minecraft_version", targetMc
     inputs.property "loader_version", project.loader_version
     filteringCharset "UTF-8"
 
     filesMatching("fabric.mod.json") {
         expand "version": project.version,
-                "minecraft_version": project.minecraft_version,
+                "minecraft_version": targetMc,
                 "loader_version": project.loader_version
     }
 
@@ -72,5 +107,12 @@ java {
 jar {
     from("LICENSE.txt") {
         rename { "${it}_${project.archives_base_name}" }
+    }
+}
+
+tasks.named("build") {
+    doFirst {
+        println "Building ${project.archives_base_name} ${project.version} (Minecraft ${targetMc}, yarn ${targetYarn}," +
+                " Fabric Loader ${project.loader_version})"
     }
 }
