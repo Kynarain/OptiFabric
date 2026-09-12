@@ -1,14 +1,38 @@
-# OptiFabric — Minecraft 1.21.11 移植版 (Fabric)
+# OptiFabric — Minecraft 1.21.x 移植版 (Fabric)
 
 #!!!此模组由deepseek编写并验证请小心用于生产环境!!!#
 
 让 **Fabric Loader** 与 **OptiFine** 在同一客户端共存。把 OptiFine 的 jar 丢进 `mods/`,OptiFabric 会在游戏启动时给原版客户端打补丁、重映射命名空间,并把结果接到 Fabric 的类加载流程里。
 
-- 目标版本: Minecraft **1.21.11**, Fabric Loader **≥ 0.19.5**, Java 21 及以上
-- 实测搭配: **Fabric API 0.141.6+1.21.11**、**OptiFine 1.21.11 HD_U J9**(build `20260205-175838`)、Java 25
-- 产物: `build/libs/OptiFabric-1.0.0+mc1.21.11.jar`
+- 目标版本: **Minecraft 1.21 ~ 1.21.11**(OptiFine 出过构建的全部 10 个版本), Fabric Loader **≥ 0.19.5**, Java 21 及以上
+- 实测搭配(1.21.11): **Fabric API 0.141.6+1.21.11**、**OptiFine 1.21.11 HD_U J9**(build `20260205-175838`)、Java 25
+- 产物: 每个版本一个 jar,`build/libs/OptiFabric-1.0.0+mc<版本>.jar`
 - 许可: **MPL-2.0**(`LICENSE.txt`),核心机制移植自 [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric)
-- 开发/验证记录(逐轮崩溃的根因、可复现的离线校验工具):[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+- 开发/验证记录(逐轮崩溃的根因、每个版本的差异、可复现的离线校验工具):[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+
+### 支持的版本
+
+| Minecraft | 产出的 jar | OptiFine 构建 | 真机验证 |
+|---|---|---|---|
+| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) | ⏳ 待验收 |
+| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | **`OptiFine_1.21.1_HD_U_J1.jar`** | ⏳ 待验收 |
+| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | **`OptiFine_1.21.3_HD_U_J2.jar`** | ⏳ 待验收 |
+| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | **`OptiFine_1.21.4_HD_U_J3.jar`** | ⏳ 待验收 |
+| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | ⏳ 待验收 |
+| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | ⏳ 待验收 |
+| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | ⏳ 待验收 |
+| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | ⏳ 待验收 |
+| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | ⏳ 待验收 |
+| 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | **`OptiFine_1.21.11_HD_U_J9.jar`** | ✅ 已实测 |
+
+OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md));真机验收目前只有 1.21.11 完成。
+
+**一个 jar 只能对应一个版本**:jar 里打包的是该版本的 `official→intermediary` 映射表(官方混淆名每版不同),`fabric.mod.json` 里的 `minecraft` 依赖也精确到该版本。构建任意版本:
+
+```powershell
+.\gradlew build "-Pmc=1.21.8"      # PowerShell 里必须加引号,否则 1.21.8 会被拆成 1
+.\gradlew build                     # 不带参数 = gradle.properties 里的默认版本
+```
 
 ---
 
@@ -19,7 +43,7 @@ OptiFine 不是 Fabric 模组:它的 jar 里是**针对原版(混淆名)Minecraf
 ```
 mods/OptiFine_1.21.11_HD_U_J9.jar
         │  ① 用 OptiFine 自带的 optifine.Patcher 给原版(混淆)客户端 jar 打补丁
-        │     (1.21.11 的 OptiFine 用自己的 xdelta 差分包,但 Patcher.process 的用法没变)
+        │     (1.21.6 起的 OptiFine 用自己的 xdelta 差分包,但 Patcher.process 的用法没变)
         ▼
   打补丁后的 vanilla jar  (OptiFine 的补丁 + OptiFine 的类)
         │  ② LambdaRebuilder:补丁类里的 lambda(invokedynamic)指向已被搬走的原方法,需要重建
@@ -50,14 +74,14 @@ mods/OptiFine_1.21.11_HD_U_J9.jar
 
 ## 2. 使用
 
-1. **准备 OptiFine**:下载与当前 MC 版本**严格一致**的 OptiFine(1.21.11)。OptiFabric 会读取 jar 内 `optifine/Config` 的 `MC_VERSION` 校验,不一致会直接在标题界面报错。安装器形态(`OptiFine_1.21.11_HD_U_J9.jar`,含 `patch/` 差分包)和已解包的模组形态(含 `notch/<混淆名>.class`)都支持 —— 直接丢进 `mods/` 即可,**不需要**先运行它的安装器。
+1. **准备 OptiFine**:下载与你的 MC 版本**严格一致**的 OptiFine(对应构建见上表)。OptiFabric 会读取 jar 内 `optifine/Config` 的 `MC_VERSION` 校验,不一致会直接在标题界面报错。安装器形态(含 `patch/` 差分包,如 `OptiFine_1.21.11_HD_U_J9.jar`)和已解包的模组形态(含 `notch/<混淆名>.class`)都支持 —— 直接丢进 `mods/` 即可,**不需要**先运行它的安装器。
 2. **编译**(需要联网下载依赖,或本地已有 Gradle/Loom 缓存):
    ```
-   gradlew build
+   gradlew build "-Pmc=1.21.11"     # 换成你要的版本;不带 -Pmc 则构建默认版本
    ```
-3. **安装**:把 `build/libs/OptiFabric-1.0.0+mc1.21.11.jar` 和 OptiFine 的 jar 一起放进 **该 Fabric 版本自己的 `mods` 目录**。**不要**同时放两份 OptiFine(会报 `DUPLICATED`)。
+3. **安装**:把**对应版本**的 `build/libs/OptiFabric-1.0.0+mc<版本>.jar` 和 OptiFine 的 jar 一起放进 **该 Fabric 版本自己的 `mods` 目录**。**不要**同时放两份 OptiFine(会报 `DUPLICATED`),也不要放错版本的 OptiFabric jar(jar 里的映射表是绑定版本的)。
    - PCL2/HMCL 若开启了**版本隔离**,游戏目录是 `versions/<版本名>/`,mods 目录也在那里;`.optifine/` 缓存同样会建在版本目录下。没开隔离才是 `.minecraft/mods`。
-   - 用 **Fabric 版本**启动,不要用启动器装的 `1.21.11-OptiFine_xxx` 版本(那个是启动器自己在启动时注入 OptiFine,会和本模组重复)。
+   - 用 **Fabric 版本**启动,不要用启动器装的 `1.21.x-OptiFine_xxx` 版本(那个是启动器自己在启动时注入 OptiFine,会和本模组重复)。
 4. **启动**:首次启动会多花几秒(实测 5–7 秒)做补丁+重映射(控制台里会看到 `[OptiFabric]` 前缀的输出),之后走缓存(1–2 秒)。成功的标志:标题界面出现 OptiFine 版本号,视频设置里出现 OptiFine 选项。
 
 ### 支持的启动环境

@@ -10,21 +10,40 @@
 
 ## 一、简要描述(English)
 
-> Run OptiFine on Fabric. Put OptiFabric and your own OptiFine 1.21.11 jar into `mods/` — OptiFabric unpacks, remaps and patches OptiFine at startup so it works alongside Fabric API. Singleplayer, multiplayer, models, chunks, shaders and the F3 debug screen verified in game.
+> Run OptiFine on Fabric. Put OptiFabric and your own OptiFine jar into `mods/` — OptiFabric unpacks, remaps and patches OptiFine at startup so it works alongside Fabric API. One jar per Minecraft release, for every 1.21.x version OptiFine has a build for (1.21 – 1.21.11). Verified in game on 1.21.11: singleplayer, multiplayer, models, chunks, shaders and the F3 debug screen.
 
 **One-liner:**
 
-> OptiFine on Fabric 1.21.11, with Fabric API loaded alongside.
+> OptiFine on Fabric 1.21 – 1.21.11, with Fabric API loaded alongside.
 
 ---
 
 ## 二、详细描述(English)
 
-### OptiFabric — OptiFine on Fabric (1.21.11)
+### OptiFabric — OptiFine on Fabric (1.21 – 1.21.11)
 
-A Fabric mod that brings **OptiFine** to Fabric. Put OptiFabric and **your own OptiFine 1.21.11 jar** into `mods/` and it takes care of the rest.
+A Fabric mod that brings **OptiFine** to Fabric. Put OptiFabric and **your own OptiFine jar** into `mods/` and it takes care of the rest.
 
-> ℹ️ OptiFine is **not** bundled or redistributed. Get OptiFine 1.21.11 (e.g. `OptiFine_1.21.11_HD_U_J9.jar`) from the official site and drop it in — you do **not** need to run its installer.
+> ℹ️ OptiFine is **not** bundled or redistributed. Get the build matching your Minecraft version from the official site (e.g. `OptiFine_1.21.11_HD_U_J9.jar`) and drop it in — you do **not** need to run its installer.
+
+### Supported versions
+
+One jar per release (each carries that release's mappings), for every 1.21.x version OptiFine ships a build for:
+
+| Minecraft | OptiFabric file | OptiFine build |
+|---|---|---|
+| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar` (preview only) |
+| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` |
+| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
+| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
+| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
+| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
+| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
+| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
+| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
+| 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
+
+(OptiFine never shipped a build for 1.21.2 or 1.21.5, so there is no jar for those.) All ten pass the same offline verification — every patched class and every OptiFine class loaded and checked with the JVM verifier plus an ASM data-flow verifier, and five scanners on top; live-verified on 1.21.11 so far.
 
 ### Why it is needed
 
@@ -41,29 +60,29 @@ At the earliest point of startup (the loader's `preLaunch`), OptiFabric will:
 
 ### Installation
 
-1. Install a 1.21.11 client with **Fabric Loader 0.19.5 or newer**.
-2. Put **OptiFabric** and **your own OptiFine 1.21.11 jar** into `.minecraft/mods/`.
-   The file is named like `OptiFine_1.21.11_HD_U_J9.jar` — dropping it in is enough, you do **not** need to run its installer first.
+1. Install a 1.21.x client with **Fabric Loader 0.19.5 or newer**.
+2. Put the **OptiFabric jar for that release** and **your own OptiFine jar for that release** into `.minecraft/mods/`.
+   The OptiFine file is named like `OptiFine_1.21.11_HD_U_J9.jar` — dropping it in is enough, you do **not** need to run its installer first.
 3. Start the game. The OptiFine version appears on the title screen when it works.
 
-Fabric API can be loaded alongside (this port is adapted for it specifically; verified with Fabric API 0.141.6+1.21.11).
+Fabric API can be loaded alongside (this port is adapted for it specifically; verified with the Fabric API release of each version, e.g. 0.141.6+1.21.11).
 
 ### Requirements
 
 | | |
 |---|---|
-| Minecraft | 1.21.11 |
+| Minecraft | 1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10 or 1.21.11 |
 | Fabric Loader | 0.19.5 or newer |
 | Java | 21+ (tested on Java 25) |
 | Side | client |
-| Optional | Fabric API 0.141.6+1.21.11 (supported, tested) |
-| You also need | your own OptiFine 1.21.11 jar (e.g. HD_U J9) |
+| Optional | Fabric API (supported, tested with each release's own build) |
+| You also need | the OptiFabric jar **and** the OptiFine jar for that same release |
 
 ### Compatibility issues that are fixed
 
 All of these were found through real crashes and traced to the bytecode (nine of them on 1.21.11 alone):
 
-- Fabric API's injection targets that OptiFine's recompiled classes no longer contain (methods inlined away, or renamed lambdas with a different signature) → the vanilla method body is restored so injections have a target again;
+- Fabric API's injection targets that OptiFine's recompiled classes no longer contain (methods inlined away, or renamed lambdas with a different signature) → the vanilla method body is restored so injections have a target again. On the releases before 1.21.6 that also covers helpers Fabric API injects into which OptiFine's build for those releases drops (the model baker's deserialisation helper, three InGameHud layers, `Keyboard.method_1454`);
 - a Fabric hook that reads a world render context OptiFine's pass structure never fills in → the hook is moved onto code that is never called, so the game stops crashing and the block outline is still drawn;
 - the same trick for the moving-blocks renderer hook, whose caller lives in *another* class (those call sites are redirected too, otherwise the hook fires from the injected copy);
 - Fabric API's renderer registry being empty while `contains_renderer` keeps Indigo away → an inert placeholder renderer is registered, which also keeps the **F3 debug screen** from crashing;
@@ -73,11 +92,11 @@ All of these were found through real crashes and traced to the bytecode (nine of
 - synthetic `this$0` / `val$…` fields (several of them with the same type) → paired by declaration order and renamed to what mods shadow;
 - object creation OptiFine redirects to its own subclass (the `ChunkOF` chunk object) → an inert marker puts the injection point back.
 
-The full list (symptom / cause / fix) is in the changelog and in `docs/DEVELOPMENT.md`.
+The full list (symptom / cause / fix, per release) is in the changelog and in `docs/DEVELOPMENT.md`.
 
 ### Verified state
 
-Offline, every class is loaded and linked in a single loader (the same way the game does it) and checked with the JVM verifier plus an ASM data-flow verifier: **570/570 patched game classes** and **874/874 OptiFine classes**, 0 failures, 0 verifier problems. In game: startup, title screen, singleplayer, **multiplayer server**, block/chunk/item rendering, **shaders** (`ComplementaryReimagined` loaded), F3 debug screen — with 0 `[ERROR]` lines and no crash report in the final session.
+Offline, for **every supported release**, each class is loaded and linked in a single loader (the same way the game does it) and checked with the JVM verifier plus an ASM data-flow verifier — 425 to 570 patched game classes and 773 to 874 OptiFine classes per release, 0 failures, 0 verifier problems, plus five scanners (mixin member references, `@At` points, abstract contracts/overrides/references and invokedynamic handles) with nothing left but the injection points of the deliberately disabled Indigo. In game (1.21.11): startup, title screen, singleplayer, **multiplayer server**, block/chunk/item rendering, **shaders** (`ComplementaryReimagined` loaded), F3 debug screen — with 0 `[ERROR]` lines and no crash report in the final session.
 
 ### Known issues
 
@@ -118,21 +137,40 @@ A port of [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric) by Mod
 
 ## 三、简要描述(中文)
 
-> OptiFabric 让 OptiFine 与 Fabric 共存。把它和自备的 OptiFine 1.21.11 一起放进 `mods/`,启动时自动完成解包、重映射与兼容性修补。已专门适配 Fabric API;单人、多人、光影、区块与物品渲染、F3 调试屏均已在真机验证。
+> OptiFabric 让 OptiFine 与 Fabric 共存。把它和自备的、同版本的 OptiFine 一起放进 `mods/`,启动时自动完成解包、重映射与兼容性修补。**每个 Minecraft 版本一个 jar**,覆盖 OptiFine 出过构建的全部 1.21.x(1.21 ~ 1.21.11)。已专门适配 Fabric API;1.21.11 已真机验证单人、多人、光影、区块与物品渲染、F3 调试屏。
 
 **更短的一句版**(GitHub About / 列表摘要):
 
-> 在 Fabric 1.21.11 上运行 OptiFine。与 Fabric API 同时加载也正常。
+> 在 Fabric 1.21 ~ 1.21.11 上运行 OptiFine。与 Fabric API 同时加载也正常。
 
 ---
 
 ## 四、详细描述(中文)
 
-### OptiFabric — 让 OptiFine 在 Fabric 上跑起来(1.21.11)
+### OptiFabric — 让 OptiFine 在 Fabric 上跑起来(1.21 ~ 1.21.11)
 
-这是一个 Fabric 模组,它把 **OptiFine** 接进 Fabric 环境。把 OptiFabric 与你**自备的 OptiFine 1.21.11** 一起放进 `mods/`,剩下的交给它。
+这是一个 Fabric 模组,它把 **OptiFine** 接进 Fabric 环境。把**对应版本的** OptiFabric 与你**自备的同版本 OptiFine** 一起放进 `mods/`,剩下的交给它。
 
-> ℹ️ 本项目**不包含、也不分发 OptiFine 本体**,请自行从 OptiFine 官网获取 1.21.11 版本(如 `OptiFine_1.21.11_HD_U_J9.jar`),**直接放进去即可**,不需要先运行它的安装器。
+> ℹ️ 本项目**不包含、也不分发 OptiFine 本体**,请自行从 OptiFine 官网获取与你游戏版本一致的那份(如 1.21.11 用 `OptiFine_1.21.11_HD_U_J9.jar`),**直接放进去即可**,不需要先运行它的安装器。
+
+### 支持的版本
+
+**每个 Minecraft 版本一个 jar**(每个 jar 里打包的是该版本的 `official→intermediary` 映射表,`fabric.mod.json` 里的 `minecraft` 依赖也精确到该版本),覆盖 OptiFine 出过构建的全部 1.21.x:
+
+| Minecraft | OptiFabric 文件 | OptiFine 构建 |
+|---|---|---|
+| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) |
+| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` |
+| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
+| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
+| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
+| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
+| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
+| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
+| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
+| 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
+
+(OptiFine 没出过 1.21.2 / 1.21.5 的构建,所以这两版没有对应 jar。)10 个版本都通过了同一套离线校验(每个补丁类与每个 OptiFine 类都在与游戏一致的单一加载器里用 JVM 验证器 + ASM 数据流验证器双向检查,再加 5 个扫描器);真机验收目前只有 1.21.11 完成。
 
 ### 为什么需要它
 
@@ -142,36 +180,36 @@ OptiFine 是为原版(以及 Forge)编写的:它的补丁针对**官方混淆名
 
 在游戏启动的最早阶段(loader 的 `preLaunch`),OptiFabric 会:
 
-1. 运行 OptiFine 自带的安装器,取出它对原版类的补丁(1.21.11 的 OptiFine 用 xdelta 差分包,处理方式一致);
+1. 运行 OptiFine 自带的安装器,取出它对原版类的补丁(1.21.6 起的 OptiFine 用 xdelta 差分包,处理方式一致);
 2. 去掉 volde 化痕迹,并把补丁从官方混淆名**重映射到 intermediary**(重映射时把游戏 jar 一起放进 classpath,否则子类里覆写的方法继承不到映射);
 3. 修正 OptiFine 与 Fabric API 之间已知的结构冲突(逐个定位到字节码层面);
 4. 把修好的类交给 Fabric Loader 的类变换器,并在 `<游戏目录>/.optifine/<版本>/` 缓存 —— 二次启动直接复用(1–2 秒)。
 
 ### 安装
 
-1. 用 **Fabric Loader 0.19.5 或更高**安装一个 1.21.11 客户端。
-2. 把 **OptiFabric** 和**你自备的 OptiFine 1.21.11 jar** 一起放进 `.minecraft/mods/`。
+1. 用 **Fabric Loader 0.19.5 或更高**安装一个 1.21.x 客户端。
+2. 把**对应这个版本的 OptiFabric jar** 和**你自备的、同版本的 OptiFine jar** 一起放进 `.minecraft/mods/`。
    OptiFine 的文件名形如 `OptiFine_1.21.11_HD_U_J9.jar`,**直接放进去即可**,不需要先运行它的安装器。
 3. 启动游戏。标题界面出现 OptiFine 版本号就说明生效了。
 
-Fabric API 可以一起加载(本模组专门针对它做过适配;实测 Fabric API 0.141.6+1.21.11)。
+Fabric API 可以一起加载(本模组专门针对它做过适配;每个版本都用该版本自己的 Fabric API 测过,例如 1.21.11 用 0.141.6+1.21.11)。
 
 ### 依赖
 
 | 项目 | 要求 |
 |---|---|
-| Minecraft | 1.21.11 |
+| Minecraft | 1.21 / 1.21.1 / 1.21.3 / 1.21.4 / 1.21.6 / 1.21.7 / 1.21.8 / 1.21.9 / 1.21.10 / 1.21.11 |
 | Fabric Loader | 0.19.5 或更高 |
 | Java | 21 及以上(实测运行于 Java 25) |
 | 环境 | 客户端 |
-| 可选 | Fabric API 0.141.6+1.21.11(已适配,实测可用) |
-| 另需 | 自备 OptiFine 1.21.11(如 HD_U J9) |
+| 可选 | Fabric API(已适配,每个版本用该版本自己的构建测过) |
+| 另需 | **同一个版本**的 OptiFabric jar 与 OptiFine jar |
 
 ### 已修复的兼容问题(均来自真机崩溃,逐个定位到字节码)
 
 仅 1.21.11 移植就修了 9 类:
 
-- 被 OptiFine 重编译后**消失的注入目标**(方法被内联掉,或 lambda 改名且签名多了参数)→ 把原版方法体补回,让注入点重新存在;
+- 被 OptiFine 重编译后**消失的注入目标**(方法被内联掉,或 lambda 改名且签名多了参数)→ 把原版方法体补回,让注入点重新存在。**1.21.5 及更早**还要额外补上该版本 Fabric API 会注入、而 OptiFine 的对应构建丢掉的助手方法(模型烘焙器的反序列化助手、InGameHud 的三个层、`Keyboard.method_1454`);
 - Fabric 的方块描边钩子读的渲染上下文 OptiFine 从不填充 → 把钩子挪到**没人调用**的代码上,不再崩,描边照画;
 - 同一招用在**移动方块**的渲染钩子上会失效:它的调用者在**另一个类**里,按名字调到的是被注入的副本 → 连调用点一起改到真实方法体上;
 - `contains_renderer` 让 Indigo 退场后,Fabric 的渲染器注册表是空的 → 注册一个惰性占位渲染器,顺便修掉**一按 F3 就崩**;
@@ -181,11 +219,13 @@ Fabric API 可以一起加载(本模组专门针对它做过适配;实测 Fabric
 - 合成字段 `this$0`/`val$…`(其中几个类型完全相同)→ 按声明顺序配对并改成模组能 shadow 的名字;
 - 被 OptiFine 换成自己子类的对象创建(区块对象 `ChunkOF`)→ 插入惰性标记让注入点重新存在。
 
-完整清单(症状 / 根因 / 处理)见更新日志与 `docs/DEVELOPMENT.md`。
+另外,`StubInjectionTargetFix` / `CallSiteRedirectFix` 这类"按名字 + 描述符"匹配的修复器改成了**按名字匹配、描述符可选** —— 同一个方法在不同版本描述符不同(1.21.8 的 `method_62210` 收 `Camera`,1.21.11 收 `Vec3d`),写死描述符会让修复器在别的版本上静默失效。
+
+完整清单(症状 / 根因 / 处理,按版本)见更新日志与 `docs/DEVELOPMENT.md`。
 
 ### 验证状态
 
-离线:所有类在**与游戏一致的单一加载器**里逐个加载+链接,并用 JVM 验证器与 ASM 数据流验证器双向检查 —— **被补丁的 570 个游戏类**与 **OptiFine 自身的 874 个类**全部通过,0 失败、0 验证器问题。真机:启动、主界面、单人世界、**多人服务器**、方块/区块/物品渲染、**光影**(`ComplementaryReimagined` 加载成功)、F3 调试屏;最近一轮会话 `[ERROR]` 0 条、无崩溃报告。
+离线:支持的全部 10 个版本,每一版都把**与游戏一致的单一加载器**里的所有类逐个加载+链接,并用 JVM 验证器与 ASM 数据流验证器双向检查 —— 每个版本 425~570 个被补丁的游戏类、773~874 个 OptiFine 自身的类全部通过,0 失败、0 验证器问题;再加 5 个扫描器(mixin 成员引用、`@At` 注入点、抽象契约/覆写/引用、invokedynamic 句柄),除了**已被有意停用**的 indigo 的注入点以外没有遗留。真机(目前只有 1.21.11 完成):启动、主界面、单人世界、**多人服务器**、方块/区块/物品渲染、**光影**(`ComplementaryReimagined` 加载成功)、F3 调试屏;最近一轮会话 `[ERROR]` 0 条、无崩溃报告。
 
 ### 已知问题
 
