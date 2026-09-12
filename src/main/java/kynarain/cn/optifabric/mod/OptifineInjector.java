@@ -13,6 +13,7 @@ package kynarain.cn.optifabric.mod;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -131,6 +132,7 @@ public class OptifineInjector {
 	private byte[] patch(String name, ClassNode source) {
 		ClassNode game = readGameClass(name);
 		List<ClassFixer> fixers = OptifineFixer.INSTANCE.getFixers(name);
+		byte[] beforeFixers = null;
 
 		//Remember the access the game class had, so the patched one stays at least as accessible
 		Object2IntMap<String> memberToAccess = new Object2IntArrayMap<>(source.methods.size() + source.fields.size());
@@ -142,20 +144,6 @@ public class OptifineInjector {
 			}
 			for (FieldNode field : game.fields) {
 				memberToAccess.put(field.name + ' ' + field.desc, field.access);
-			}
-
-			//Patch the class if required
-			if (!fixers.isEmpty()) {
-				fixers.forEach(classFixer -> classFixer.fix(source, game));
-			}
-		}
-
-		//Frames are read expanded; Mixin needs usable ones and complains loudly about null locals
-		for (MethodNode methodNode : source.methods) {
-			for (AbstractInsnNode insnNode : methodNode.instructions.toArray()) {
-				if (insnNode instanceof FrameNode && ((FrameNode) insnNode).local == null) {
-					System.err.println("[OptiFabric] Frame with null locals in " + name + '#' + methodNode.name + methodNode.desc);
-				}
 			}
 		}
 
@@ -171,11 +159,45 @@ public class OptifineInjector {
 			if (access != -1) field.access = widerAccess(access, field.access);
 		}
 
+		if (game != null && !fixers.isEmpty()) {
+			//Serialised with a plain writer, so the frames are exactly OptiFine's own: comparing this with the same
+			//serialisation *after* the fixers tells whether any of them actually changed the class. It matters because
+			//a global fixer (MissingOverrideFix is registered for every class) makes "fixers" non-empty everywhere,
+			//and recomputing frames for classes nobody touched is not harmless: on 1.21.8 it turned a local the game
+			//verifier needs to be Entity into java/lang/Object in class_983.method_62593, and the game then refused
+			//the class with "VerifyError: Bad type on operand stack in putfield". OptiFine's own frames are the ones
+			//its compiler produced for that body, so they are kept unless a fixer really rewrites something.
+			beforeFixers = serialise(source);
+
+			fixers.forEach(classFixer -> classFixer.fix(source, game));
+		}
+
+		//Frames are read expanded; Mixin needs usable ones and complains loudly about null locals
+		for (MethodNode methodNode : source.methods) {
+			for (AbstractInsnNode insnNode : methodNode.instructions.toArray()) {
+				if (insnNode instanceof FrameNode && ((FrameNode) insnNode).local == null) {
+					System.err.println("[OptiFabric] Frame with null locals in " + name + '#' + methodNode.name + methodNode.desc);
+				}
+			}
+		}
+
+		if (beforeFixers != null && Arrays.equals(beforeFixers, serialise(source))) {
+			return beforeFixers; //No fixer changed it: hand OptiFine's bytes over untouched
+		}
+
 		//Frames come from OptiFine's patches and are preserved for untouched classes. The fixers rewrite
 		//descriptors though (KeyboardFix turns Screen parameters into Element ones), which invalidates the
 		//shipped frames - the verifier then rejects the class with "Inconsistent stackmap frames". Those few
 		//classes get their frames recomputed instead.
-		ClassWriter writer = fixers.isEmpty() ? new ClassWriter(0) : new FrameComputingWriter();
+		ClassWriter writer = beforeFixers == null ? new ClassWriter(0) : new FrameComputingWriter();
+		source.accept(writer);
+
+		return writer.toByteArray();
+	}
+
+	/** The class as it currently stands, with its frames left exactly as they were read. */
+	private static byte[] serialise(ClassNode source) {
+		ClassWriter writer = new ClassWriter(0);
 		source.accept(writer);
 
 		return writer.toByteArray();
@@ -202,15 +224,26 @@ public class OptifineInjector {
 						type = node != null ? node.superName : null;
 					}
 
+					//Two interface types have no common class, and Object is what the verifier accepts for them. For two
+					//classes Object is almost always wrong, and a wrong frame is fatal at runtime ("VerifyError: Bad
+					//type on operand stack"), so name the pair instead of degrading quietly - this is how class_983 on
+					//1.21.8 and class_898 on 1.21.3 lost the type of a local the game needed.
+					System.err.println("[OptiFabric] No common supertype for " + type1 + " and " + type2
+							+ " in the class hierarchy we can see, the recomputed frame will say java/lang/Object");
+
 					return "java/lang/Object";
 				}
-			} catch (Throwable ignored) {
+			} catch (Throwable t) {
+				System.err.println("[OptiFabric] Could not compare " + type1 + " with " + type2 + ": " + t);
 				//fall through to the standard implementation
 			}
 
 			try {
 				return super.getCommonSuperClass(type1, type2); //JDK and library classes
 			} catch (Throwable t) {
+				System.err.println("[OptiFabric] No common supertype for " + type1 + " and " + type2 + ": " + t
+						+ ", the recomputed frame will say java/lang/Object");
+
 				return "java/lang/Object";
 			}
 		}
