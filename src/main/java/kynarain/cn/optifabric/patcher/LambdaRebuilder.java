@@ -57,6 +57,8 @@ import kynarain.cn.optifabric.util.ASMUtils;
 
 public class LambdaRebuilder implements IMappingProvider, Closeable {
 	private static final boolean ALLOW_VAGUE_EQUIVALENCE = !Boolean.getBoolean("optifabric.exactOnly");
+	/** Lambda pairs {@link #pairUp} had to skip because both sides were already out of the pending maps. */
+	private int unpairedLambdas;
 	private final JarFile minecraftClientFile;
 	private final Map<Member, String> fixes = new HashMap<>();
 	protected final Map<Member, Pair<String, String>> fuzzes = ALLOW_VAGUE_EQUIVALENCE ? new HashMap<>() : Collections.emptyMap();
@@ -291,7 +293,20 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 
 			if (lostMethod == null) {
 				if (gainedMethod == null) {
-					assert Objects.equals(lost.getFullName(), gained.getFullName());
+					//Both sides are already out of the pending maps, which upstream read as "this pair was handled
+					//earlier" and asserted on. OptiFine's 1.21.8 build breaks that assumption. An assert is the wrong
+					//kind of report here: it only fires under -ea (the harness has it, the game does not), so in the
+					//game the pair is skipped silently and a lambda can stay pointed at a method the patched class no
+					//longer has - and the JVM verifier does not resolve invokedynamic targets, so nothing else would
+					//notice. Say so instead, and count it.
+					if (!Objects.equals(lost.getFullName(), gained.getFullName())) {
+						System.err.println("[OptiFabric] Lambda pair in " + className + " has different names on the two"
+								+ " sides and both are already out of the pending maps: " + lost.getFullName() + " (original) vs "
+								+ gained.getFullName() + " (OptiFine); the pair is skipped, which is only correct if an earlier"
+								+ " pairing already renamed the call sites");
+						unpairedLambdas++;
+					}
+
 					continue;
 				} else {
 					throw new IllegalStateException("Couldn't find original method for lambda: " + lost.getFullName());
@@ -432,6 +447,11 @@ public class LambdaRebuilder implements IMappingProvider, Closeable {
 
 	@Override
 	public void close() throws IOException {
+		if (unpairedLambdas > 0) {
+			System.err.println("[OptiFabric] " + unpairedLambdas + " lambda pair(s) had to be skipped while rebuilding"
+					+ " OptiFine's lambdas; their call sites may point at methods the patched class no longer has");
+		}
+
 		if (minecraftClientFile != null) minecraftClientFile.close();
 	}
 }

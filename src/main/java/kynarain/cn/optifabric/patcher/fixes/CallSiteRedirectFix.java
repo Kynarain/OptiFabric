@@ -40,14 +40,16 @@ public class CallSiteRedirectFix implements ClassFixer {
 	/**
 	 * @param owner the class the called method belongs to, in intermediary notation ({@code class_11681})
 	 * @param name the called method's name
-	 * @param desc its descriptor in intermediary notation
+	 * @param desc its descriptor in intermediary notation, or {@code null} to match the name alone (descriptors
+	 *             change between Minecraft releases, and the method this redirects to was moved aside by a fixer
+	 *             that already matched it - see {@link StubInjectionTargetFix})
 	 * @param newName the name the calls are moved to
 	 * @param reason what the redirect is for, only used in the log line
 	 */
 	public CallSiteRedirectFix(String owner, String name, String desc, String newName, String reason) {
 		this.owner = RemappingUtils.getClassName(owner);
 		this.name = name;
-		this.desc = RemappingUtils.mapMethodDescriptor(desc);
+		this.desc = desc == null ? null : RemappingUtils.mapMethodDescriptor(desc);
 		this.newName = newName;
 		this.reason = reason;
 	}
@@ -55,14 +57,17 @@ public class CallSiteRedirectFix implements ClassFixer {
 	@Override
 	public void fix(ClassNode optifine, ClassNode minecraft) {
 		int redirected = 0;
+		String foundDesc = null;
 
 		for (MethodNode method : optifine.methods) {
 			if (method.instructions == null) continue;
 
 			for (AbstractInsnNode insn : method.instructions.toArray()) {
 				if (!(insn instanceof MethodInsnNode call)) continue;
-				if (!call.owner.equals(owner) || !call.name.equals(name) || !call.desc.equals(desc)) continue;
+				if (!call.owner.equals(owner) || !call.name.equals(name)) continue;
+				if (desc != null && !call.desc.equals(desc)) continue;
 
+				foundDesc = call.desc;
 				call.name = newName;
 				redirected++;
 			}
@@ -70,7 +75,7 @@ public class CallSiteRedirectFix implements ClassFixer {
 
 		if (redirected > 0) {
 			System.out.println("[OptiFabric] Moved " + redirected + " call(s) from " + optifine.name + " onto "
-					+ owner + '.' + newName + desc + " instead of " + name + " (" + reason + ')');
+					+ owner + '.' + newName + foundDesc + " instead of " + name + " (" + reason + ')');
 		}
 	}
 }

@@ -106,6 +106,13 @@ public class OptifineFixer {
 		//this.field_40572, which is what the vanilla body uses itself, so behaviour is unchanged.
 		registerFix("class_1088$class_7778", new RestoreVanillaMethodsFix(true, "method_45873"));
 
+		//The Fabric API releases of 1.21.5 and older inject into helpers OptiFine's recompile dropped on those
+		//releases: the model baker's deserialisation helper and three InGameHud layers (fabric-model-loading-api-v1
+		//and fabric-rendering-v1). Same recipe as above - the vanilla method is added back next to OptiFine's code.
+		//Those ids do not exist on the releases where OptiFine kept the methods, and the fixer then does nothing.
+		registerFix("class_1088", new RestoreVanillaMethodsFix("method_65737"));
+		registerFix("class_329", new RestoreVanillaMethodsFix("method_55806", "method_55807", "method_55808"));
+
 		//net/minecraft/client/world/ClientChunkManager (fabric-lifecycle-events-v1)
 		//OptiFine creates its own net.optifine.ChunkOF instead of WorldChunk, so the mixin's
 		//@At(value = "NEW", target = "WorldChunk") point is gone and the whole class fails to transform: the
@@ -145,22 +152,23 @@ public class OptifineFixer {
 
 		//net/minecraft/client/render/block/entity/... the moving-block path: with contains_renderer declared (OptiFine is
 		//the renderer) Fabric's RendererManager stays empty, and this hook calls Renderer.get() and throws.
-		//OptiFine does not patch class_11681, so it is taken over on our own (see registerExtraClass).
-		registerExtraClass("class_11681", new StubInjectionTargetFix("method_72998",
-				"(Lnet/minecraft/class_11788;Lnet/minecraft/class_4597$class_4598;Lnet/minecraft/class_776;Lnet/minecraft/class_4618;)V", "optifabric$movingBlocks"));
+		//OptiFine does not patch class_11681, so it is taken over on our own (see registerExtraClass). The descriptor is
+		//left out on purpose: it differs between releases (the method takes a Camera in 1.21.8 and a Vec3d in 1.21.11),
+		//and a fixer that hardcodes one silently stops firing on the other. These two classes only exist from 1.21.6 on,
+		//where the take-over is simply skipped.
+		registerExtraClass("class_11681", new StubInjectionTargetFix("method_72998", null, "optifabric$movingBlocks"));
 
 		//Renaming it is only half of the story: the game calls it from the neighbouring class_11684.method_73002, and
 		//that call would land on the copy Mixin injected into - which is exactly what the multiplayer crash showed
 		//(class_11684.method_73002 -> class_11681.method_72998 -> handler$zmb000$...beforeRenderMovingBlocks). So the
 		//caller is taken over as well and its call moved onto the renamed method (see CallSiteRedirectFix).
-		registerExtraClass("class_11684", new CallSiteRedirectFix("class_11681", "method_72998",
-				"(Lnet/minecraft/class_11788;Lnet/minecraft/class_4597$class_4598;Lnet/minecraft/class_776;Lnet/minecraft/class_4618;)V", "optifabric$movingBlocks",
+		registerExtraClass("class_11684", new CallSiteRedirectFix("class_11681", "method_72998", null, "optifabric$movingBlocks",
 				"the injected copy must stay uncalled, and the vanilla body still has to render moving blocks"));
 
 		//fabric-rendering-v1's BEFORE_BLOCK_OUTLINE hook reads a world render context that OptiFine's pass
-		//structure never fills in, and dies with a NullPointerException (see StubInjectionTargetFix).
-		registerFix("class_761", new StubInjectionTargetFix("method_62210",
-				"(Lnet/minecraft/class_4597$class_4598;Lnet/minecraft/class_4587;ZLnet/minecraft/class_11658;)V", "optifabric$blockOutline"));
+		//structure never fills in, and dies with a NullPointerException (see StubInjectionTargetFix). No descriptor
+		//here either: 1.21.8's method_62210 takes a Camera where 1.21.11's takes a Vec3d, and this has to fire on both.
+		registerFix("class_761", new StubInjectionTargetFix("method_62210", null, "optifabric$blockOutline"));
 		//net/minecraft/block/entity/BlockEntity
 		//Upstream skips OptiFine's BlockEntity, and skipping it leaves five references dangling: OptiFine adds
 		//hasCustomOutlineRendering (from its Forge compatibility interface) and the nbtTag/nbtTagUpdateMs fields,
