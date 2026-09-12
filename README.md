@@ -1,11 +1,9 @@
-# OptiFabric (Minecraft 1.20.6 / Fabric)
+# OptiFabric 
 
 #!!!此模组由deepseek编写并验证请小心用于生产环境!!!#
 
 让 **Fabric Loader** 与 **OptiFine** 在同一客户端共存。把 OptiFine 的 jar 丢进 `mods/`,OptiFabric 会在游戏启动时给原版客户端打补丁、重映射命名空间,并把结果接到 Fabric 的类加载流程里。
 
-- 目标版本: Minecraft **1.20.6**, Fabric Loader **≥ 0.19.5**, Java 21
-- 产物: `build/libs/OptiFabric-1.0-SNAPSHOT.jar`
 - 许可: **MPL-2.0**(`LICENSE.txt`),核心机制移植自 [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric)
 
 ---
