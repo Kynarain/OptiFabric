@@ -292,6 +292,14 @@ public class OptifineFixer {
 						"optifabric$compile",
 						"OptiFine's compile overload was renamed so the mixin's descriptor-less name is unambiguous again"));
 
+		//Fabric's FRAPI hook for terrain models injects into the vanilla loop (at BlockPos.betweenClosed) and
+		//redirects the block tesselation call in it. OptiFine's own overload has no such loop, so that hook now
+		//lives in the restored method above, which nothing calls: a model's emitQuads - better grass, and anything
+		//else that needs the world around a block - was never asked for anything and its geometry was simply
+		//absent. The call inside OptiFine's method is pointed at our bridge instead, which does what Fabric's hook
+		//would have done (see FrapiTesselateBridgeFix and OptifineFrapiBridge).
+		registerFix("net/minecraft/client/renderer/chunk/SectionCompiler", new FrapiTesselateBridgeFix());
+
 		//net/minecraft/client/renderer/feature/BlockFeatureRenderer (fabric-renderer-api-v1 BlockFeatureRendererMixin)
 		//The moving-block path, and the crash the first real world produced: beforeInitBlockRenderer hands FRAPI's
 		//own AltModelBlockRenderer and QuadEmitter to renderMovingBlockSubmits through @Local, so on the first
