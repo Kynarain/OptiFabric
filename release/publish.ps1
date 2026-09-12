@@ -1,4 +1,6 @@
-﻿<#
+﻿# NOTE: keep this file UTF-8 WITH BOM. Windows PowerShell reads .ps1 as ANSI when there is no BOM, and the
+# Chinese text below then mis-parses (a trailing quote gets eaten and the whole file fails to load).
+<#
     把 dist/ 里十版 jar 逐个发到三个平台。逐版一个发布条目,版本号就是 1.0.0+mc<版本>。
 
     用法:
@@ -27,9 +29,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-# 1.21.x 与 26.1.2 是两条独立发布线,jar 与标签各发各的(见 release\MANUAL_RELEASE*.md)
+# 1.21.x 与 26.x 是两条独立发布线,jar 与标签各发各的(见 release\MANUAL_RELEASE*.md)。
+# 版本基数也按线分:1.21.x 的 1.1.0 已经发布出去、就此冻结,26.x 从 1.2.0 起。
 $versions = @("1.21", "1.21.1", "1.21.3", "1.21.4", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11", "26.1.2")
-$modVersion = "1.1.0"
+$defaultModVersion = "1.1.0"
+$modVersions = @{ "26.1.2" = "1.2.0" }
 
 if ($Version -ne "all") {
 	if ($versions -notcontains $Version) { throw "未知版本: $Version(可选:" + ($versions -join ", ") + ")" }
@@ -43,6 +47,8 @@ New-Item -ItemType Directory -Force $tmp | Out-Null
 $unsupported = @("1.21.6", "1.21.7")
 
 foreach ($mc in $versions) {
+	$modVersion = if ($modVersions.ContainsKey($mc)) { $modVersions[$mc] } else { $defaultModVersion }
+
 	$jar = Join-Path $root "dist\OptiFabric-$modVersion+mc$mc.jar"
 	$notes = Join-Path $root "release\notes\mc$mc.md"
 	$tag = "v$modVersion+mc$mc"

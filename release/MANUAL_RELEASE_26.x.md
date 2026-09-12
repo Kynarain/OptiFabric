@@ -11,23 +11,23 @@
 
 | 版本 | 版本号 / 标签 | jar | 字节 | SHA-256 | 正文 |
 |---|---|---|---|---|---|
-| 26.1.2 | 1.1.0+mc26.1.2 / v1.1.0+mc26.1.2 | dist\OptiFabric-1.1.0+mc26.1.2.jar | 163164 | A23D420D0D17395782A58735A2AD97A55F7A06463F54EA2A2E0800986F6DCF0D | release/notes/mc26.1.2.md |
+| 26.1.2 | 1.2.0+mc26.1.2 / v1.2.0+mc26.1.2 | dist\OptiFabric-1.2.0+mc26.1.2.jar | 163164 | 672F3895AB656FACDA42C93218F885BA21487D929A92C9E05D542A4D0A20B64A | release/notes/mc26.1.2.md |
 
 ## 三处平台各自要填什么
 
 ### GitHub Release
 
-- **Tag**:`v1.1.0+mc26.1.2`,Create new tag on publish,target 选 **`26.x` 分支的当前提交**;
-- **Release title**:OptiFabric 1.1.0+mc26.1.2;
+- **Tag**:`v1.2.0+mc26.1.2`,Create new tag on publish,target 选 **`26.x` 分支的当前提交**;
+- **Release title**:OptiFabric 1.2.0+mc26.1.2;
 - **Describe this release**:粘贴 `release/notes/mc26.1.2.md`(Markdown);
-- **Attach binaries**:上传 `dist\OptiFabric-1.1.0+mc26.1.2.jar`(正文里已写好尺寸与 SHA-256,方便用户校验)。
+- **Attach binaries**:上传 `dist\OptiFabric-1.2.0+mc26.1.2.jar`(正文里已写好尺寸与 SHA-256,方便用户校验)。
 
 ### Modrinth
 
 | 字段 | 填什么 |
 |---|---|
-| Name | OptiFabric 1.1.0+mc26.1.2 |
-| Version number | 1.1.0+mc26.1.2 |
+| Name | OptiFabric 1.2.0+mc26.1.2 |
+| Version number | 1.2.0+mc26.1.2 |
 | Release channel | Release |
 | Game versions | 只勾 **26.1.2** |
 | Loaders | Fabric |
@@ -40,7 +40,7 @@
 
 | 字段 | 填什么 |
 |---|---|
-| Display name | OptiFabric 1.1.0+mc26.1.2 |
+| Display name | OptiFabric 1.2.0+mc26.1.2 |
 | Release type | Release |
 | Game version | Minecraft **26.1.2** 加 Fabric(只勾该版) |
 | Changelog | 粘贴 `release/notes/mc26.1.2.md`,格式选 Markdown |
@@ -50,7 +50,7 @@
 
 ## 发布前自查
 
-- [ ] `.\gradlew -p v26.x build --offline` 通过,且产物名是 `OptiFabric-1.1.0+mc26.1.2.jar`;
+- [ ] `.\gradlew -p v26.x build --offline` 通过,且产物名是 `OptiFabric-1.2.0+mc26.1.2.jar`;
 - [ ] jar 里**没有** OptiFine 的类或资源、没有 `mappings/mappings.tiny`(26.x 本就不该有映射表);
 - [ ] `LICENSE.txt_OptiFabric` 在,`fabric.mod.json` 的 `license` 仍是 `MPL-2.0`;
 - [ ] `fabric.mod.json` 的 `minecraft` 是 `26.1.2`、`fabricloader` 是 `>=0.19.5`;
