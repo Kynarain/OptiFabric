@@ -54,7 +54,43 @@ public final class RendererApiStubGenerator {
 			+ " nothing to draw these objects with. This placeholder only exists so Fabric API finds a registered"
 			+ " renderer instead of crashing on the lookup itself.";
 
+	/** {@code BlockModelRenderer}: the overload that hands over exactly the arguments it draws with. */
+	private static final String BLOCK_MODEL_RENDERER = "net/minecraft/class_778";
+
 	private RendererApiStubGenerator() {
+	}
+
+	/** The value to push before returning, for the calls this placeholder declines to draw. */
+	private static void returnDefault(MethodVisitor body, Type returns) {
+		switch (returns.getSort()) {
+			case Type.VOID:
+				body.visitInsn(Opcodes.RETURN);
+				break;
+			case Type.BOOLEAN:
+			case Type.CHAR:
+			case Type.BYTE:
+			case Type.SHORT:
+			case Type.INT:
+				body.visitInsn(Opcodes.ICONST_0);
+				body.visitInsn(Opcodes.IRETURN);
+				break;
+			case Type.LONG:
+				body.visitInsn(Opcodes.LCONST_0);
+				body.visitInsn(Opcodes.LRETURN);
+				break;
+			case Type.FLOAT:
+				body.visitInsn(Opcodes.FCONST_0);
+				body.visitInsn(Opcodes.FRETURN);
+				break;
+			case Type.DOUBLE:
+				body.visitInsn(Opcodes.DCONST_0);
+				body.visitInsn(Opcodes.DRETURN);
+				break;
+			default:
+				body.visitInsn(Opcodes.ACONST_NULL);
+				body.visitInsn(Opcodes.ARETURN);
+				break;
+		}
 	}
 
 	/** An instance of a generated class that implements {@code rendererInterface} and does nothing at all. */
@@ -82,12 +118,26 @@ public final class RendererApiStubGenerator {
 			for (String desc : method.getValue()) {
 				MethodVisitor body = writer.visitMethod(Opcodes.ACC_PUBLIC, method.getKey(), desc, null, null);
 				body.visitCode();
-				body.visitTypeInsn(Opcodes.NEW, "java/lang/UnsupportedOperationException");
-				body.visitInsn(Opcodes.DUP);
-				body.visitLdcInsn(MESSAGE);
-				body.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/UnsupportedOperationException", "<init>",
-						"(Ljava/lang/String;)V", false);
-				body.visitInsn(Opcodes.ATHROW);
+
+				if (desc.startsWith("(L" + BLOCK_MODEL_RENDERER + ";")) {
+					//The overload that hands over vanilla's own arguments, first among them the model renderer to
+					//draw with. What it would take to pass them on is the name of that renderer's method in the
+					//current mapping, and this class may not resolve game classes to find it (see the header).
+					//
+					//Doing nothing is still the right call here: this is the path a block entity takes in
+					//multiplayer, and throwing ended the session outright.
+					returnDefault(body, Type.getReturnType(desc));
+					System.out.println("[OptiFabric] " + SIMPLE_NAME + "." + method.getKey() + " will draw nothing: "
+							+ "OptiFine is the terrain renderer and the vanilla arguments cannot be passed on from here");
+				} else {
+					body.visitTypeInsn(Opcodes.NEW, "java/lang/UnsupportedOperationException");
+					body.visitInsn(Opcodes.DUP);
+					body.visitLdcInsn(MESSAGE);
+					body.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/UnsupportedOperationException", "<init>",
+							"(Ljava/lang/String;)V", false);
+					body.visitInsn(Opcodes.ATHROW);
+				}
+
 				body.visitMaxs(0, 0); //Computed
 				body.visitEnd();
 				implemented++;

@@ -46,7 +46,6 @@ public class OptifineFixer {
 		//fabric-screen-api-v1's KeyboardMixin injects into - so the fixer is registered again, now skipping the
 		//methods a release does not have instead of throwing over them.
 		registerFix("class_309", new KeyboardFix());
-		registerFix("class_1043", new GpuTextureLinkFix());
 
 		//net/minecraft/client/texture/SpriteAtlasTexture
 		registerFix("class_1059", new SpriteAtlasTextureFix());
