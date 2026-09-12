@@ -16,49 +16,64 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 /**
- * OptiFine 的 FXAA 是通过它自己的 post chain 实现的,它按老位置
- * {@code assets/minecraft/shaders/post/fxaa_of_2x.json} 去找 - 那是 1.21.6 之前放后处理链的地方。
+ * OptiFine 的抗锯齿走的是它自己的 post chain,而它按老位置
+ * {@code assets/minecraft/shaders/post/fxaa_of_2x.json} 去找 - 1.21.6 之前后处理链就放在那里。
  *
- * <p>1.21.8 起的 OptiFine 只带新形式的 {@code assets/minecraft/post_effect/fxaa_of_*.json}
- * (那个由游戏自己读取),老位置的那个文件没有跟着搬过去,于是每次资源重载都只留下
- * {@code Resource not found: minecraft:shaders/post/fxaa_of_2x.json},而打开抗锯齿时
- * OptiFine 没有任何后处理链可以跑。
+ * <p>1.21.8 起的构建只带新形式的 {@code assets/minecraft/post_effect/fxaa_of_*.json},老位置的那个
+ * 没跟着搬过去:每次资源重载都留下 {@code Resource not found: minecraft:shaders/post/fxaa_of_2x.json},
+ * 打开抗锯齿时 OptiFine 手上没有可跑的链。
  *
- * <p>这里按 OptiFine 自己的 schema 补写这个文件,内容只引用用户自己那份 OptiFine 里**已经存在**的
- * {@code post/fxaa_of_*.vsh} 与 {@code .fsh} —— 不复制、也不分发 OptiFine 的任何文件。
+ * <p>这里做两件事:
+ * <ol>
+ *   <li>按 OptiFine 自己的 schema 补写那个老式文件,内容只引用用户自己那份 OptiFine 里**已经存在**的
+ *       {@code post/fxaa_of_*.vsh} 与 {@code .fsh} —— 不复制、也不分发 OptiFine 的任何文件;</li>
+ *   <li>把游戏那条同名的 post effect 拿掉。那两个着色器是写给 OptiFine 自己的链运行器的:它们声明
+ *       {@code Projection}/{@code SamplerInfo}/{@code FxaaConfig} 这些 uniform 块,链运行器会按老式
+ *       json 里的 {@code ProjMat}/{@code OutSize}/... 填进去,而游戏的后处理管线不按这个形式给,
+ *       顶点位置算不出来 -> 第一个 pass 往 swap 里画空 -> 第二个 pass 再把 swap 拷回主画面 ->
+ *       整屏变黑。两条路同时开着只会互相打架,所以让 OptiFine 自己的链独占。</li>
+ * </ol>
  */
 final class OptifinePostChainFixer {
 
 	private static final String POST = "assets/minecraft/shaders/post/";
 	private static final String EFFECT = "assets/minecraft/post_effect/";
+	private static final String[] LEVELS = {"of_2x", "of_4x"};
 
 	private OptifinePostChainFixer() {
 	}
 
 	static void fix(File jar) throws IOException {
-		Map<String, byte[]> missing = new LinkedHashMap<>();
+		Map<String, byte[]> added = new LinkedHashMap<>();
+		Map<String, String> dropped = new LinkedHashMap<>();
 
 		try (ZipFile zip = new ZipFile(jar)) {
-			for (String level : new String[] {"of_2x", "of_4x"}) {
+			for (String level : LEVELS) {
 				String chain = POST + "fxaa_" + level + ".json";
+				String effect = EFFECT + "fxaa_" + level + ".json";
+
+				if (zip.getEntry(POST + "fxaa_" + level + ".fsh") == null) {
+					continue; // not an FXAA build
+				}
 
 				if (zip.getEntry(chain) != null) {
-					continue; // this build still ships its post chain, leave it alone
+					//this build still ships its own post chain, nothing to write
+				} else if (zip.getEntry(effect) != null) {
+					added.put(chain, postChain(level).getBytes(StandardCharsets.UTF_8));
+					System.out.println("[OptiFabric] Wrote " + chain + " - this OptiFine build asks for it but no longer ships it");
+				} else {
+					continue; // no chain to be had either way
 				}
 
-				//only the builds that moved FXAA to the new form and still ship its shaders
-				if (zip.getEntry(EFFECT + "fxaa_" + level + ".json") == null || zip.getEntry(POST + "fxaa_" + level + ".fsh") == null) {
-					continue;
+				if (zip.getEntry(effect) != null) {
+					dropped.put(effect, chain);
+					System.out.println("[OptiFabric] Dropped " + effect + " - antialiasing runs through OptiFine's own chain (" + chain + ")");
 				}
-
-				missing.put(chain, postChain(level).getBytes(StandardCharsets.UTF_8));
-
-				System.out.println("[OptiFabric] Wrote " + chain + " - this OptiFine build asks for it but no longer ships it");
 			}
 		}
 
-		if (!missing.isEmpty()) {
-			add(jar, missing);
+		if (!added.isEmpty() || !dropped.isEmpty()) {
+			rewrite(jar, added, dropped);
 		}
 	}
 
@@ -87,13 +102,13 @@ final class OptifinePostChainFixer {
 				+ "}\n";
 	}
 
-	/** Copies the jar and appends the entries: a ZipFile cannot be written to while it is open. */
-	private static void add(File jar, Map<String, byte[]> extra) throws IOException {
+	/** Copies the jar into a new one with the entries added and dropped: a ZipFile cannot be written to while it is open. */
+	private static void rewrite(File jar, Map<String, byte[]> added, Map<String, String> dropped) throws IOException {
 		Path tmp = jar.toPath().resolveSibling(jar.getName() + ".postchain");
 
 		try (ZipFile zip = new ZipFile(jar); ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(tmp))) {
 			for (ZipEntry entry : Collections.list(zip.entries())) {
-				if (entry.isDirectory() || extra.containsKey(entry.getName())) {
+				if (entry.isDirectory() || dropped.containsKey(entry.getName()) || added.containsKey(entry.getName())) {
 					continue;
 				}
 
@@ -106,9 +121,9 @@ final class OptifinePostChainFixer {
 				out.closeEntry();
 			}
 
-			for (Map.Entry<String, byte[]> added : extra.entrySet()) {
-				out.putNextEntry(new ZipEntry(added.getKey()));
-				out.write(added.getValue());
+			for (Map.Entry<String, byte[]> entry : added.entrySet()) {
+				out.putNextEntry(new ZipEntry(entry.getKey()));
+				out.write(entry.getValue());
 				out.closeEntry();
 			}
 		}
