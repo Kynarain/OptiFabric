@@ -1,0 +1,10 @@
+{
+    "changelog":  "# OptiFabric 1.1.0+mc1.21.8\n\n**Minecraft 1.21.8** / Fabric Loader 0.19.5 / Java 21+ / 需求 OptiFine `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar`\n\n状态:**已实测正常(多人崩溃已修)**\n\n## 这个版本是什么\n\n把 OptiFine 完整接入 Fabric:OptiFine 的补丁在构建期离线应用到 Minecraft jar(官方名 -\u003e intermediary 重映射、\n补丁类修复、逐类双向校验),运行时把补丁类交给 Fabric Loader,光影、连接纹理、缩放等 OptiFine 功能照常工作。\n本 jar 只适配 Minecraft 1.21.8,不要跨版本使用。\n\n## 本版修复(1.0.0)\n\n- 补丁管线:保留 OptiFine 自带栈帧、必要时只对改动过的类重算;注入点(调用/句柄)被 OptiFine 改写时逐一对齐;\n- 工厂调用错位、HUD 图层 lambda 名被改写、区块 section 位置缺失、HUD 与区块路径的类型不匹配等逐一修复;\n- 抗锯齿(1.21.9 / 1.21.10):OptiFine 的 FXAA 走它自己的 post chain,而 1.21.8 起的构建不再带那个老位置的文件,\n  且游戏那条同名 post effect 会画出黑屏 -\u003e 管线补写该文件并让 OptiFine 自己的链独占;\n- 多人(1.21.8):Fabric 渲染器 API 的占位实现不再抛异常终结会话。\n\n## 安装\n\n1. 安装 Fabric Loader 0.19.5(Java 21 或更高);\n2. 把本 jar 和对应版本的 OptiFine 一起放进 `mods\\`;\n3. 启动一次即可(首次会重建 `.optifine` 缓存)。\n\n## 已知限制\n\n- **光影包请用 Complementary 等主流包**:`photon_v1.2a.zip` 在 1.21.6 起的 OptiFine 上不工作(包与 OptiFine 的版本差异);\n- 1.21.8 起 Indigo 让位于 OptiFine,走 Fabric 渲染器 API 的方块实体由原版路径绘制,个别情况下可能画不出来;\n- 1.21.6 / 1.21.7 的 OptiFine 预览构建自身有缺陷,本移植不提供支持(见上)。\n\n## 校验\n\n`OptiFabric-1.1.0+mc1.21.8.jar` — 819659 字节\n\n`SHA-256: A253CF86C1ECD6BC399EDDB0AB0DD9FFE59E59FDA51CD593C0773B6BB3C3E949`",
+    "changelogType":  "markdown",
+    "displayName":  "OptiFabric 1.1.0+mc1.21.8",
+    "releaseType":  "release",
+    "gameVersions":  [
+                         "1.21.8",
+                         "Fabric"
+                     ]
+}
