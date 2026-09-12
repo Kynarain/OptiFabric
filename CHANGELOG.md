@@ -27,6 +27,10 @@ OptiFine 的类里也没有路径字面量),依据写在 `OptifineSetup.POST_EFF
 被补丁的游戏类 **570 / 570**、OptiFine 自身的类 **874 / 874** 通过 JVM 校验,ASM 数据流验证器 **0 问题**;
 扫描器:注入点 4 条(全部属于**已停用**的 indigo)、mixin 成员引用缺失 0、契约/覆写/引用 0/0/0、invokedynamic 句柄 0 悬空。
 
+**真机确认**(2026-09-13,把 1.1.0 换成 1.1.1 并清空 `.optifine/`):启动、资源重载、切光影包、开关抗锯齿都正常;
+1.1.0 上每次资源重载都出现的 `Resource not found: minecraft:post_effect/fxaa_of_2x.json` 与
+`Failed to load post chain: minecraft:fxaa_of_2x` **都不再出现**,整轮 `[ERROR]` 0 条。
+
 产物:`OptiFabric-1.1.1+mc1.21.11.jar` — 876446 字节
 `SHA-256: 9E78C98FC0FC568C453ACA880FE167545192021D16C4A2DA0E4127AC5F3A9143`
 

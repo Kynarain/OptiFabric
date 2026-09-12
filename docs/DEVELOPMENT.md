@@ -1113,9 +1113,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 * 直接对着管线产物 `Optifine-mapped.jar` 核对了条目:两份 `post_effect/fxaa_of_*.json` 在、**没有**多出
   `shaders/post/fxaa_of_*.json` —— 与用户自己那份 `OptiFine_1.21.11_HD_U_J9.jar` 的 FXAA 条目一一对应。
 
-> 还没做的一步(要真机):换光影包 / 开关抗锯齿时不再弹"重载资源失败",以及开着抗锯齿的画面是否正常。
-> 线上表现为:控制台不再出现 `Resource not found: minecraft:post_effect/fxaa_of_2x.json` 与
-> `Could not find post chain with id: minecraft:fxaa_of_2x`。
+> **真机已确认**(2026-09-13,用户自己的 1.21.11 Fabric 实例,`1.1.1`,替换掉 1.1.0 并清空 `.optifine/`):
+> 启动、资源重载、切换光影包(`ComplementaryReimagined_r5.9.1.zip` 加载成功)、开关抗锯齿都正常,
+> 画面没问题;日志里 `Resource not found: minecraft:post_effect/fxaa_of_2x.json` 与
+> `Failed to load post chain: minecraft:fxaa_of_2x` **两条都消失**,整轮 `[ERROR]` 0 条。
+> 对照:同一个实例跑 1.1.0 时这两条每次资源重载都出现(见上面 07:09–07:13 那段)。
+
+> 补充:1.21.11 这条链由**游戏的后处理链注册表**承载 —— 反汇编管线产物里的补丁类 `class_10151` 可以看到
+> OptiFine 自己拼出 `fxaa_of_2x/4x` + `.json/.vsh/.fsh` 并调 `Config.getResourceSafe(...)`,取不到就打印
+> `Resource not found: <id>`(就是我们看到的那条警告)。OptiFine 的类里没有任何链 id 字面量,也没有自己
+> 构造 `PostChain`/`ShaderManager` 的地方 —— 所以"把 `post_effect/` 那份删掉"必然会让 id 解析不出来。
 
 > 顺带记两条与 1.21.11 有关、**不属于本模组**的观察:手里拿着的方块在开光影时偶尔黑一下(在只装 OptiFine、
 > 不装本模组的 Forge 客户端上同样复现),以及光影包自身对 OptiFine 不认识的程序名的报错。前者建议先关动态光源

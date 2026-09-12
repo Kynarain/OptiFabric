@@ -29,7 +29,7 @@
 | 1.21.8 | `OptiFabric-1.1.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | **已实测正常(多人崩溃已修)** |
 | 1.21.9 | `OptiFabric-1.1.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | **已实测正常(含抗锯齿)** |
 | 1.21.10 | `OptiFabric-1.1.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | **已实测正常(含抗锯齿)** |
-| 1.21.11 | `OptiFabric-1.1.1+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` | **已实测正常**(1.1.1 修掉换光影包时的"重载资源失败") |
+| 1.21.11 | `OptiFabric-1.1.1+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` | **已实测正常(含抗锯齿)**;1.1.1 修掉换光影包时的"重载资源失败" |
 
 **26.x 线**(项目 `v26.x/`,版本基数 2.0.0):
 

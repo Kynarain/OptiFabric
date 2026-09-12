@@ -46,6 +46,12 @@
 
 ## 校验
 
+**真机确认**(2026-09-13,把 1.1.0 换成 1.1.1 并清空 `.optifine/` 缓存):启动、资源重载、切光影包
+(`ComplementaryReimagined_r5.9.1.zip`)、开关抗锯齿全部正常;1.1.0 上每次资源重载都出现的
+`Resource not found: minecraft:post_effect/fxaa_of_2x.json` 与 `Failed to load post chain: minecraft:fxaa_of_2x`
+都不再出现,整轮 `[ERROR]` 0 条。离线校验:570 / 570 个补丁类与 874 / 874 个 OptiFine 类通过 JVM 校验,
+ASM 数据流验证器 0 问题。
+
 `OptiFabric-1.1.1+mc1.21.11.jar` — 876446 字节
 
 `SHA-256: 9E78C98FC0FC568C453ACA880FE167545192021D16C4A2DA0E4127AC5F3A9143`
