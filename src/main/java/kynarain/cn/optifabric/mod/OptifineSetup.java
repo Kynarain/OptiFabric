@@ -228,6 +228,12 @@ public class OptifineSetup {
 		}
 
 		ClassCache generated = generateClassCache(jarFinaliser, optifinePatches, modHash, extract);
+
+		//OptiFine's own jar is not always right for the release it runs on (a post effect its build writes in a
+		//shape that release cannot parse, and a preview build that cancels the shaderpack load outright); those
+		//entries are repaired in the jar that is about to go on the class path.
+		OptifineJarFixer.fix(remappedJar, getMinecraftJar());
+
 		Files.writeString(cacheStamp.toPath(), String.valueOf(CACHE_FORMAT), StandardCharsets.UTF_8);
 
 		return new OptifineRuntime(remappedJar.toPath(), generated);
@@ -248,9 +254,13 @@ public class OptifineSetup {
 	 * 15: two injections lost their points: the String constructor of ShaderProgram creates its Identifier the
 	 *     way the game does again (Fabric API wraps that call), and the method references in the InGameHud
 	 *     constructor point at methods the game declares again instead of OptiFine's lambdas.
+	 * 16: OptiFine's own jar is repaired after remapping - its FXAA post effect is rewritten into the shape the
+	 *     release parses, and the shaderpack load a 1.21.6 / 1.21.7 build cancels outright is enabled again.
+	 * 17: that repair reads the method's instructions without the labels between them (16 could not see the
+	 *     shaderpack load at all, so 16's artifacts are the unpatched ones).
 	 * Every bump is required, not cosmetic: artifacts produced by an older pipeline must not be reused.
 	 */
-	private static final int CACHE_FORMAT = 15;
+	private static final int CACHE_FORMAT = 17;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {

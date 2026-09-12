@@ -18,6 +18,11 @@
  *
  * as soon as a chunk is built - which is what creating a world does. The section position is not lost though: the
  * method receives it as a packed long, so the extra argument can be produced from it with ChunkSectionPos.from(long).
+ *
+ * Two shapes of that input and of the constructor had to be covered for the whole series: 1.21 through 1.21.4 hand
+ * the builder the position itself (ChunkRendererRegionBuilder.build(World, ChunkSectionPos)) and their vanilla
+ * constructor takes (World, int, int, ChunkSection[]) - two ints, not three - so the extra argument is appended to
+ * whatever descriptor the release actually has, and taken from the position parameter when there is one.
  */
 package kynarain.cn.optifabric.patcher.fixes;
 
@@ -57,9 +62,12 @@ public class RegionSectionPosFix implements ClassFixer {
 			for (MethodNode method : optifine.methods) {
 				if (!method.name.equals(name)) continue;
 
-				int longSlot = longSlot(method);
-				if (longSlot < 0) {
-					System.err.println("[OptiFabric] " + optifine.name + '.' + name + " does not take the packed section position,"
+				//The releases before 1.21.6 hand the builder the position itself, later ones only the packed long.
+				int posSlot = parameterSlot(method, "L" + sectionPosType + ";");
+				int longSlot = posSlot < 0 ? longSlot(method) : -1;
+
+				if (posSlot < 0 && longSlot < 0) {
+					System.err.println("[OptiFabric] " + optifine.name + '.' + name + " does not take the section position,"
 							+ " the region keeps an empty one");
 					continue;
 				}
@@ -69,14 +77,23 @@ public class RegionSectionPosFix implements ClassFixer {
 				for (AbstractInsnNode insn : method.instructions.toArray()) {
 					if (!(insn instanceof MethodInsnNode call) || call.getOpcode() != Opcodes.INVOKESPECIAL) continue;
 					if (!call.owner.equals(regionType) || !"<init>".equals(call.name)) continue;
-					if (Type.getArgumentTypes(call.desc).length != 5) continue; //already OptiFine's own constructor? then leave it
 
-					method.instructions.insertBefore(call, new VarInsnNode(Opcodes.LLOAD, longSlot));
-					method.instructions.insertBefore(call, new MethodInsnNode(Opcodes.INVOKESTATIC, sectionPosType, fromLong,
-							"(J)L" + sectionPosType + ";", false));
+					Type[] arguments = Type.getArgumentTypes(call.desc);
 
-					call.desc = "(L" + RemappingUtils.getClassName("class_1937") + ";III[L" + RemappingUtils.getClassName("class_6849")
-							+ ";L" + sectionPosType + ";)V";
+					//already OptiFine's own constructor? then leave it alone
+					if (arguments.length > 0 && arguments[arguments.length - 1].getDescriptor().equals("L" + sectionPosType + ";")) continue;
+
+					if (posSlot >= 0) {
+						method.instructions.insertBefore(call, new VarInsnNode(Opcodes.ALOAD, posSlot));
+					} else {
+						method.instructions.insertBefore(call, new VarInsnNode(Opcodes.LLOAD, longSlot));
+						method.instructions.insertBefore(call, new MethodInsnNode(Opcodes.INVOKESTATIC, sectionPosType, fromLong,
+								"(J)L" + sectionPosType + ";", false));
+					}
+
+					//the extra argument is appended to whatever shape the game's constructor has in this release
+					int close = call.desc.lastIndexOf(')');
+					call.desc = call.desc.substring(0, close) + "L" + sectionPosType + ';' + call.desc.substring(close);
 					patched++;
 				}
 
@@ -87,6 +104,18 @@ public class RegionSectionPosFix implements ClassFixer {
 				}
 			}
 		}
+	}
+
+	/** Slot of the first parameter of that type in that method, or -1. */
+	private static int parameterSlot(MethodNode method, String typeDesc) {
+		int slot = (method.access & Opcodes.ACC_STATIC) == 0 ? 1 : 0;
+
+		for (Type argument : Type.getArgumentTypes(method.desc)) {
+			if (argument.getDescriptor().equals(typeDesc)) return slot;
+			slot += argument.getSize();
+		}
+
+		return -1;
 	}
 
 	/** Slot of the packed section position in that method, or -1 when it does not take one. */

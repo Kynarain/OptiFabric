@@ -33,6 +33,10 @@
  * on 1.21 that is Identifier.ofVanilla(name), which is the call Fabric API wraps there, while OptiFine's
  * delegating constructor builds the Identifier with its constructor instead - mirroring OptiFine left the
  * mixin without an injection point and the whole class failed to transform.
+ *
+ * OptiFine delegates through a *factory* on other releases (1.21.1: this(provider, Identifier.ofVanilla(id),
+ * type)), which is the same problem with another shape: the wrapped call exists, but before this(), where Mixin
+ * refuses an instance handler. findDelegation recognises both shapes and inlines either of them.
  */
 package kynarain.cn.optifabric.patcher.fixes;
 
@@ -104,17 +108,26 @@ public class DelegatingConstructorFix implements ClassFixer {
 		if (call == null) return null;
 
 		for (AbstractInsnNode insn = call.getPrevious(); insn != null; insn = insn.getPrevious()) {
-			if (!(insn instanceof MethodInsnNode creation) || !"<init>".equals(creation.name) || creation.owner.equals(owner.name)) continue;
+			if (!(insn instanceof MethodInsnNode creation) || creation.owner.equals(owner.name)) continue;
 
-			//javac emits NEW, DUP, <argument loads>, INVOKESPECIAL <init> - so the NEW is not adjacent to the call
-			for (AbstractInsnNode scan = creation.getPrevious(); scan != null; scan = scan.getPrevious()) {
-				if (!(scan instanceof TypeInsnNode typeInsn) || typeInsn.getOpcode() != Opcodes.NEW || !typeInsn.desc.equals(creation.owner)) continue;
+			if ("<init>".equals(creation.name)) {
+				//javac emits NEW, DUP, <argument loads>, INVOKESPECIAL <init> - so the NEW is not adjacent to the call
+				for (AbstractInsnNode scan = creation.getPrevious(); scan != null; scan = scan.getPrevious()) {
+					if (!(scan instanceof TypeInsnNode typeInsn) || typeInsn.getOpcode() != Opcodes.NEW || !typeInsn.desc.equals(creation.owner)) continue;
 
-				boolean duplicated = typeInsn.getNext() != null && typeInsn.getNext().getOpcode() == Opcodes.DUP;
+					boolean duplicated = typeInsn.getNext() != null && typeInsn.getNext().getOpcode() == Opcodes.DUP;
 
-				if (duplicated) return new Delegation(creation.owner, creation.desc, call.desc);
+					if (duplicated) return new Delegation(creation.owner, creation.name, creation.desc, call.desc);
 
-				break;
+					break;
+				}
+			} else if (creation.getOpcode() == Opcodes.INVOKESTATIC) {
+				//OptiFine also delegates through a factory of the game itself, most notably on 1.21.1:
+				//  ShaderProgram(provider, String id, type) { this(provider, Identifier.ofVanilla(id), type); }
+				//The type that ends up in the other constructor is the factory's return type.
+				Type returned = Type.getReturnType(creation.desc);
+
+				if (returned.getSort() == Type.OBJECT) return new Delegation(returned.getInternalName(), creation.name, creation.desc, call.desc);
 			}
 		}
 
@@ -202,6 +215,18 @@ public class DelegatingConstructorFix implements ClassFixer {
 			return creation;
 		}
 
+		if (!"<init>".equals(delegation.createdName)) {
+			//OptiFine's own factory (the game has no equivalent here), reused as it stands
+			creation.add(new VarInsnNode(Opcodes.ALOAD, slot));
+			creation.add(new MethodInsnNode(Opcodes.INVOKESTATIC, delegation.createdType, delegation.createdName, delegation.createdDesc, false));
+			creation.add(new VarInsnNode(Opcodes.ASTORE, newSlot));
+
+			System.out.println("[OptiFabric] Creates the " + delegation.createdType + " with OptiFine's " + delegation.createdType
+					+ '.' + delegation.createdName + " when inlining " + stringDesc);
+
+			return creation;
+		}
+
 		creation.add(new TypeInsnNode(Opcodes.NEW, delegation.createdType));
 		creation.add(new InsnNode(Opcodes.DUP));
 		creation.add(new VarInsnNode(Opcodes.ALOAD, slot)); //the String parameter
@@ -278,6 +303,6 @@ public class DelegatingConstructorFix implements ClassFixer {
 		}
 	}
 
-	private record Delegation(String createdType, String createdDesc, String targetDesc) {
+	private record Delegation(String createdType, String createdName, String createdDesc, String targetDesc) {
 	}
 }

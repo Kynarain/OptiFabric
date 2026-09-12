@@ -764,15 +764,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 
 | MC | OptiFine 目标构建 | 补丁类(JVM+ASM) | OptiFine 类(JVM+ASM) | @At | Refmap 缺失 | 契约扫描 | Lambda 句柄 | 真机 |
 |---|---|---|---|---|---|---|---|---|
-| 1.21 | `preview_..._J1_pre9` | 440/440 ✅ | 773/773 ✅ | 3(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ Mixin 转换失败 → 已修,待复测 |
-| 1.21.1 | `OptiFine_1.21.1_HD_U_J1` | 425/425 ✅ | 783/783 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | — 未启动过(实例里没有日志) |
-| 1.21.3 | `OptiFine_1.21.3_HD_U_J2` | 440/440 ✅ | 816/816 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ VerifyError → 已修,待复测 |
-| 1.21.4 | `OptiFine_1.21.4_HD_U_J3` | 474/474 ✅ | 812/812 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ Mixin 转换失败 → 已修,待复测 |
-| 1.21.6 | `preview_..._J6_pre3` | 487/487 ✅ | 820/820 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 徽标后黑屏(疑窗口最小化+垂直同步,待确认) |
-| 1.21.7 | `preview_..._J6_pre7` | 500/500 ✅ | 823/823 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 徽标后黑屏(疑窗口最小化+垂直同步,待确认) |
-| 1.21.8 | `preview_..._J6_pre16` | 516/516 ✅ | 831/831 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ VerifyError(日志)→ 已修,待复测 |
-| 1.21.9 | `preview_..._J7_pre2` | 519/519 ✅ | 832/832 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 光影不加载(未定位) |
-| 1.21.10 | `preview_..._J7_pre11` | 553/553 ✅ | 836/836 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 光影加载但渲染异常(未定位) |
+| 1.21 | `preview_..._J1_pre9` | 440/440 ✅ | 773/773 ✅ | 3(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | 第二轮:崩在 `SectionBuilder`(region 为 null)→ 已修,待复测 |
+| 1.21.1 | `OptiFine_1.21.1_HD_U_J1` | 425/425 ✅ | 783/783 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | 第二轮:ShaderProgram 注入点(工厂委托)→ 已修,待复测 |
+| 1.21.3 | `OptiFine_1.21.3_HD_U_J2` | 440/440 ✅ | 816/816 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | 第二轮:崩在 `SectionBuilder`(region 为 null)→ 已修,待复测 |
+| 1.21.4 | `OptiFine_1.21.4_HD_U_J3` | 474/474 ✅ | 812/812 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | 第二轮:崩在 `SectionBuilder`(region 为 null)→ 已修,待复测 |
+| 1.21.6 | `preview_..._J6_pre3` | 487/487 ✅ | 820/820 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | 第二轮:进世界正常,光影不加载(OptiFine 构建写死 cancelled)→ 已在管线修补,待复测 |
+| 1.21.7 | `preview_..._J6_pre7` | 500/500 ✅ | 823/823 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | 第二轮:进世界正常,光影不加载(OptiFine 构建写死 cancelled)→ 已在管线修补,待复测 |
+| 1.21.8 | `preview_..._J6_pre16` | 516/516 ✅ | 831/831 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | 第二轮:进世界正常,光影的 4 个 `*_translucent` 程序名 OptiFine 不认(包侧) |
+| 1.21.9 | `preview_..._J7_pre2` | 519/519 ✅ | 832/832 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | 第二轮:FXAA 后处理的顶点着色器缺源 → 已在管线修补,待复测 |
+| 1.21.10 | `preview_..._J7_pre11` | 553/553 ✅ | 836/836 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | 第二轮:光影加载正常,4 个 `*_translucent` 程序名 OptiFine 不认(包侧) |
 | 1.21.11 | `OptiFine_1.21.11_HD_U_J9` | 570/570 ✅ | 874/874 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ✅ 已实测 |
 
 「补丁类」= OptiFine 自己补丁的游戏类 + 本移植额外接管的类(1.21.6 及以上还多两个:`class_11681`、`class_11684`)。「OptiFine 类」= `Optifine-mapped.jar` 里 OptiFine 自身的类。两者相加就是每个版本通过 JVM 与 ASM 双向校验的类数(例:1.21.11 的 1444 个)。
@@ -879,3 +879,80 @@ OptiFine 的重编译把构造函数里三条 `this::method_55806/55807/55808` �
 | `[Shaders] Invalid program name: dh_water` / `gbuffers_entities_translucent` / `gbuffers_particles_translucent` / `gbuffers_block_translucent` / `gbuffers_particles` | 1.21.10 | 光影包请求了 **OptiFine 不认识的程序名**(`*_translucent`、`dh_*` 是 Iris / 其他加载器的命名),所以"光影加载成功但渲染不对"属于**光影包与 OptiFine 不匹配**,与补丁无关;换 OptiFine 专用包即可验证 |
 
 另外更正一条早先的记录:**1.21.1 其实从未启动过** —— 该实例目录里连 `logs/` 和 `options.txt` 都没有(只有 `mods/`)。它此前被列进"崩溃"只是因为用户说"其他没提到的版本都崩了",而事实是那一版没被运行过。
+
+---
+
+## 第二轮真机反馈(2026-09-12 12:03–12:11):崩溃换了地方,光影"没用"有三个不同的原因
+
+十版重新装机后:1.21 / 1.21.1 / 1.21.3 / 1.21.4 仍然崩(但崩点全变了,说明上一轮的注入点问题确实过了),1.21.6 / 1.21.7 / 1.21.9 是"光影完全没反应",1.21.8 / 1.21.10 是"光影加载了但渲染不对"。
+
+### 两个崩溃
+
+**`RegionSectionPosFix` 在 1.21–1.21.4 上没生效(1.21 / 1.21.3 / 1.21.4)**
+进世界十几秒后崩在 `SectionBuilder.compile`(`class_9810`):
+
+```
+NullPointerException: Cannot invoke "net.optifine.override.ChunkCacheOF.renderStart()" because "regionIn" is null
+  at net.minecraft.class_9810.compile(class_9810.java:85)
+  at net.minecraft.class_846$class_851$class_4578.method_22783(...)
+```
+
+原因不是 fixer 写错了,而是**它认不出那些版本的形状**:1.21 到 1.21.4 的 `ChunkRendererRegionBuilder.method_39969` 直接收 `ChunkSectionPos` 对象,1.21.6 起才收打包 long,而 fixer 只处理 long(`longSlot < 0` 就整段跳过,只在日志里留一句"does not take the packed section position")。于是 region 仍然用原版 4 参构造器建出来,它内部的 `ChunkCacheOF` 是 null,OptiFine 的 `compile()` 第一句 `renderStart()` 就炸。
+
+修法:两种形状都支持 —— 有 `ChunkSectionPos` 参数就直接 `ALOAD` 它,只有 long 时才 `LLOAD` + `ChunkSectionPos.from(J)`;另外**新描述符由"原描述符 + 追加参数"推出**,因为各版本构造器的参数个数本来就不同(1.21.4 是 `(World,int,int,ChunkSection[])`,1.21.8 是三个 int)。第二点上踩过一次:第一版实现用 `substring(0, length-1)` 砍尾巴,把 `...)V` 砍成了 `...)`,生成 `(Lclass_1937;III[Lclass_6849;)Lclass_4076;)V` 这种非法描述符 —— 离线验证器当场报 `define failed: ClassFormatError: Method "<init>" ... has illegal signature`,这类错误**只出现在 `ASM verifier problems` 里,不在 `FAILED:` 里**,第一次复跑时漏看了这一列,后来把它加进了复跑断言。
+
+**1.21.1 的 `Mixin transformation of net.minecraft.class_5944 failed`**
+和第一轮 1.21 是同一处注入点(Fabric API 的 `ShaderProgramMixin` 用 `@WrapOperation` 包 `Identifier.ofVanilla`),但形状不同:1.21 的 OptiFine 用 `new Identifier(name)`,1.21.1 用的是**静态工厂**委托:
+
+```
+1: aload_1                       // provider
+2: aload_2                       // name
+3: invokestatic class_2960.method_60654(String)Identifier   // Identifier.ofVanilla
+7: invokespecial <init>(class_5912, Identifier, class_293)  // this(...)
+```
+
+`DelegatingConstructorFix.findDelegation` 只认 `NEW; DUP; …; INVOKESPECIAL <init>` 这一种"创建",于是根本没内联,注入点留在 `this()` 之前 —— Mixin 拒绝实例 handler 落在 `super()` 之前,整类失败。现在两种形状都识别(工厂的返回类型就是被委托过去的类型),内联后同样优先用**原版**的转换调用。
+
+### 光影没能生效的三个原因(互不相同,只有一个在光影包那边)
+
+**1.21.6 / 1.21.7:OptiFine 那个构建自己把光影关死了。**
+`Shaders.loadShaderPack()` 里,在读配置、做检查之后、真正加载之前,字节码是:
+
+```
+169: astore_3                                  // String packName = shadersConfig.getProperty(...)
+170: iconst_1                                  // cancelled = true;   ← 写死
+171: istore_2
+172: iload_2
+173: ifne  197                                  // if (cancelled) 跳过 getShaderPack()
+```
+
+也就是说 `getShaderPack()` 永远不被调用,用户选什么包都是 `[Shaders] No shaderpack loaded.`。对照 1.21.8(pre16)、1.21.9、1.21.10 的构建,那里是 `iload_2; ifne`(读上面两个检查 —— 抗锯齿/华丽画质 —— 设置的标志),没有任何写死。**这是 OptiFine 预览构建的缺陷,配置里改不掉**(实例的 `ofAaLevel:0`、`graphicsMode:1` 与能正常加载的 1.21.8 完全一致)。
+
+处理:新增 `mod/OptifineJarFixer`,在映射后的 jar 上作业 —— 找到 `loadShaderPack` 里 `ICONST_1; ISTORE n; ILOAD n; IFNE` 这个四连(中间可能夹着 Label/LineNumber/Frame 节点,所以要按**真实指令**比较),把那两条赋值删掉,恢复成 1.21.8 的形状。只在匹配到时才动,其它构建原样通过。
+
+**1.21.9:OptiFine 自带的 FXAA 后处理引用了这一版没有的顶点着色器。**
+OptiFine 的 FXAA 走游戏的 post effect 系统(1.21.6 起的新格式),它自己的 `assets/minecraft/post_effect/fxaa_of_{2x,4x}.json` 里第二个 pass(把 `swap` 拷回 `minecraft:main`)写的是:
+
+```json
+"vertex_shader": "minecraft:post/blit",
+"fragment_shader": "minecraft:post/blit"
+```
+
+而 1.21.9 起游戏只提供 `assets/minecraft/shaders/post/blit.fsh`,顶点阶段改用 `core/screenquad`(原版自己的 `post_effect/transparency.json` 就是这么写的)。于是:
+
+```
+Couldn't find source for VERTEX shader (minecraft:post/blit)
+Couldn't compile pipeline minecraft:fxaa_of_4x/1: vertex shader minecraft:post/blit was invalid
+```
+
+后处理管线编译失败,接着光影初始化失败 —— 用户看到的"1.21.9 不加载光影"就是这么来的(日志里那 5 次 `No shaderpack loaded`,紧跟在这些报错之后)。
+
+同一个 fixer 处理:按"游戏 jar / OptiFine jar 里到底有没有这个 `program` 的 `.vsh`"判断,缺源就换成 `minecraft:core/screenquad`;顺带把 1.21.6 / 1.21.7 那份用了 `"program"` 键(那两个版本的解析器只认 `vertex_shader`/`fragment_shader`,报 `No key fragment_shader`)的 JSON 一并改写。1.21.10 / 1.21.11 的那两份本来就是对的,只在真的缺源时才动。
+
+**1.21.8 / 1.21.10:光影包用了 OptiFine 不认识的程序名 —— 这条不归补丁管。**
+两份日志里各有 30 条 `[Shaders] Invalid program name:`:`dh_water`(8)、`gbuffers_entities_translucent`(6)、`gbuffers_particles_translucent`(6)、`gbuffers_block_translucent`(6)、`gbuffers_particles`(4)。查光影包本体:`photon_v1.2a.zip` 里确实有 `gbuffers_all_translucent`、`gbuffers_block_translucent`、`gbuffers_entities_translucent`、`gbuffers_particles_translucent` 以及 `dh_terrain` / `dh_water` —— `*_translucent` 是 Iris 一侧的命名习惯,OptiFine 的固定程序表里没有,`dh_*` 是 Distant Horizons 用的(本实例没装)。OptiFine 的做法是报错并跳过,那些 pass 于是走内置程序,画面自然"不对"。
+**验证办法:换一个 OptiFine 专用包**(本项目在 1.21.11 上验过 `ComplementaryReimagined_r5.9.1.zip`)。同一个包在 1.21.8 与 1.21.10 上报完全一样的程序名,说明它与"我们对字节码做了什么"无关。
+
+### 这一轮的复跑口径
+
+十版重跑(`verify-version.ps1`),断言收紧成四列一起看:`Prepared N patched classes (0 skipped, 0 failed)`、`verified OK: N`(补丁类与 OptiFine 类各一次)、`ASM verifier problems: 0`、以及扫描器的 `MISSING members / broken abstract contracts / DANGLING handles` 全为 0 —— 上一轮就是漏看 `ASM verifier problems` 才让一个非法描述符溜过去的。缓存格式提到 17(管线的产物变了两次:先是 OptiFine jar 修补,后是修补本身的修正),旧缓存会自动重建。

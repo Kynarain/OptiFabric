@@ -14,24 +14,26 @@
 
 | Minecraft | 产出的 jar | OptiFine 构建 | 真机验证 |
 |---|---|---|---|
-| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) | ❌ Mixin 转换失败 → 已修,待复测 |
-| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | **`OptiFine_1.21.1_HD_U_J1.jar`** | — 未启动过(实例里没有日志) |
-| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | **`OptiFine_1.21.3_HD_U_J2.jar`** | ❌ VerifyError → 已修,待复测 |
-| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | **`OptiFine_1.21.4_HD_U_J3.jar`** | ❌ Mixin 转换失败 → 已修,待复测 |
-| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | ⚠️ 徽标后黑屏(疑窗口最小化+垂直同步,待确认) |
-| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | ⚠️ 徽标后黑屏(疑窗口最小化+垂直同步,待确认) |
-| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | ❌ VerifyError → 已修,待复测 |
-| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | ⚠️ 光影不加载(未定位) |
-| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | ⚠️ 光影加载但渲染异常(未定位) |
+| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) | 第二轮:崩在 `SectionBuilder`(region 为 null)→ 已修,待复测 |
+| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | **`OptiFine_1.21.1_HD_U_J1.jar`** | 第二轮:ShaderProgram 注入点(工厂委托)→ 已修,待复测 |
+| 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | **`OptiFine_1.21.3_HD_U_J2.jar`** | 第二轮:崩在 `SectionBuilder`(region 为 null)→ 已修,待复测 |
+| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | **`OptiFine_1.21.4_HD_U_J3.jar`** | 第二轮:崩在 `SectionBuilder`(region 为 null)→ 已修,待复测 |
+| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | 第二轮:光影不加载(OptiFine 构建写死 `cancelled` 的 bug)→ 已在管线修补,待复测 |
+| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | 第二轮:同上 |
+| 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | 第二轮:光影的 4 个 `*_translucent` 程序名 OptiFine 不认(包侧,非补丁问题) |
+| 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | 第二轮:FXAA 后处理的顶点着色器缺源 → 已在管线修补,待复测 |
+| 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | 第二轮:光影加载正常,4 个 `*_translucent` 程序名不认(包侧) |
 | 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | **`OptiFine_1.21.11_HD_U_J9.jar`** | ✅ 已实测 |
 
-OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。上表的**真机一列是 2026-09-12 装机实测的结果**,三条已定位到根因并修复:
+OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。上表**真机一列是 2026-09-12 两轮装机实测的结果**,五处已定位到根因并修复:
 
 1. **1.21.3 / 1.21.8 的 `VerifyError`** —— 补丁管线给**未被任何 fixer 改动**的类也重算了栈帧(`MissingOverrideFix` 是全局的),合并分支类型时退化成 `java/lang/Object`,游戏拒绝加载该类。现在这类类保留 OptiFine 自己的栈帧。
-2. **1.21 的 Mixin 转换失败** —— `DelegatingConstructorFix` 内联 OptiFine 的委托构造函数时,把原版构造函数里那次 `Identifier.ofVanilla(name)` 换成了 OptiFine 的 `new Identifier(name)`;Fabric API 的 `@WrapOperation` 正是包住那次调用,注入点因此消失。现在内联时照抄**原版**的转换调用。
-3. **1.21.4 的 Mixin 转换失败** —— OptiFine 把 `InGameHud` 构造函数里的三条 layer 方法引用改写成了 `lambda$new$0/1/2`,而那一版 Fabric API 的自定义注入点是**按方法句柄**匹配的,句柄对不上就等于注入点不存在。新的 `LambdaMethodRefFix` 把这些 lambda 改名回游戏使用的方法名(改名而非指回原版方法,是为了不丢掉 OptiFine 在这些 layer 里的附加逻辑,如 QuickInfo)。
+2. **1.21 / 1.21.4 的 Mixin 转换失败** —— 两类注入点被改掉了:`DelegatingConstructorFix` 内联 OptiFine 的委托构造函数时,把原版构造函数里那次 `Identifier.ofVanilla(name)` 换成了 OptiFine 的 `new Identifier(name)`(Fabric API 的 `@WrapOperation` 包的正是前者);1.21.4 上 OptiFine 把 `InGameHud` 构造函数里三条 layer 方法引用改写成了 `lambda$new$0/1/2`,而那一版 Fabric API 的自定义注入点是**按方法句柄**匹配的。现在内联照抄**原版**的转换调用,`LambdaMethodRefFix` 则把这些 lambda 改名回游戏使用的方法名(改名而非指回原版方法,是为了不丢掉 OptiFine 在这些 layer 里的附加逻辑,如 QuickInfo)。
+3. **1.21.1 的 Mixin 转换失败** —— 同一处注入点,但 OptiFine 在那里用的是**静态工厂**委托(`this(provider, Identifier.ofVanilla(id), type)`),内联 fixer 原来只认 `new Identifier(...)` 那一种形状,于是注入点留在 `this()` 之前。两种形状现在都识别。
+4. **1.21 / 1.21.3 / 1.21.4 进世界十几秒后崩**(`ChunkCacheOF.renderStart()` 收到 null)—— `RegionSectionPosFix` 在 1.21–1.21.4 上没生效:那些版本的 region 构建器收的是 `ChunkSectionPos` 对象,1.21.6 起才是打包 long,fixer 只处理后者就整段跳过了。现在两种形状都支持。
+5. **1.21.6 / 1.21.7 光影完全没反应** —— OptiFine 那两个预览构建的 `Shaders.loadShaderPack()` 在检查前写死了 `cancelled = true`,于是 `getShaderPack()` 永远不被调用,选任何包都是 `No shaderpack loaded`(1.21.8 起的构建是正常写法)。新的 `OptifineJarFixer` 在映射后的 jar 上把这两条指令删掉;**同一组件还修好了 1.21.9**:OptiFine 自带的 `post_effect/fxaa_of_{2,4}x.json` 把 `minecraft:post/blit` 当成顶点着色器,而 1.21.9 起游戏只有 `post/blit.fsh`(顶点阶段是 `core/screenquad`),后处理管线编译失败连带光影初始化失败。
 
-重新构建的 10 个 jar 已放进各版本实例;1.21.6 / 1.21.7 的黑屏此前疑似"窗口最小化 + 垂直同步"造成的假死(本项目此前踩过同样的坑);1.21.9 的"No shaderpack loaded"来自 OptiFine 自己 FXAA 后处理的旧格式 JSON(先在 OptiFine 设置里关掉 FXAA 再试),1.21.10 的渲染异常是光影包用了 OptiFine 不认识的程序名(`*_translucent`、`dh_*`)。所需证据见 DEVELOPMENT.md 文末。
+**唯一不属于补丁的一条**:1.21.8 / 1.21.10 上光影"加载了但渲染不对",是光影包 `photon_v1.2a.zip` 里用了 OptiFine 不认识的程序名(`gbuffers_entities/particles/block_translucent`、`gbuffers_all_translucent`,以及 Distant Horizons 用的 `dh_water`/`dh_terrain`),OptiFine 只报 `Invalid program name` 并跳过。换一个 OptiFine 专用包(例如 `ComplementaryReimagined_r5.9.1.zip`)即可验证。详见 DEVELOPMENT.md 的"第二轮真机反馈"。
 
 **一个 jar 只能对应一个版本**:jar 里打包的是该版本的 `official→intermediary` 映射表(官方混淆名每版不同),`fabric.mod.json` 里的 `minecraft` 依赖也精确到该版本。构建任意版本:
 
