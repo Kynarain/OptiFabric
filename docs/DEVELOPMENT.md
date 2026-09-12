@@ -1020,3 +1020,87 @@ NullPointerException: Cannot invoke "com.mojang.blaze3d.textures.GpuTexture.getG
 - 三版共有的 30 条 `Invalid program name`(`gbuffers_*_translucent`、`dh_*`)在**可用的 1.21 / 1.21.3 / 1.21.4 上一条不少**,所以它解释不了"只有 1.21.8 起才闪"。
 
 要区分是"光影包/驱动一侧"还是"补丁一侧",只需要两个对照:关掉光影(还闪不闪)、换成 `ComplementaryReimagined_r5.9.1.zip`(还闪不闪)。这条还没做,所以本节不给结论。
+
+## 抗锯齿黑屏(1.21.9 / 1.21.10)—— 已修好
+
+现象:1.21.9 / 1.21.10 关掉抗锯齿一切正常,一开抗锯齿就整屏黑。真机上已验证恢复正常。
+
+根因是**两条同名的后处理路径在打架**,而 OptiFine 的着色器只认其中一条:
+
+* OptiFine 的 FXAA 走着色器(`assets/minecraft/shaders/post/fxaa_of_2x.{vsh,fsh}`,`#version 150`)声明的是
+  `layout(std140) uniform Projection` / `SamplerInfo` / `FxaaConfig`,外加顶点输入 `in vec4 Position`。
+  这套是给 **OptiFine 自己的 post chain 运行器** 用的 —— 老式链描述文件里正好用
+  `ProjMat` / `OutSize` / `SpanMax` / `SubPixelShift` / `ReduceMul` 填这些 uniform。
+* 1.21.8 起的构建**不再带老式链文件**,只带游戏新形式的 `assets/minecraft/post_effect/fxaa_of_*.json`,
+  而游戏那条管线不按上面的形式喂 uniform:顶点位置算不出来 -> 第一个 pass 往 `swap` 里画空 ->
+  第二个 pass 把 `swap` 拷回主画面 -> **整屏黑**。
+
+所以修好"解析失败"之后依旧黑屏 —— 因为病根不是解析,而是**这条管线根本不该由游戏来跑**。
+
+`OptifinePostChainFixer`(`mod/OptifinePostChainFixer.java`)现在做两件事:
+
+1. 按 OptiFine 自己的 schema **补写** `assets/minecraft/shaders/post/fxaa_of_{2,4}x.json`
+   (结构照抄 1.21.6 那份 719/443 字节的原件:2x 带 SpanMax 8.0 / SubPixelShift 0.25 / ReduceMul 0.125,
+   4x 只有 ProjMat + OutSize)。内容只引用用户自己那份 OptiFine 里**已经存在**的 `post/fxaa_of_*.vsh/.fsh`
+   —— 不复制、也不分发 OptiFine 的任何文件。
+2. **移除**游戏那条 `assets/minecraft/post_effect/fxaa_of_{2,4}x.json`,让抗锯齿只有一个机制负责。
+
+只在"带了 FXAA 着色器"的构建上动手,其它 jar 一律不碰;已经自带 post chain 的构建只做第 2 步;
+重复运行是幂等的。缓存格式 20 -> 21 -> 22(21 是补链、22 是移除游戏管线)。
+
+> 统计口径:那两条 `Resource not found: minecraft:shaders/post/fxaa_of_*` 警告现在应当消失;
+> 若哪天又出现"开了抗锯齿没效果",就是 OptiFine 没触发自己的链,下一步是把游戏管线的 uniform
+> 按链的形式补齐(ProjMat/OutSize/... 塞进 pass 的 `uniforms`),而不是再删文件。
+
+## 仍待办的两项(实现细节已备齐,可直接开工)
+
+### A. 1.21.6 / 1.21.7 启动崩溃
+
+```
+NullPointerException: Cannot read field "norm" because "multiTex" is null
+  at net.optifine.shaders.ShadersTex.initDynamicTextureNS
+  at net.minecraft.class_1043.method_71142 / method_71141
+```
+
+1.21.8 的 OptiFine 在创建纹理之后先做 `this.field_56974.setParentTexture(this)`,而 1.21.6 / 1.21.7 的构建
+**既没有这个方法、也没做这个关联**,于是它自己要用的 multi-tex 登记表是空的。可照抄的部分已从 1.21.8
+反编译出来(全部只有 2~3 条指令):
+
+```java
+private net.minecraft.class_1044 parentTexture;                                   // 字段
+public void setParentTexture(class_1044 p) { this.parentTexture = p; }            // aload_0; aload_1; putfield; return
+public net.minecraft.class_1044 getParentTexture() { return this.parentTexture; } // aload_0; getfield; areturn
+```
+
+做法:新增一个 `ClassFixer`,注册给 `com/mojang/blaze3d/textures/GpuTexture` 与 `class_1043` 两个名字,
+按 `optifine.name` 分流 —— 前者补字段与两个方法(已存在就跳过,1.21.8 起自带),
+后者在调用 `ShadersTex.initDynamicTextureNS` 的方法里、其**之前**插入
+`aload_0; getfield field_56974; aload_0; invokevirtual GpuTexture.setParentTexture(class_1044)V`
+(栈平衡、不新增跳转目标,所以不涉及栈帧重算;已有关联调用则跳过)。`SimpleShaderTexture`
+那边(我们先前的 GPU 纹理创建块)也顺手补同一个关联,与 1.21.8 一致。
+
+需要的接口事实(已核对,不必再查):
+
+* 包 `kynarain.cn.optifabric.patcher.fixes`,`import kynarain.cn.optifabric.util.RemappingUtils;`
+* `public interface ClassFixer { void fix(ClassNode optifine, ClassNode minecraft); }`
+* 注册:`OptifineFixer` 里 `registerFix("class_1043", new XxxFix());` —— 内部会过一遍
+  `RemappingUtils.getClassName(className)` 再入表,所以 `com/mojang/...` 这类名字原样可用;
+  另有 `extraClasses` 机制用于"OptiFine 不补丁、但需要我们的 fixer"的类。
+
+### B. 1.21.8 多人游戏崩溃
+
+```
+UnsupportedOperationException: OptiFine is the active terrain renderer: Fabric's renderer API
+  has no rendering plug-in behind it here (Indigo steps aside)
+  at kynarain.cn.optifabric.mod.OptifineRendererPlaceholder.render
+  at net.fabricmc.fabric.api.renderer.v1.render.FabricBlockModelRenderer.render
+  at class_835.method_3575 -> class_824.method_23079 -> class_761.renderBlockEntities
+```
+
+占位渲染器是**故意抛异常**的,而多人服务器上某个方块实体的渲染正好走到这条路 -> 直接崩。真正可行的回落:
+`FabricBlockModelRenderer` 是个**接口默认方法**,它收到的参数就是原版
+`net.minecraft.class_778.render(...)` 那一套(`class_1920 / class_1087 / class_2680 / class_2338 / ...`),
+所以占位器把**同一批参数转交原版 `class_778.render(...)`** 即可(占位器是 `Renderer` 实现、不是
+`BlockModelRenderer`,不会递归)。注意 `Renderer.render(...)` 返回 `void`,Fabric 那边没有"返回 false
+就让原版接管"的开关(`FabricBlockModelRenderer` 里只有 `Renderer.get()` 然后 `render(...)` 一路)。
+实现点在运行时生成占位类的那段字节码(`RendererApiStubGenerator` / `RendererApiFallback`)。
