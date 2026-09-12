@@ -1064,11 +1064,23 @@ Resource not found: minecraft:post_effect/fxaa_of_2x.json
 Could not find post chain with id: minecraft:fxaa_of_2x
 ```
 
+真机日志(用户自己的实例,`OptiFabric-1.1.0+mc1.21.11`,2026-09-13 07:09–07:13,`logs/latest.log`)把两件事分得很清楚 ——
+**警告每次都出现,错误只在需要这条链时出现**:
+
+```
+[07:09:45] [Worker-Main-7/WARN]: [OptiFine] Resource not found: minecraft:post_effect/fxaa_of_2x.json
+[07:09:45] [Worker-Main-7/WARN]: [OptiFine] Resource not found: minecraft:post_effect/fxaa_of_4x.json     ← 启动那一次资源重载
+[07:11:52] [Render thread/ERROR]: Failed to load post chain: minecraft:fxaa_of_2x
+                net.minecraft.class_10151$class_10152: Could not find post chain with id: minecraft:fxaa_of_2x
+[07:13:18] [Worker-Main-25/WARN]: [OptiFine] Resource not found: minecraft:post_effect/fxaa_of_2x.json     ← 又一次资源重载(改设置)
+[07:13:24] [Render thread/ERROR]: Failed to load post chain: minecraft:fxaa_of_2x
+```
+
 而 1.1.0 的管线在 1.21.11 上对这一处**只做了一件事**:上面第 2 步 —— 把 `assets/minecraft/post_effect/fxaa_of_2x.json`
 删掉,再补写老位置的 `shaders/post/fxaa_of_2x.json`(实测:`OptiFine_1.21.11_HD_U_J9.jar` 里只有新位置的两份
 `post_effect/fxaa_of_{2,4}x.json`,没有老位置的那种)。报错文本自己说明了问题:1.21.11 解析
-`minecraft:fxaa_of_2x` 时找的是 **`post_effect/`**,被删掉的正是它要的那份;而"选光影包"会触发一次资源重载,
-于是每次都失败。
+`minecraft:fxaa_of_2x` 时找的是 **`post_effect/`**,被删掉的正是它要的那份;而每次资源重载都想拿到它,
+于是日志里每次都留一条,需要这条链时(开抗锯齿 / 选光影包)直接失败。
 
 也就是说,1.21.9 / 1.21.10 的那套推理("这条链该由 OptiFine 自己的运行器跑")在 1.21.11 上**正好相反** ——
 那一版的后处理链由**游戏自己的 post-chain 加载器**解析。

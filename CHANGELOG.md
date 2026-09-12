@@ -14,7 +14,8 @@
 `assets/minecraft/shaders/post/fxaa_of_2x.json`,于是管线按老办法**补写**它、并把游戏新位置的
 `assets/minecraft/post_effect/fxaa_of_2x.json` **删掉**(1.21.6–1.21.10 上 OptiFine 确实读老位置的那条链,
 实测可用)。但 1.21.11 的后处理链已改由**游戏自己的加载器**解析 —— 它按 `minecraft:fxaa_of_2x` 去
-`post_effect/` 取文件,而那个文件被我们删了:每次资源重载(选光影包就会触发一次)都失败并弹窗。
+`post_effect/` 取文件,而那个文件被我们删了:每次资源重载日志里都留一条 `Resource not found`,
+需要这条链时(开抗锯齿 / 选光影包)直接失败并弹窗。
 
 修法:1.21.11 上**原样保留** OptiFine 自带的新位置文件 —— 不补写老位置的那个,也不删它
 (`OptifinePostChainFixer.fix(jar, keepGameChains)` 的新分支);1.21.6–1.21.10 保持老做法不变。
