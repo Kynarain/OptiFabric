@@ -69,6 +69,11 @@ public class OptifineJarFixer {
 	private static final Pattern PROGRAM_PASS = Pattern.compile("\"program\"\\s*:\\s*\"([^\"]+)\"");
 	private static final Pattern VERTEX_SHADER = Pattern.compile("\"vertex_shader\"\\s*:\\s*\"([^\"]+)\"");
 
+	/** A pass that copies one target into another through the game's own post/blit program. */
+	private static final Pattern BLIT_PASS = Pattern.compile(
+			"\\{\\s*\"vertex_shader\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"fragment_shader\"\\s*:\\s*\"minecraft:post/blit\""
+					+ "\\s*,\\s*\"inputs\"\\s*:\\s*(\\[[^\\[\\]]*\\])\\s*,\\s*\"output\"\\s*:\\s*\"([^\"]+)\"\\s*\\}");
+
 	/** Rewrites the two kinds of entry described above, in place. */
 	public static void fix(File jar, Path minecraftJar) throws IOException {
 		//Only the game jar is held open here: the jar being rewritten must stay untouched, or Windows refuses to
@@ -122,6 +127,38 @@ public class OptifineJarFixer {
 			passes.appendTail(out);
 			fixed = out.toString();
 		}
+
+		//the blit pass needs the uniforms the game's own blit passes carry - see BLIT_PASS
+		Matcher blit = BLIT_PASS.matcher(fixed);
+		StringBuffer blitted = new StringBuffer();
+
+		while (blit.find()) {
+			String vertex = blit.group(1);
+			String inputs = blit.group(2);
+			String output = blit.group(3);
+
+			if (!SCREENQUAD.equals(vertex) && !hasShaderSource(optifine, minecraft, vertex, ".vsh")) {
+				System.out.println("[OptiFabric] " + entry.getName() + " asks for the vertex shader " + vertex + ", which this release"
+						+ " does not have; using " + SCREENQUAD + " as the game's own post effects do");
+				vertex = SCREENQUAD;
+			}
+
+			//post/blit does fragColor = texture(InSampler, texCoord) * ColorModulate, and ColorModulate comes from
+			//the BlitConfig block. Without it the uniform is all zeroes and the whole picture is multiplied by
+			//zero - the screen goes black as soon as the user turns antialiasing on. The game's own passes carry
+			//it with the identity value, so this one does too.
+			blit.appendReplacement(blitted, Matcher.quoteReplacement(
+					"{\n                \"vertex_shader\": \"" + vertex + "\",\n"
+							+ "                \"fragment_shader\": \"minecraft:post/blit\",\n"
+							+ "                \"inputs\": " + inputs.trim() + ",\n"
+							+ "                \"uniforms\": { \"BlitConfig\": [ { \"name\": \"ColorModulate\", \"type\": \"vec4\","
+							+ " \"value\": [ 1.0, 1.0, 1.0, 1.0 ] } ] },\n"
+							+ "                \"output\": \"" + output + "\"\n            }"));
+			changed = true;
+		}
+
+		blit.appendTail(blitted);
+		fixed = blitted.toString();
 
 		//1.21.9 and later: no source for the vertex stage of post/blit, the game uses core/screenquad there
 		Matcher vertex = VERTEX_SHADER.matcher(fixed);

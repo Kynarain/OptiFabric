@@ -263,7 +263,7 @@ public class OptifineSetup {
 	 *     of the pre-1.21.6 GL API that no longer has an id to hand out.
 	 * Every bump is required, not cosmetic: artifacts produced by an older pipeline must not be reused.
 	 */
-	private static final int CACHE_FORMAT = 19;
+	private static final int CACHE_FORMAT = 20;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {
