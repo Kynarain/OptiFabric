@@ -61,6 +61,12 @@ public class OptifineFixer {
 		//@ModifyArg into the constructor lands before super() and Mixin refuses to apply it
 		registerFix("class_5944", new DelegatingConstructorFix());
 
+		//1.21.1 needs more than the constructor: OptiFine's rewritten loadShader creates the Identifier with
+		//Identifier.of (method_60654) while the game's own body uses Identifier.ofVanilla (method_60656) - and
+		//ShaderProgramMixin wraps the latter in *both* places, so without this the class still fails to
+		//transform ("Mixin transformation of net.minecraft.class_5944 failed" before the title screen).
+		registerFix("class_5944", new VanillaFactoryCallFix("<init>", "method_34579"));
+
 		//Helpers OptiFine's recompiled classes no longer have, but Fabric API's mixins inject into.
 		//(class_309/Keyboard needs no entry: KeyboardFix already puts the vanilla methods back.)
 		//net/minecraft/client/render/entity/EntityRenderers (fabric-rendering-v1 EntityRenderersMixin)

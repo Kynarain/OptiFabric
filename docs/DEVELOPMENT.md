@@ -956,3 +956,44 @@ Couldn't compile pipeline minecraft:fxaa_of_4x/1: vertex shader minecraft:post/b
 ### 这一轮的复跑口径
 
 十版重跑(`verify-version.ps1`),断言收紧成四列一起看:`Prepared N patched classes (0 skipped, 0 failed)`、`verified OK: N`(补丁类与 OptiFine 类各一次)、`ASM verifier problems: 0`、以及扫描器的 `MISSING members / broken abstract contracts / DANGLING handles` 全为 0 —— 上一轮就是漏看 `ASM verifier problems` 才让一个非法描述符溜过去的。缓存格式提到 17(管线的产物变了两次:先是 OptiFine jar 修补,后是修补本身的修正),旧缓存会自动重建。
+
+---
+
+## 第三轮真机反馈(2026-09-12 12:28–12:37):1.21/1.21.3/1.21.4 通过,其余各有原因
+
+用户复测:只有 **1.21、1.21.3、1.21.4 正常工作**;1.21.1、1.21.6、1.21.7 直接崩;1.21.8、1.21.9、1.21.10 光影渲染有问题。逐份 `latest.log` + 崩溃报告 + 字节码比对的结果:
+
+### 1.21.1:同一处注入点还有一个漏网的调用(已修)
+
+FAPI 1.21.1 的 `ShaderProgramMixin` 有**两个** `@WrapOperation` 包 `Identifier.ofVanilla`(构造函数里一个、`loadShader` 里一个)。第一轮我们只修了构造函数(静态工厂委托内联),`loadShader` 没动。查 yarn 映射:
+
+```
+m  (Ljava/lang/String;)Lnet/minecraft/class_2960;  method_60654  of
+m  (Ljava/lang/String;)Lnet/minecraft/class_2960;  method_60656  ofVanilla
+```
+
+而 FAPI 的 refmap 里 `Identifier;ofVanilla(...)` 映射到 **`method_60656`**。原版 1.21.1 的 `loadShader` 调的正是 `ofVanilla`,**OptiFine 重编译后的身体改成了 `of`(method_60654)** —— 两个版本号只差 2,但语义与"被 mixin 包住的那个调用"都不同,于是 `@WrapOperation` 找不到目标、`require = 1` 让整类失败。
+
+修法(新 fixer `VanillaFactoryCallFix`,注册给 `class_5944` 的 `<init>` 与 `method_34579`):把**游戏自己的同名方法**里"`(String) -> X` 的静态工厂"收集起来,凡是补丁类里产出同类型、但 owner/name 与游戏不同的调用,一律改写成游戏用法。只按"产出同类型"匹配,所以不相关的调用原样通过。1.21.1 复核:`loadShader` 与构造函数现在都调 `method_60656`,校验 425/425 + 783/783 全绿。
+
+### 1.21.6 / 1.21.7:光影终于开始加载,于是撞上 OptiFine 自身的第二个缺陷
+
+我上一轮把这两个构建里写死的 `cancelled = true` 去掉之后,光影包**确实开始加载**了 —— 然后启动崩,而崩点完全在 OptiFine 自己的代码里:
+
+```
+NullPointerException: Cannot invoke "com.mojang.blaze3d.textures.GpuTexture.getGlTextureId()" because "this.field_56974" is null
+  at net.minecraft.class_1044.getGlTextureId(class_1044.java:111)
+  at net.optifine.shaders.SimpleShaderTexture.loadTexture(SimpleShaderTexture.java:60)
+  at net.optifine.shaders.Shaders.loadCustomTextureShaders(Shaders.java:1574)
+  ... loadCustomTextures -> loadShaderPackDynamicProperties -> loadShaderPack -> Shaders.startup -> Config.initDisplay
+```
+
+1.21.6 起原版把纹理由 `AbstractTexture` 的 `GpuTexture` 字段承载,没创建就是 null;OptiFine 1.21.6/1.21.7 那两版预览的 `SimpleShaderTexture.loadTexture` **仍按旧 API** 直接取 `getGlTextureId()`,而 1.21.8 的构建已经改用 `RenderSystem.getDevice()` 走新 API(字节码逐条对比过)。这一版被 `cancelled = true` 挡在后面,所以从来没人踩到。
+
+**没有更新的构建可以用**:查了 OptiFine 版本列表,1.21.6 只有 `J6_pre1/2/3`,1.21.7 只有 `J6_pre4/5/6/7`,用户手里已经是最新版。所以这不是"换个构建就好"的问题,而是那两版构建自身的两处缺陷。
+
+### 1.21.8 / 1.21.9 / 1.21.10:光影加载成功但渲染不对
+
+1.21.8 与 1.21.10 的日志里各有 30 条 `[Shaders] Invalid program name:`,查光影包本体确认:`photon_v1.2a.zip` 里有 `gbuffers_all_translucent`、`gbuffers_block_translucent`、`gbuffers_entities_translucent`、`gbuffers_particles_translucent` 以及 Distant Horizons 用的 `dh_terrain`/`dh_water`。`*_translucent` 是 Iris 一侧的命名,OptiFine 的固定程序表里没有,它只报错并跳过这些 pass。**注意 1.21 / 1.21.3 / 1.21.4 同样报这 30 条**(用户认为那三版"正常"),所以这条更像是"画面细节有出入",而不是致命问题 —— 需要用户描述具体现象或换包对比才能定性。
+
+1.21.9 本轮日志干净(无 ERROR),需要同样对比确认。

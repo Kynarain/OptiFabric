@@ -260,7 +260,7 @@ public class OptifineSetup {
 	 *     shaderpack load at all, so 16's artifacts are the unpatched ones).
 	 * Every bump is required, not cosmetic: artifacts produced by an older pipeline must not be reused.
 	 */
-	private static final int CACHE_FORMAT = 17;
+	private static final int CACHE_FORMAT = 18;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {
@@ -436,3 +436,4 @@ public class OptifineSetup {
 		}
 	}
 }
+
