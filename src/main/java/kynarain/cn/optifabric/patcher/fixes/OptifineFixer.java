@@ -114,6 +114,16 @@ public class OptifineFixer {
 		//vanilla method is added back next to OptiFine's code. Those ids do not exist on the releases where OptiFine
 		//kept the methods, and the fixer then does nothing.
 		registerFix("class_1088", new RestoreVanillaMethodsFix("method_65737", "method_61072"));
+
+		//Restoring the three InGameHud layers is not enough on its own: OptiFine's recompile also turned the method
+		//references the constructor registers them with into lambdas of its own (lambda$new$0/1/2), and
+		//fabric-rendering-v1's InGameHudMixin matches the *bootstrap handle* through its custom LayerInjectionPoint,
+		//so with the lambdas in place none of the three injection points exists and Mixin fails the whole class.
+		//This runs first and gives those lambdas the names the game uses, which is why the fixer below then finds
+		//the methods already there and adds nothing (its vanilla bodies would lose OptiFine's own additions).
+		registerFix("class_329", new LambdaMethodRefFix());
+
+		//Where OptiFine's build kept no lambda for them either, the vanilla methods are added back next to its code.
 		registerFix("class_329", new RestoreVanillaMethodsFix("method_55806", "method_55807", "method_55808"));
 
 		//net/minecraft/client/world/ClientChunkManager (fabric-lifecycle-events-v1)

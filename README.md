@@ -14,18 +14,24 @@
 
 | Minecraft | 产出的 jar | OptiFine 构建 | 真机验证 |
 |---|---|---|---|
-| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) | ❌ 启动崩(Mixin 转换失败,原因待取) |
-| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | **`OptiFine_1.21.1_HD_U_J1.jar`** | ❌ 启动崩(报错未记录) |
+| 1.21 | `OptiFabric-1.0.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) | ❌ Mixin 转换失败 → 已修,待复测 |
+| 1.21.1 | `OptiFabric-1.0.0+mc1.21.1.jar` | **`OptiFine_1.21.1_HD_U_J1.jar`** | — 未启动过(实例里没有日志) |
 | 1.21.3 | `OptiFabric-1.0.0+mc1.21.3.jar` | **`OptiFine_1.21.3_HD_U_J2.jar`** | ❌ VerifyError → 已修,待复测 |
-| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | **`OptiFine_1.21.4_HD_U_J3.jar`** | ❌ 启动崩(Mixin 转换失败,原因待取) |
-| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | ⚠️ 徽标后黑屏(未定位) |
-| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | ⚠️ 徽标后黑屏(未定位) |
+| 1.21.4 | `OptiFabric-1.0.0+mc1.21.4.jar` | **`OptiFine_1.21.4_HD_U_J3.jar`** | ❌ Mixin 转换失败 → 已修,待复测 |
+| 1.21.6 | `OptiFabric-1.0.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | ⚠️ 徽标后黑屏(疑窗口最小化+垂直同步,待确认) |
+| 1.21.7 | `OptiFabric-1.0.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | ⚠️ 徽标后黑屏(疑窗口最小化+垂直同步,待确认) |
 | 1.21.8 | `OptiFabric-1.0.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | ❌ VerifyError → 已修,待复测 |
 | 1.21.9 | `OptiFabric-1.0.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | ⚠️ 光影不加载(未定位) |
 | 1.21.10 | `OptiFabric-1.0.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | ⚠️ 光影加载但渲染异常(未定位) |
 | 1.21.11 | `OptiFabric-1.0.0+mc1.21.11.jar` | **`OptiFine_1.21.11_HD_U_J9.jar`** | ✅ 已实测 |
 
-OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。上表的**真机一列是 2026-09-12 装机实测的结果**:其中 1.21.3 / 1.21.8 的 `VerifyError` 已定位到根因 —— 补丁管线给**未被任何 fixer 改动**的类也重算了栈帧,合并类型时退化成 `java/lang/Object`,游戏拒绝加载该类 —— 现已修复(这类类保留 OptiFine 自己的栈帧),重新构建的 10 个 jar 也已放进各版本实例,等待复测;其余各项所需的证据与排查方向见 DEVELOPMENT.md 文末。
+OptiFine 没出过 **1.21.2 / 1.21.5** 的构建,所以这两版没有对应 jar。10 个版本都已经跑过完整的离线校验(JVM + ASM 双向 + 5 个扫描器,逐版本数字见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md))。上表的**真机一列是 2026-09-12 装机实测的结果**,三条已定位到根因并修复:
+
+1. **1.21.3 / 1.21.8 的 `VerifyError`** —— 补丁管线给**未被任何 fixer 改动**的类也重算了栈帧(`MissingOverrideFix` 是全局的),合并分支类型时退化成 `java/lang/Object`,游戏拒绝加载该类。现在这类类保留 OptiFine 自己的栈帧。
+2. **1.21 的 Mixin 转换失败** —— `DelegatingConstructorFix` 内联 OptiFine 的委托构造函数时,把原版构造函数里那次 `Identifier.ofVanilla(name)` 换成了 OptiFine 的 `new Identifier(name)`;Fabric API 的 `@WrapOperation` 正是包住那次调用,注入点因此消失。现在内联时照抄**原版**的转换调用。
+3. **1.21.4 的 Mixin 转换失败** —— OptiFine 把 `InGameHud` 构造函数里的三条 layer 方法引用改写成了 `lambda$new$0/1/2`,而那一版 Fabric API 的自定义注入点是**按方法句柄**匹配的,句柄对不上就等于注入点不存在。新的 `LambdaMethodRefFix` 把这些 lambda 改名回游戏使用的方法名(改名而非指回原版方法,是为了不丢掉 OptiFine 在这些 layer 里的附加逻辑,如 QuickInfo)。
+
+重新构建的 10 个 jar 已放进各版本实例;1.21.6 / 1.21.7 的黑屏此前疑似"窗口最小化 + 垂直同步"造成的假死(本项目此前踩过同样的坑);1.21.9 的"No shaderpack loaded"来自 OptiFine 自己 FXAA 后处理的旧格式 JSON(先在 OptiFine 设置里关掉 FXAA 再试),1.21.10 的渲染异常是光影包用了 OptiFine 不认识的程序名(`*_translucent`、`dh_*`)。所需证据见 DEVELOPMENT.md 文末。
 
 **一个 jar 只能对应一个版本**:jar 里打包的是该版本的 `official→intermediary` 映射表(官方混淆名每版不同),`fabric.mod.json` 里的 `minecraft` 依赖也精确到该版本。构建任意版本:
 
@@ -66,9 +72,11 @@ mods/OptiFine_1.21.11_HD_U_J9.jar
 
 | 文件 | 内容 |
 |---|---|
-| `cache-format.txt` | 缓存格式版本(当前 `13`);格式变了会自动重建 |
+| `cache-format.txt` | 缓存格式版本(当前 `15`);数字与代码里不一致就整份重建 |
 | `Optifine-mapped.jar` | 重映射后的 OptiFine(不含 MC 类),这就是加进 classpath 的 jar |
 | `Optifine.classes.gz` | 打过补丁的 MC 类缓存(ClassCache),用于下次启动直接复用 |
+
+**升级 OptiFabric 后如果行为没变化,先删掉 `<游戏目录>/.optifine/`**:缓存里存的是**打过补丁的字节码**,只要补丁管线改了(缓存的格式号就会被提升,正常情况下会自动重建),旧缓存就会让新 jar 看起来"没生效"。
 
 ---
 
@@ -102,7 +110,7 @@ mods/OptiFine_1.21.11_HD_U_J9.jar
 | 映射表 | 构建期把 mappings 打进 jar | 同样:构建期把 `net.fabricmc:intermediary:1.21.11:v2` 的 `mappings/mappings.tiny` 打进去 |
 | 每 mod 兼容 mixin | 数十个(`compat/**`,针对 fabric-api / architectury / apoli …) | **未包含**(它们依赖 MM 的 early riser 机制) |
 | contextual mapping | 有:人工维护的硬编码表,按版本手写(`this$0`/`this$1`/`field_3835` 等) | **改为规则推导**:`OptifineMappings` 按字段名形状 + 描述符匹配(含沿继承层次找覆写),自动对齐名字、类型与构造器里存入的值 |
-| 版本特定补丁修正 | 面向 1.20.4 等 | **`patcher/fixes` 里 16 个 fixer**(其中 9 个为本移植新增,见下),全部用离线验证器(JVM + ASM 双向)与真机逐项验证 |
+| 版本特定补丁修正 | 面向 1.20.4 等 | **`patcher/fixes` 里 17 个 fixer**(其中 10 个为本移植新增,见下),全部用离线验证器(JVM + ASM 双向)与真机逐项验证 |
 
 新增或重写的文件(其余文件为逐行移植,仅改包名与必要的 API 适配)。文件头的来源说明与这里一致,而且和上游逐个核对过:
 
@@ -126,6 +134,7 @@ kynarain/cn/optifabric/patcher/fixes/InjectionCallPointFix.java       保留 Opt
 kynarain/cn/optifabric/patcher/fixes/RegionSectionPosFix.java         给 OptiFine 的区域构造器补 section 位置
 kynarain/cn/optifabric/patcher/fixes/StubInjectionTargetFix.java      改名 + 留同名副本,让语义不兼容的钩子注入进死代码
 kynarain/cn/optifabric/patcher/fixes/CallSiteRedirectFix.java         把**跨类**的调用点也改到改名后的方法上
+kynarain/cn/optifabric/patcher/fixes/LambdaMethodRefFix.java          OptiFine 把方法引用改成 lambda 时,把 lambda 改回方法名(自定义注入点按句柄匹配)
 kynarain/cn/optifabric/patcher/fixes/MissingOverrideFix.java          全局:补回被 OptiFine 重编译掉的原版方法桥接
 ```
 

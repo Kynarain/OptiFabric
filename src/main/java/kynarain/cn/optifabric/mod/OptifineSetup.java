@@ -241,8 +241,16 @@ public class OptifineSetup {
 	 * 6: OptiFine's BlockEntity is applied instead of skipped, so its callers find what they call.
 	 * 7: the vanilla bodies Fabric API injects into are restored again (three more of them).
 	 * 8: ModelBakery's two wrap targets are restored, and LiquidBlockRenderer gets its call site back.
+	 * 9-13: the fixers the 1.21.x series added or changed (details in the git history of this file).
+	 * 14: classes no fixer modifies keep OptiFine's own stack map frames. They used to be recomputed for
+	 *     every patched class (the global override fixer always reports a change), and the merge degraded
+	 *     a local to java/lang/Object - which the game rejects with VerifyError.
+	 * 15: two injections lost their points: the String constructor of ShaderProgram creates its Identifier the
+	 *     way the game does again (Fabric API wraps that call), and the method references in the InGameHud
+	 *     constructor point at methods the game declares again instead of OptiFine's lambdas.
+	 * Every bump is required, not cosmetic: artifacts produced by an older pipeline must not be reused.
 	 */
-	private static final int CACHE_FORMAT = 13;
+	private static final int CACHE_FORMAT = 15;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {

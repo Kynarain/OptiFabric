@@ -28,6 +28,11 @@
  * injection cannot be dropped either (Fabric's config uses defaultRequire 1), so this fixer inlines
  * OptiFine's real constructor body into the String overload with the Identifier created after super() -
  * the exact shape the game itself has, and the only shape that keeps both sides working.
+ *
+ * The conversion the inlined copy uses is taken from the game's own constructor as well (see createValue):
+ * on 1.21 that is Identifier.ofVanilla(name), which is the call Fabric API wraps there, while OptiFine's
+ * delegating constructor builds the Identifier with its constructor instead - mirroring OptiFine left the
+ * mixin without an injection point and the whole class failed to transform.
  */
 package kynarain.cn.optifabric.patcher.fixes;
 
@@ -77,7 +82,7 @@ public class DelegatingConstructorFix implements ClassFixer {
 			int slot = parameterSlot(target.desc, 'L' + delegation.createdType + ';');
 			if (slot < 0) continue;
 
-			MethodNode replacement = inline(optifine, target, slot, delegation);
+			MethodNode replacement = inline(optifine, minecraft, delegating.desc, target, slot, delegation);
 			if (replacement == null) continue;
 
 			optifine.methods.set(optifine.methods.indexOf(delegating), replacement);
@@ -131,7 +136,7 @@ public class DelegatingConstructorFix implements ClassFixer {
 	}
 
 	/** A copy of the target constructor with the created type taken as a String and created after super(). */
-	private static MethodNode inline(ClassNode owner, MethodNode target, int slot, Delegation delegation) {
+	private static MethodNode inline(ClassNode owner, ClassNode minecraft, String stringDesc, MethodNode target, int slot, Delegation delegation) {
 		MethodNode copy = copyOf(target, owner.name);
 		if (copy == null) return null;
 
@@ -160,12 +165,9 @@ public class DelegatingConstructorFix implements ClassFixer {
 		AbstractInsnNode superCall = findSuperCall(owner, copy);
 		if (superCall == null) return null;
 
-		InsnList creation = new InsnList();
-		creation.add(new TypeInsnNode(Opcodes.NEW, delegation.createdType));
-		creation.add(new InsnNode(Opcodes.DUP));
-		creation.add(new VarInsnNode(Opcodes.ALOAD, slot)); //the String parameter
-		creation.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, delegation.createdType, "<init>", delegation.createdDesc, false));
-		creation.add(new VarInsnNode(Opcodes.ASTORE, newSlot));
+		InsnList creation = createValue(minecraft, stringDesc, slot, newSlot, delegation);
+		if (creation == null) return null;
+
 		copy.instructions.insert(superCall, creation);
 
 		copy.desc = replaceParameter(target.desc, slot);
@@ -173,6 +175,59 @@ public class DelegatingConstructorFix implements ClassFixer {
 		copy.maxLocals = newSlot + 1; //max stack is recomputed by the frame computing writer
 
 		return copy;
+	}
+
+	/**
+	 * The instructions that turn the String parameter into the type OptiFine's delegating constructor created.
+	 *
+	 * The vanilla constructor is asked first, because its conversion is the call Fabric API's mixin was written
+	 * against: on 1.21 the game's own constructor calls {@code Identifier.ofVanilla(name)} and
+	 * ShaderProgramMixin wraps that INVOKE, while OptiFine's delegating constructor creates the Identifier with
+	 * its constructor instead. Mirroring OptiFine there left the mixin without its injection point, so the whole
+	 * class failed to transform and the game died while OptiFine's Reflector initialised. Only when the vanilla
+	 * constructor has no such factory call does this fall back to what OptiFine did itself.
+	 */
+	private static InsnList createValue(ClassNode minecraft, String stringDesc, int slot, int newSlot, Delegation delegation) {
+		MethodInsnNode factory = findFactory(minecraft, stringDesc, delegation.createdType);
+		InsnList creation = new InsnList();
+
+		if (factory != null) {
+			creation.add(new VarInsnNode(Opcodes.ALOAD, slot));
+			creation.add(new MethodInsnNode(Opcodes.INVOKESTATIC, factory.owner, factory.name, factory.desc, factory.itf));
+			creation.add(new VarInsnNode(Opcodes.ASTORE, newSlot));
+
+			System.out.println("[OptiFabric] Creates the " + delegation.createdType + " with " + factory.owner + '.'
+					+ factory.name + " (as the game does) when inlining " + stringDesc);
+
+			return creation;
+		}
+
+		creation.add(new TypeInsnNode(Opcodes.NEW, delegation.createdType));
+		creation.add(new InsnNode(Opcodes.DUP));
+		creation.add(new VarInsnNode(Opcodes.ALOAD, slot)); //the String parameter
+		creation.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, delegation.createdType, "<init>", delegation.createdDesc, false));
+		creation.add(new VarInsnNode(Opcodes.ASTORE, newSlot));
+
+		return creation;
+	}
+
+	/** A static {@code (String)} factory for the created type, as called by the game's own constructor. */
+	private static MethodInsnNode findFactory(ClassNode minecraft, String stringDesc, String createdType) {
+		if (minecraft == null) return null;
+
+		String wanted = '(' + STRING + ")L" + createdType + ';';
+
+		for (MethodNode method : minecraft.methods) {
+			if (!"<init>".equals(method.name) || !method.desc.equals(stringDesc)) continue;
+
+			for (AbstractInsnNode insn : method.instructions.toArray()) {
+				if (insn instanceof MethodInsnNode call && call.getOpcode() == Opcodes.INVOKESTATIC && call.desc.equals(wanted)) {
+					return call;
+				}
+			}
+		}
+
+		return null;
 	}
 
 	private static String replaceParameter(String methodDesc, int slot) {

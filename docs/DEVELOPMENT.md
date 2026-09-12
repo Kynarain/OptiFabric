@@ -764,12 +764,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 
 | MC | OptiFine 目标构建 | 补丁类(JVM+ASM) | OptiFine 类(JVM+ASM) | @At | Refmap 缺失 | 契约扫描 | Lambda 句柄 | 真机 |
 |---|---|---|---|---|---|---|---|---|
-| 1.21 | `preview_..._J1_pre9` | 440/440 ✅ | 773/773 ✅ | 3(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ 启动崩:Mixin 转换失败(原因待取) |
-| 1.21.1 | `OptiFine_1.21.1_HD_U_J1` | 425/425 ✅ | 783/783 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ 启动崩(报错未记录) |
+| 1.21 | `preview_..._J1_pre9` | 440/440 ✅ | 773/773 ✅ | 3(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ Mixin 转换失败 → 已修,待复测 |
+| 1.21.1 | `OptiFine_1.21.1_HD_U_J1` | 425/425 ✅ | 783/783 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | — 未启动过(实例里没有日志) |
 | 1.21.3 | `OptiFine_1.21.3_HD_U_J2` | 440/440 ✅ | 816/816 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ VerifyError → 已修,待复测 |
-| 1.21.4 | `OptiFine_1.21.4_HD_U_J3` | 474/474 ✅ | 812/812 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ 启动崩:Mixin 转换失败(原因待取) |
-| 1.21.6 | `preview_..._J6_pre3` | 487/487 ✅ | 820/820 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 徽标后黑屏(未定位) |
-| 1.21.7 | `preview_..._J6_pre7` | 500/500 ✅ | 823/823 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 徽标后黑屏(未定位) |
+| 1.21.4 | `OptiFine_1.21.4_HD_U_J3` | 474/474 ✅ | 812/812 ✅ | 2(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ Mixin 转换失败 → 已修,待复测 |
+| 1.21.6 | `preview_..._J6_pre3` | 487/487 ✅ | 820/820 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 徽标后黑屏(疑窗口最小化+垂直同步,待确认) |
+| 1.21.7 | `preview_..._J6_pre7` | 500/500 ✅ | 823/823 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 徽标后黑屏(疑窗口最小化+垂直同步,待确认) |
 | 1.21.8 | `preview_..._J6_pre16` | 516/516 ✅ | 831/831 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ❌ VerifyError(日志)→ 已修,待复测 |
 | 1.21.9 | `preview_..._J7_pre2` | 519/519 ✅ | 832/832 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 光影不加载(未定位) |
 | 1.21.10 | `preview_..._J7_pre11` | 553/553 ✅ | 836/836 ✅ | 4(indigo) | 0 ✅ | 0/0/0 ✅ | 0 ✅ | ⚠️ 光影加载但渲染异常(未定位) |
@@ -848,12 +848,34 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 
 复跑全系列:10 个版本都是 `Prepared N patched classes (0 skipped, 0 failed)` / `verified OK: N` / `FAILED: 0` / `ASM verifier problems: 0`,OptiFine 类 773–874 同样全通过,五个扫描器仍只剩 indigo 那几条,并且**没有出现任何一条 `No common supertype` 警告**(剩下几十个真被改动的类,类型合并都能解析出确切结果)。1.21.8 的 `class_983.method_62593` 再用 `javap` 复核:帧里已无 `java/lang/Object`。
 
-### 尚未定位的三类(下次真机复测需要的证据)
+### 另外两个根因:被我们改掉的"注入点本身"
 
-| 现象 | 版本 | 需要的证据 |
+`latest.log` 里 Mixin 只写 `Mixin transformation of net.minecraft.class_X failed`,不写原因,所以这两处是从**注入点**倒推出来的 —— 两个失败类的共同点是"**Fabric API 要注入的东西被我们(或 OptiFine)改掉了**",而且改掉的不是成员本身,而是 Mixin 用来**定位**注入点的那条指令。
+
+**1.21 / `class_5944`(ShaderProgram):`DelegatingConstructorFix` 把注入点换成了别的调用。**
+Fabric API 的 `ShaderProgramMixin` 用
+`@WrapOperation(method = "<init>", at = @At(value = "INVOKE", target = "Lnet/minecraft/util/Identifier;ofVanilla(Ljava/lang/String;)Lnet/minecraft/util/Identifier;"))`
+包住构造函数里那次"String → Identifier"的转换。原版 1.21 的构造函数调的正是 `Identifier.ofVanilla`(`class_2960.method_60656`);而 `DelegatingConstructorFix` 是把 OptiFine 的委托构造函数内联回来,内联时用的创建方式抄的是 **OptiFine 自己的写法**(`new Identifier(name)`)。成员都在、描述符都对,`RefmapScan` 自然报 0 缺失,但那个 INVOKE **不在了** → 注入点找不到 → 整类失败,表现为 OptiFine 的 `Reflector` 初始化时崩溃(`ReflectorForge.<clinit>` → `FieldLocatorTypes` → `Class.getDeclaredFields(class_5944)`)。
+
+修法:内联时**先问原版类**是怎么把 String 变成那个类型的(`findFactory`:同描述符构造函数里的 `(Ljava/lang/String;)L<类型>;` 静态工厂),有就照抄,没有才退回 OptiFine 的写法。1.21 复核:`class_5944.<init>(class_5912,String,class_293)` 现在第一条就是 `invokestatic class_2960.method_60656` ✓。
+
+**1.21.4 / `class_329`(InGameHud):OptiFine 把 layer 的方法引用变成了 lambda。**
+`fabric-rendering-v1` 从 1.21.2 起的 `InGameHudMixin` 不用普通注入点,而是用一个**自定义注入点** `net.fabricmc.fabric.impl.client.rendering.LayerInjectionPoint`:`find()` 遍历构造函数里的 `invokedynamic`,把**引导方法句柄**(`bsmArgs[1]`)的 owner/name/desc 和注解里的 `target` 逐一比对。也就是说它要的不是"类里有这个方法",而是"构造函数里有一条方法引用**指向**这个方法"。
+
+OptiFine 的重编译把构造函数里三条 `this::method_55806/55807/55808` 改写成了 `this::lambda$new$0/1/2`,同时删掉了那三个方法;`RestoreVanillaMethodsFix` 把**方法**补了回去(所以 `RefmapScan` 报 0 缺失),但**句柄**还指着 lambda → 三个注入点一个都找不到 → 整类失败。对照原版字节码:BootstrapMethods #5/#7/#13 在原版分别指向 `method_55808`/`method_55807`/`method_55806`,我们这边指向 `lambda$new$0/1/2`,位置一一对应。
+
+修法(新 fixer `LambdaMethodRefFix`,注册在 `RestoreVanillaMethodsFix` **之前**):逐个方法把两侧的 lambda 工厂按顺序对齐,当"我们的句柄指向本类的 `lambda$…`、原版同一位置的句柄指向本类的真实方法、描述符相同、且该名字当前空闲"时,**把 lambda 改名成那个方法名**(并跟改类内所有引用与句柄)。改名而不是"把句柄指回去",是因为 OptiFine 的 lambda 不一定等同于原版方法:1.21.4 的准星那一层,vanilla 只画准星,OptiFine 的 lambda 是"画准星 **+** `QuickInfo.render`",指回原版方法会把 QuickInfo 悄悄弄丢。fixer 每次改名都打日志说明身体是否与原版一致 ✓。
+
+顺带查明:**这套自定义注入点只存在于 1.21.4 那一版 Fabric API**(1.21 / 1.21.8 / 1.21.11 的模块里根本没有 `LayerInjectionPoint`),所以只有 1.21.4 会因为它崩;相应地 fixer 也只注册给 `class_329`。1.21.4 复核:日志显示 11 处改名(`lambda$new$0/1/2` → `method_55808/55807/55806`,另外 8 处是别的 layer/记分板方法引用),10 处身体与原版逐指令一致、1 处是 OptiFine 的超集。
+
+### 仍未确定的(下次真机复测需要的证据)
+
+| 现象 | 版本 | 状态与需要的证据 |
 |---|---|---|
-| 启动崩:`RuntimeException: Mixin transformation of net.minecraft.class_X failed` | 1.21、1.21.4 | `latest.log` 里 Mixin **不写原因**,需要启动器控制台输出,或加 `-Dmixin.debug.verbose=true` 再跑一次 |
-| Mojang 徽标之后黑屏、进程未无响应 | 1.21.6、1.21.7 | 黑屏期间 `jstack <pid>` 一份,看 Render thread 卡在哪;以及日志里 OptiFine 着色器/后处理子系统是否报错 |
-| `[Shaders] No shaderpack loaded` + `Failed to parse post chain … No key fragment_shader` | 1.21.9、1.21.10 | 先用启动器**直接跑 OptiFine 版本**对比一次,确认是不是光影包与该 OptiFine 构建本身不匹配 |
+| `VerifyError: Bad type on operand stack in putfield` | 1.21.3、1.21.8 | 已定位(栈帧重算)并修复,待复测 |
+| 启动崩:`Mixin transformation of … failed` | 1.21、1.21.4 | 已定位到注入点被改写并修复,待复测 |
+| Mojang 徽标之后黑屏、进程未无响应 | 1.21.6、1.21.7 | **先排除窗口状态**:本项目此前踩过一次一模一样的现象(`DEVELOPMENT.md` 前面的记录),根因是**窗口最小化时开着垂直同步,`SwapBuffers` 一直阻塞**,Render 线程出不来、加载界面永远不被移除,日志里自然一条错误都没有。请确认窗口在最前且未最小化,必要时关掉垂直同步;若仍黑屏,黑屏期间取一份 `jstack <pid>` |
+| `[Shaders] No shaderpack loaded`,前面紧跟 `Couldn't find source for VERTEX shader (minecraft:post/blit)`、`Couldn't compile pipeline minecraft:fxaa_of_2x/1` 和 `Failed to parse post chain at minecraft:post_effect/fxaa_of_2x.json (No key fragment_shader)` | 1.21.9 | **已从日志读出报错链**:OptiFine 自己的 FXAA 后处理(`fxaa_of_2x` / `fxaa_of_4x`)用的还是旧格式 JSON,而 1.21.9 的解析器要新格式 → 后处理管线编译失败 → 光影子系统没起来,于是"没有光影"。**先在 OptiFine 视频设置里关掉 FXAA/抗锯齿再试**;若仍然不加载,再用启动器单独跑 OptiFine 版对比 |
+| `[Shaders] Invalid program name: dh_water` / `gbuffers_entities_translucent` / `gbuffers_particles_translucent` / `gbuffers_block_translucent` / `gbuffers_particles` | 1.21.10 | 光影包请求了 **OptiFine 不认识的程序名**(`*_translucent`、`dh_*` 是 Iris / 其他加载器的命名),所以"光影加载成功但渲染不对"属于**光影包与 OptiFine 不匹配**,与补丁无关;换 OptiFine 专用包即可验证 |
 
-后两类目前没有指向本项目字节码的证据:1.21.9 / 1.21.10 的报错形态像是 OptiFine 的 preview 构建仍在用 1.21.6 之前的 post-effect 布局;1.21.6 / 1.21.7 的日志里连一条 `[ERROR]` 都没有(图集、声音、OptiFine 都正常加载,然后画面停在最后一帧)。
+另外更正一条早先的记录:**1.21.1 其实从未启动过** —— 该实例目录里连 `logs/` 和 `options.txt` 都没有(只有 `mods/`)。它此前被列进"崩溃"只是因为用户说"其他没提到的版本都崩了",而事实是那一版没被运行过。

@@ -39,7 +39,7 @@ Every release below is expected to behave exactly like 1.21.11 does (which is li
 
 **Verified offline:** 553 patched game classes and 836 OptiFine classes loaded and linked in a single loader and checked with the JVM verifier plus an ASM data-flow verifier — 0 failures, 0 verifier problems — and five scanners clean (mixin member references, `@At` injection points, abstract contracts/overrides/references, and invokedynamic handles: nothing dangling). The only `@At` findings left belong to Indigo, which steps aside for OptiFine on purpose.
 
-**Asset:** `OptiFabric-1.0.0+mc1.21.10.jar` · SHA-256 `DB3B1E6C4BD7763509B5EC78A9B4E4A0385FA840D237A0D5F3A7B26DEA8D4BC3`
+**Asset:** `OptiFabric-1.0.0+mc1.21.10.jar` · SHA-256 `C2D73DE6361878AF90F9739D5C783C9FE13718218C79EEC4574ECF6439F524B9`
 
 中文:`1.21.10` 版 —— 把本 jar 与自备的 `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` 一起放进 `mods/`,用 Fabric 版本启动即可(不需要先运行 OptiFine 安装器)。离线校验 553 个补丁类 + 836 个 OptiFine 类全绿,5 个扫描器无遗留。
 
@@ -51,7 +51,7 @@ Every release below is expected to behave exactly like 1.21.11 does (which is li
 
 **Verified offline:** 519 patched game classes and 832 OptiFine classes, JVM + ASM clean; five scanners clean.
 
-**Asset:** `OptiFabric-1.0.0+mc1.21.9.jar` · SHA-256 `8CD6F118E540CC661EC6913B4899F7D258A9178D4C55F3ACFDC128903BAEDD48`
+**Asset:** `OptiFabric-1.0.0+mc1.21.9.jar` · SHA-256 `C785283B2DF99413BE07A0866D99E7945E4E163D26ECB5200191434D8CD8B030`
 
 中文:`1.21.9` 版 —— 配 `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar`。离线校验 519 + 832 全绿。
 
@@ -65,7 +65,7 @@ This is the release where the descriptor mismatch in two of the fixers showed up
 
 **Verified offline:** 516 patched game classes and 831 OptiFine classes, JVM + ASM clean; five scanners clean.
 
-**Asset:** `OptiFabric-1.0.0+mc1.21.8.jar` · SHA-256 `BECCE6C24BD34841CB07F1D6FD6AEAD102B6C49E10C759DBE435E098D11DA530`
+**Asset:** `OptiFabric-1.0.0+mc1.21.8.jar` · SHA-256 `BAACCB7CD10BFF73BD87B36278CD4F9F627F75666362A7C5F85F9BB91D53E366`
 
 中文:`1.21.8` 版 —— 配 `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar`。这一版正是"写死描述符"问题的现场(此处 `method_62210` 收 `Camera`),相关 fixer 已改成按名字匹配。离线校验 516 + 831 全绿。
 
@@ -77,7 +77,7 @@ This is the release where the descriptor mismatch in two of the fixers showed up
 
 **Verified offline:** 500 patched game classes and 823 OptiFine classes, JVM + ASM clean; five scanners clean.
 
-**Asset:** `OptiFabric-1.0.0+mc1.21.7.jar` · SHA-256 `158DC2DD9737BCD815D3CCD017E3C7B448E0758C7E7E1AA054E14CDCA0C01A16`
+**Asset:** `OptiFabric-1.0.0+mc1.21.7.jar` · SHA-256 `1BA58B7A09C77D138BEEBFAB5D194C0EEEC6284299F184EC953F27162932FEA6`
 
 中文:`1.21.7` 版 —— 配 `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar`。离线校验 500 + 823 全绿。
 
@@ -89,7 +89,7 @@ This is the release where the descriptor mismatch in two of the fixers showed up
 
 **Verified offline:** 487 patched game classes and 820 OptiFine classes, JVM + ASM clean; five scanners clean.
 
-**Asset:** `OptiFabric-1.0.0+mc1.21.6.jar` · SHA-256 `7B7E84A2BD11F9B8F117F941C9250AB4F6289390EFC5F606E5B8088648888FA1`
+**Asset:** `OptiFabric-1.0.0+mc1.21.6.jar` · SHA-256 `14454F4B2B87CD10B22A0546FA81ADF529C915063372702C7325FCA59BB00B5F`
 
 中文:`1.21.6` 版 —— 配 `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar`。离线校验 487 + 820 全绿。
 
@@ -103,7 +103,7 @@ This release and older ones needed extra repairs, because Fabric API injects int
 
 **Verified offline:** 474 patched game classes and 812 OptiFine classes, JVM + ASM clean; five scanners clean.
 
-**Asset:** `OptiFabric-1.0.0+mc1.21.4.jar` · SHA-256 `8A9AC3353204EA9D64D847C0D2F29CEDDB8D59CC8D57AE6E32623437E12E0395`
+**Asset:** `OptiFabric-1.0.0+mc1.21.4.jar` · SHA-256 `E87FD4788771CD844E7649C5BF0337B1452E6339214942F2E3405E177F3EF58B`
 
 中文:`1.21.4` 版 —— 配 `OptiFine_1.21.4_HD_U_J3.jar`。这一版起还要补回被 OptiFine 丢掉的助手方法(此处是模型烘焙器的反序列化助手 `class_1088.method_65737`)。离线校验 474 + 812 全绿。
 
@@ -115,7 +115,7 @@ This release and older ones needed extra repairs, because Fabric API injects int
 
 **Verified offline:** 440 patched game classes and 816 OptiFine classes, JVM + ASM clean; five scanners clean.
 
-**Asset:** `OptiFabric-1.0.0+mc1.21.3.jar` · SHA-256 `DAD996A742FAA58A739881395A75BE7938F8AC9B6E10A76EE19A116536711F3B`
+**Asset:** `OptiFabric-1.0.0+mc1.21.3.jar` · SHA-256 `EC97F950B046C9E1DDE4A007D186A4F6FCF207C5BFD373C1738508EE29E9B2BA`
 
 中文:`1.21.3` 版 —— 配 `OptiFine_1.21.3_HD_U_J2.jar`。离线校验 440 + 816 全绿。
 
@@ -129,7 +129,7 @@ Two Fabric API hooks need their targets put back on this release: the model bake
 
 **Verified offline:** 425 patched game classes and 783 OptiFine classes, JVM + ASM clean; five scanners clean.
 
-**Asset:** `OptiFabric-1.0.0+mc1.21.1.jar` · SHA-256 `43B80809BFE11D56BE16C12335E2B3BE65F104CCC667F6B96A4F0FFF257E87A0`
+**Asset:** `OptiFabric-1.0.0+mc1.21.1.jar` · SHA-256 `DC6D107DEBDFA6BF592EF0D422BE5DB736CF17FBC37D216EAF8C905ECE33A689`
 
 中文:`1.21.1` 版 —— 配 `OptiFine_1.21.1_HD_U_J1.jar`(正式版)。这一版补回了 `class_1088.method_61072` 与 `Keyboard.method_1454`。离线校验 425 + 783 全绿。
 
@@ -143,7 +143,7 @@ Two Fabric API hooks need their targets put back on this release: the model bake
 
 **Verified offline:** 440 patched game classes and 773 OptiFine classes, JVM + ASM clean; five scanners clean.
 
-**Asset:** `OptiFabric-1.0.0+mc1.21.jar` · SHA-256 `537586C50FF09C62C1750E8217FCCED9CF2CA15B3A7E62D17E1F8A72A6C7B023`
+**Asset:** `OptiFabric-1.0.0+mc1.21.jar` · SHA-256 `DF81594295CBF73AB554C98A1AEB729EB2DC378E76299F05BC4DB0B1D2CDB2CC`
 
 中文:`1.21` 版 —— 配 `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(1.21 只有 preview 构建)。这一版补回了 `Keyboard.method_1454` 与 InGameHud 的三个层。离线校验 440 + 773 全绿。
 
