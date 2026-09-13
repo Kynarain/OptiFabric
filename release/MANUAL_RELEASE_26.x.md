@@ -1,6 +1,6 @@
 # 手动发布清单(26.x,逐版一个发布条目)
 
-版本号与标签统一为 `1.1.0+mc<版本>` / `v1.1.0+mc<版本>`。正文直接用 `release/notes/mc<版本>.md`
+版本号与标签统一为 `2.0.0+mc<MC版本>` / `v2.0.0`(**标签只写版本号,不带 `+mc`**)。正文直接用 `release/notes/mc<版本>.md`
 (已是 Markdown,含安装步骤、已知限制、该 jar 的尺寸与 SHA-256)。
 
 > **26.x 与 1.21.x 是两条独立的发布线。** 26.1 起 Minecraft **未混淆**,构建与运行期路径都不同
@@ -55,7 +55,7 @@
 - [ ] `.\gradlew -p v26.x build --offline` 通过,且产物名是 `OptiFabric-Reforged-2.0.0+mc26.1.2.jar`;
 - [ ] `.\release\version.ps1 -Line 26.x -RecordDigest` 跑过,正文里的尺寸与 SHA-256 与 `dist\` 里的 jar 一致;
 - [ ] jar 里**没有** OptiFine 的类或资源、没有 `mappings/mappings.tiny`(26.x 本就不该有映射表);
-- [ ] `LICENSE.txt_OptiFabric` 在,`fabric.mod.json` 的 `license` 仍是 `MPL-2.0`;
+- [ ] `LICENSE.txt_OptiFabric-Reforged` 在(`jar` 任务按 `archives_base_name` 给 `LICENSE.txt` 改名),`fabric.mod.json` 的 `license` 仍是 `MPL-2.0`;
 - [ ] `fabric.mod.json` 的 `minecraft` 是 `26.1.2`、`fabricloader` 是 `>=0.19.5`;
 - [ ] 离线校验跑过:`powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-26.ps1`,
       口径为 `Prepared … (0 skipped, 0 failed)`、`verified OK`、`ASM verifier problems: 0`、扫描器全 0;

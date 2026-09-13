@@ -1222,7 +1222,40 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 
 ## 仍待办的两项(实现细节已备齐,可直接开工)
 
-### A. 1.21.6 / 1.21.7 启动崩溃
+### A. 1.21.6 / 1.21.7 启用光影时的启动崩溃
+
+> **2026-09-13 本机复现(生产 jar `1.1.2`,同一台机器、同一套装配)**:这两版**不开光影时能正常启动** ——
+> 标题界面正常渲染、整轮无崩溃报告、`[Shaders] No shaderpack loaded.`;触发崩溃的是**光影被启用**:
+> 在 `optionsshaders.txt` 里把 `shaderPack=` 填成任意光影包后,游戏在 **10~15 秒内**于启动阶段崩溃(下面这段栈);
+> 把 `shaderPack=` 清空即恢复正常。
+>
+> **触发条件是"光影启用"本身,与包的写法无关** —— 以下每组都在同一台机器上实跑:
+>
+> | 组 | 版本 / OptiFine | `shaderPack` | 结果 |
+> |---|---|---|---|
+> | ① | 1.21.6 + `J6_pre3` | 空 | 正常启动,`No shaderpack loaded.`,无崩溃 |
+> | ② | 1.21.6 + `J6_pre3` | `ComplementaryReimagined_r5.9.1`(Modrinth) | **崩**(15s) |
+> | ③ | 1.21.6 + `J6_pre3` | 该包**删掉全部 `texture.*` / `customTexture.*` 声明与所有 `.mcmeta` 后重打包** | **仍崩**(同一个栈) |
+> | ④ | 1.21.6 + `J6_pre3` | `Sildur's Vibrant Shaders v2.01 Extreme` | **崩**(10s) |
+> | ⑤ | 1.21.6 + `J6_pre3` | `BSL v10.1.5` | **崩**(10s) |
+> | ⑥ | 1.21.7 + `J6_pre7` | `ComplementaryReimagined_r5.9.1` | **崩**(同一个栈) |
+> | ⑦ | **1.21.11** + `J9` | `ComplementaryReimagined_r5.9.1` | **正常**:`Loaded shaderpack: …`,跑满 150s,无崩溃 |
+>
+> ③ 是关键的一组:把包里自定义纹理声明与动画元数据全部去掉后**依然崩**,说明崩溃与"包是否用自定义纹理 /
+> 动画纹理"无关(早先一版结论把触发点写成"带自定义纹理的包",已被 ③④⑤ 推翻)。栈也印证了这一点 ——
+> 崩溃发生在 `class_310.<init>` → `class_1060.<init>`(TextureManager,创建第一批纹理)→ `class_1043.<init>`
+> → OptiFine 插进去的 `ShadersTex.initDynamicTextureNS`,**早于任何与具体包相关的逻辑**。
+> 所以**包与装配都没问题,缺陷在这两版 OptiFine 预览构建本身**;⑦ 说明同一批包在新构建上是好的。
+> **没有"换旧构建"这条规避路径**:这两版可用的 7 个构建(1.21.6 `pre1`/`pre2`/`pre3`、1.21.7 `pre4`/`pre5`/`pre6`/`pre7`)
+> 逐个实测,启用光影时全部崩在同一个栈。
+>
+> **不开光影时 1.21.7 已实测进世界**:集成服务器启动、`Preparing spawn area`、区块构建与
+> `Saving chunks for level 'ServerLevel[world]'`,0 `ERROR`/`FATAL`,无崩溃报告 —— 也就是说这两版的
+> **区块构建路径(fixer 真正起作用的地方)在无光影下是通的**。1.21.6 的进世界自动化没跑通:本机离线账号访问
+> `sessionserver.mojang.com` 超时后 `--quickPlaySingleplayer` 不再触发,而**无模组对照同样进不去**,
+> 属本机环境限制,与模组无关。
+>
+> 注记:OptiFine 的抗锯齿等级存在 `optionsof.txt`,不是 `options.txt`;上表各组的抗锯齿都是**关**的,不构成干扰。
 
 ```
 NullPointerException: Cannot read field "norm" because "multiTex" is null
@@ -1310,11 +1343,13 @@ NullPointerException: Cannot read field "norm" because "multiTex" is null
 ### 纪律(仍然适用)
 
 每版一条命令验证,断言必须包含 `Prepared … (0 skipped, 0 failed)`、`verified OK`、`ASM verifier problems: 0`、扫描器三列 0,
-且日志里不得出现 `Failed to prepare` / `define failed`。产物变了就抬 `CACHE_FORMAT`(现为 **24**),否则 harness 会复用旧缓存而看不到改动。
+且日志里不得出现 `Failed to prepare` / `define failed`。产物变了就抬 `CACHE_FORMAT`(现为 **26**),否则 harness 会复用旧缓存而看不到改动。
 ### 1.21.11 真机确认(最后一个待复测版本)
 
 `HD_U_J9` 上单机、光影(Complementary)、抗锯齿、多人全部正常 —— 该项目最初的移植目标至此闭环。
 
-**最终成绩:十个版本里八个可用**(1.21、1.21.1、1.21.3、1.21.4、1.21.8、1.21.9、1.21.10、1.21.11),
-两个(1.21.6、1.21.7)因 OptiFine 预览构建自身缺陷按用户决定放弃。全部十版由 **`v1.21.x` 项目的同一份源码**构建,
-每版一个 jar(缓存格式 24),`.\gradlew -p v1.21.x build "-Pmc=<版本>"` 即可复现。
+**最终成绩:十个版本里八个可用**(1.21、1.21.1、1.21.3、1.21.4、1.21.8、1.21.9、1.21.10、1.21.11);
+两个(1.21.6、1.21.7)由 **`1.1.2` 生产 jar 于 2026-09-13 在本机复测**:不开光影时**可正常启动**(标题界面正常渲染、
+无崩溃报告),**启用光影则启动阶段崩于 OptiFine 自己的 `ShadersTex.initDynamicTextureNS`** —— 因此按用户决定
+**不提供这两版的光影支持**(详见前面"仍待办的两项 A")。全部十版由 **`v1.21.x` 项目的同一份源码**构建,
+每版一个 jar(缓存格式 26),`.\gradlew -p v1.21.x build "-Pmc=<版本>"` 即可复现。

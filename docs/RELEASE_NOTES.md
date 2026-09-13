@@ -1,7 +1,7 @@
-# GitHub Release notes — tag `v1.1.1`(`OptiFabric-1.1.2+mc1.21.11.jar`)
+# GitHub Release notes — tag `v1.1.2`(`OptiFabric-1.1.2+mc1.21.11.jar`)
 
 > 复制下面 `---` 之间的内容到 GitHub Release 的说明框里(标题用第一行)。英文在前,末尾附中文摘要。
-> 标签是**版本号本身**(`v1.1.1`,不带 `+mc`),与已发的 `v1.1.0` / `v1.2.0` / `v2.0.0` 一致;这一行要手改,
+> 标签是**版本号本身**(`v1.1.2`,不带 `+mc`),与已发的 `v1.1.0` / `v1.2.0` / `v2.0.0` 一致;这一行要手改,
 > 其余版本号由 `release\version.ps1` 统一改写。
 
 ---
@@ -85,8 +85,9 @@ A port of [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric) by Mod
 
 把 OptiFine 接进 Minecraft **1.21.11** 的 Fabric。把本 jar 与自备的 `OptiFine_1.21.11_HD_U_J9.jar` 一起放进 `mods/`,用 Fabric 版本启动即可(**不需要**先运行 OptiFine 安装器);首次启动多花几秒做补丁+重映射,之后走缓存。
 
-- **1.1.1 修复**:换光影包时不再弹"重载资源失败"(旧版会报 `Resource not found: minecraft:post_effect/fxaa_of_2x.json`),
-  见上面英文段的 "New in 1.1.1";这一个 jar 单独用 1.1.1 号,1.21.x 其余九个版本仍是 1.1.0
+- **1.1.2 修复**:抗锯齿在 **1.21.3 起的所有版本**上都是坏的(每次资源重载刷
+  `Resource not found: minecraft:post_effect/fxaa_of_2x.json`,一动抗锯齿或切光影包就 `Failed to load post chain`),
+  见上面英文段的 "New in 1.1.2";1.1.2 覆盖**八个产物**(1.21.3 – 1.21.11),1.21 与 1.21.1 仍停在 1.1.0
 - 需要:Fabric Loader ≥ 0.19.5、Java 21+、客户端;Fabric API 可选(实测 0.141.6+1.21.11)
 - 离线校验:被补丁的 **570** 个游戏类与 OptiFine 自身的 **874** 个类全部通过 JVM + ASM 双向校验
 - 真机已验证:启动、主界面、单人、**多人服务器**、方块/区块/物品渲染、**光影**、F3 调试屏,`[ERROR]` 0 条

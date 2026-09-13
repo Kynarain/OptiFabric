@@ -23,7 +23,7 @@
 (26.1.2 只发布占位 `intermediary:0.0.0`)。所以这一线:
 
 ```powershell
-cd C:\Users\kynar\IdeaProjects\OptiFabric
+cd C:\Users\kynar\IdeaProjects\OptiFabric-Reforged
 git checkout 26.x
 .\release\version.ps1 -Line 26.x            # 版本号只走这个脚本(见 docs\VERSIONING.md)
 .\gradlew -p v26.x build --offline
@@ -60,7 +60,7 @@ Copy-Item "v26.x\build\libs\OptiFabric-Reforged-2.0.0+mc26.1.2.jar" dist -Force
 1.21.x 全系列都从**同一个项目**(`v1.21.x/`)构建,每个版本一个 jar:
 
 ```powershell
-cd C:\Users\kynar\IdeaProjects\OptiFabric
+cd C:\Users\kynar\IdeaProjects\OptiFabric-Reforged
 git checkout 26.x
 foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1.21.9","1.21.10","1.21.11")) {
 	.\gradlew -p v1.21.x build "-Pmc=$v" --offline
@@ -90,11 +90,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 ## 三、发到 GitHub
 
 ```powershell
-cd C:\Users\kynar\IdeaProjects\OptiFabric
+cd C:\Users\kynar\IdeaProjects\OptiFabric-Reforged
 git add -A
 git commit -m "OptiFabric 1.1.0+mc1.21.x: OptiFine on Fabric for 1.21 through 1.21.11"
 git remote add origin https://github.com/<你的用户名>/<仓库名>.git
-git push -u origin mc1.21.x     # 推当前分支;想一起带上 1.20.6 那版再 git push origin main
+git push -u origin 26.x          # 推当前分支;想一起带上 1.20.6 那版再 git push origin main
 ```
 
 发 Release —— 1.1.0 那次的 10 个 jar 挂在**同一个 `v1.1.0` 条目**下(每个 jar 在正文里写明它对应的 MC 版本,

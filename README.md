@@ -24,8 +24,8 @@
 | 1.21.1 | `OptiFabric-1.1.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` | **已实测正常** |
 | 1.21.3 | `OptiFabric-1.1.2+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` | **已实测正常** |
 | 1.21.4 | `OptiFabric-1.1.2+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` | **已实测正常** |
-| 1.21.6 | `OptiFabric-1.1.2+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | **不推荐:该版 OptiFine 构建自身缺陷,启动即崩** |
-| 1.21.7 | `OptiFabric-1.1.2+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | **不推荐:同上** |
+| 1.21.6 | `OptiFabric-1.1.2+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` | **★ 不开光影可正常启动(已实机确认);一旦启用光影就启动即崩,见下** |
+| 1.21.7 | `OptiFabric-1.1.2+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` | **★ 同上** |
 | 1.21.8 | `OptiFabric-1.1.2+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` | **已实测正常(多人崩溃已修;1.1.2 起抗锯齿可用)** |
 | 1.21.9 | `OptiFabric-1.1.2+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` | **已实测正常(1.1.2 起抗锯齿可用)** |
 | 1.21.10 | `OptiFabric-1.1.2+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` | **已实测正常(1.1.2 起抗锯齿可用)** |
@@ -38,6 +38,38 @@
 > 不匹配(游戏 1.21.9 起用 `gl_VertexID` 画全屏三角形、不再给 `Position` 顶点属性,而这正是当初"一开抗锯齿
 > 整屏黑"的原因),管线会把那两个 `.vsh` 改写成同一套写法。八个版本都用生产 jar 重跑过探针:警告 **0 条**;
 > 每个版本的离线校验(补丁类 / OptiFine 类 / ASM / 扫描器)见 [`CHANGELOG.md`](CHANGELOG.md) 与 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)。
+
+> **★ 1.21.6 / 1.21.7 的实测口径(2026-09-13 本机复现,`1.1.2` 生产 jar)**:这两版**不是**笼统的"启动即崩"。
+> 同一台机器上:**不选光影包时可以正常启动** —— 标题界面正常渲染(截图像素统计为真实画面、非黑屏)、
+> 进程存活数分钟、无崩溃报告,OptiFine 只记录 `[Shaders] No shaderpack loaded.`;**只要启用了光影**
+> (在 `optionsshaders.txt` 里把 `shaderPack=` 填成任何光影包),游戏就在**启动阶段**(进标题界面前)崩溃:
+>
+> ```
+> java.lang.NullPointerException: Cannot read field "norm" because "multiTex" is null
+>   at net.optifine.shaders.ShadersTex.initDynamicTextureNS(ShadersTex.java:322)
+>   at net.minecraft.class_1043.method_71142  ->  class_1043.<init> -> class_1060.<init> -> class_310.<init>
+> Description: Initializing game
+> ```
+>
+> **与光影包本身无关,已用三个互不相同的包验证**:`ComplementaryReimagined_r5.9.1`(Modrinth)、
+> `Sildur's Vibrant Shaders v2.01 Extreme`、`BSL v10.1.5` —— 三者在 1.21.6 上**都在 10~15 秒时崩于同一个栈**;
+> 把 Complementary 的自定义纹理声明(`texture.*` / `customTexture.*`)与其 `.mcmeta` 动画元数据**全部删掉再重打包,
+> 依然照样崩**。而**同一批包在 1.21.11 上是好的**:`1.1.2+mc1.21.11` + OptiFine `HD_U_J9` 加载同一个包,
+> 日志出现 `[Shaders] Loaded shaderpack: …`,跑满 150 秒、无崩溃报告。
+>
+> 崩溃点在 `TextureManager.<init>` 创建第一批纹理时的 `class_1043.<init>`(OptiFine 给这个类的构造函数插了
+> `ShadersTex.initDynamicTextureNS`),**早于任何与具体光影包相关的逻辑** —— 所以触发条件就是"**光影被启用**",
+> 与包的写法无关。崩溃报告里 `OptiFabric error: <None>`:光影包与装配都没问题,**崩的是这两版 OptiFine 预览构建自身**。
+> **换旧构建也没用**:这两版可用的 OptiFine 构建**全部 7 个**逐个测过 —— 1.21.6 的 `pre1` / `pre2` / `pre3`、
+> 1.21.7 的 `pre4` / `pre5` / `pre6` / `pre7`,启用光影时**全都崩在同一个栈**,所以"降级到更早的 preview"不是规避办法。
+>
+> **另外:不开光影时 1.21.7 已实测进入世界** —— 集成服务器启动、`Preparing spawn area`、区块构建与
+> `Saving chunks for level 'ServerLevel[world]'`,全程 0 `ERROR` / `FATAL`、无崩溃报告。1.21.6 的进世界自动化没能跑通,
+> 原因是本机环境(离线账号访问 `sessionserver.mojang.com` 超时后 quickPlay 不再触发),**无模组对照同样进不去**,与模组无关。
+>
+> (实现注记:OptiFine 的抗锯齿等级存在 `optionsof.txt` 而非 `options.txt`;上面各组的抗锯齿都是**关**的,不是干扰项。
+> `GpuTextureLinkFix` 就是为这个缺陷写的,目前按提交 `751f2c8` 有意**未接线** —— 见
+> [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) "仍待办的两项 A"。)
 
 **26.x 线**(项目 `v26.x/`,版本基数 2.0.0):
 
