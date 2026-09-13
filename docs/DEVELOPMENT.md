@@ -1055,7 +1055,9 @@ NullPointerException: Cannot invoke "com.mojang.blaze3d.textures.GpuTexture.getG
 只在"带了 FXAA 着色器"的构建上动手,其它 jar 一律不碰;已经自带 post chain 的构建只做第 2 步;
 重复运行是幂等的。缓存格式 20 -> 21 -> 22(21 是补链、22 是移除游戏管线)。
 
-> 统计口径:那两条 `Resource not found: minecraft:shaders/post/fxaa_of_*` 警告现在应当消失;
+> 统计口径:那两条 `Resource not found: minecraft:shaders/post/fxaa_of_*` 警告当时确实消失了 —— 因为补写了老位置那份文件。
+> 但 1.1.2 把它们还给了日志:不再补写之后,OptiFine 每次都还要去老位置探一次,探不到就报一条(纯探测,链走的是
+> `post_effect/`;用户已确认抗锯齿正常的 1.21.11 会话里也有这两条)。
 > 若哪天又出现"开了抗锯齿没效果",就是 OptiFine 没触发自己的链,下一步是把游戏管线的 uniform
 > 按链的形式补齐(ProjMat/OutSize/... 塞进 pass 的 `uniforms`),而不是再删文件。
 >

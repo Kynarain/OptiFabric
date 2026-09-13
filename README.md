@@ -289,6 +289,7 @@ kynarain/cn/optifabric/patcher/fixes/MissingOverrideFix.java          全局:补
 | `[Shaders] Invalid macro expression` / `Invalid argument type, function: ">", type: BOOL` | 光影包宏表达式写法与 OptiFine 的解析器不符(实测 Complementary 也有) |
 | `[Shaders] ParseException: Model variable not found: BIOME_SULFUR_CAVES` 等 | 光影包引用了 OptiFine 还没有的生物群系/变量(1.21.11 新增内容) |
 | `[OptiFine] Shaders: Block not found for name: minecraft:planks` / `double_plant` | 光影包里的旧方块别名 |
+| `[OptiFabric] Resource not found: minecraft:shaders/post/fxaa_of_{2,4}x.json` | OptiFine 还会去 1.21.6 之前的**老位置**探一次它的抗锯齿链,而 1.21.8 起的构建早就不带那个文件了 —— 纯探测警告,抗锯齿走的是 `post_effect/` 那条链。你已确认抗锯齿正常的 1.21.11 会话里也有这两条 |
 | `Skipping bad option: lastServer` | 选项文件里的旧字段 |
 
 ### 排查手段
