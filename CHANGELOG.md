@@ -44,7 +44,7 @@
 
 ### 本版做了什么
 
-1. **不再碰 OptiFine 的后处理文件**:`OptifinePostChainFixer` 整个删除,两条线一视同仁。链本来就该由游戏按
+1. **不再碰 OptiFine 的后处理文件**:`OptifinePostChainFixer` 整个删除。链本来就该由游戏按
    `minecraft:fxaa_of_2x` 从 `post_effect/` 解析(OptiFine 把 `ShaderManager` 改成在那儿注册),OptiFine 自带的
    那份就是它要的:补写老位置文件多余,删掉新位置文件是错的。这一条同时消掉"每次资源重载刷警告"与
    "一动抗锯齿就弹重载资源失败"。
@@ -120,79 +120,6 @@ OptiFine 的类里也没有路径字面量),依据写在 `OptifineSetup.POST_EFF
 
 > 这一版的范围判断("问题只在 1.21.11")与上面"1.21.6–1.21.10 读老位置、实测可用"那句是**错的**,1.1.2 已经纠正;
 > 这一节保留原样,作为当时的记录。已发布的 `1.1.1+mc1.21.11` 内容不变(§3)。
-
-## 2.0.0+mc26.1.2 — 26.x 线的第二版(mod id 改名 + 实时几何)
-
-> **主版本号递增的依据**(SemVer §8,规则见 [`docs/VERSIONING.md`](docs/VERSIONING.md)):这一版把 mod id 从
-> `optifabric` 改成 `optifabric_reforged`,对任何 `depends`/`breaks` 那个 id 的东西都是**不兼容修改** ——
-> 升级时请**删掉旧的 `OptiFabric-1.2.0+mc26.1.2.jar`**,换成 `OptiFabric-Reforged-2.0.0+mc26.1.2.jar`。
-> 同一版里那些"向下兼容的新功能"被主版本号一并吸收(§8:主版本号递增时次版本号与修订号归零)。
-
-**Minecraft 26.1.2** —— 26.1 起游戏**未混淆**,这是一条与 1.21.x 完全独立的线,两边的 jar **不能互相替代**。
-
-**这一线的 mod id 与显示名也是它自己的**:`optifabric_reforged` / **OptiFabric Reforged**(1.21.x 仍为 `optifabric`,已发布的 1.1.0 不动)。理由是实际的:有模组声明 `"breaks": {"optifabric": "*"}`(LambdaBetterGrass 就是),而 Fabric Loader 按 **id** 匹配 —— 只改显示名无效;独立 id 之后这类声明不再拦 26.x。实测上游**未修改**的 LBG jar 可与本模组共存,更好的草与连接纹理正常。
-
-官方名就是运行名,既没有 yarn 也没有真正的 intermediary 可重映射(26.1.2 只发布占位 `intermediary:0.0.0`)。
-因此 26.x 用 Loom 的**非重映射** flavour(`net.fabricmc.fabric-loom`)、不写 `mappings`、运行期命名空间是
-`official` 而不是 `intermediary`;1.21.x 那套按 `class_XXXX` 注册的 fixer 判据在这一线指向的类**根本不存在**,
-所以另建了一张"官方名"注册表。
-
-```powershell
-.\gradlew -p v26.x build        →  OptiFabric-Reforged-2.0.0+mc26.1.2.jar
-```
-
-### 本版修复
-
-- **注入点(最主要的一类)**:OptiFine 重编译时把原版方法**削成薄壳**、真正的实现搬进它自己加的重载,
-  而 Fabric API 用**不带描述符**的 `method = "..."` 指名目标 —— 恢复原版方法体之后类里出现两个同名方法,
-  MixinExtras 建不出局部变量上下文,整个类变换失败。逐处消歧:`LevelRenderer`、`SectionCompiler`、
-  `CuboidItemModelWrapper`、`ScreenEffectRenderer`、`ModelManager`;
-- **渲染器(FRAPI)**:26.1 把 Fabric 渲染器 API 挪进了 `api.client.renderer.v1`,按旧名字查找失败曾让占位
-  **从未注册**,第一个 `Renderer.get()` 就把游戏带走;更根本的是,从 1.21.x 继承来的
-  `fabric-renderer-api-v1:contains_renderer` 让位键在这一线**本来就是多余的** —— 26.1.2 的 indigo 已经不是
-  地形渲染器(地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己,它只剩 1 条物品 mixin + 2 个 accessor),
-  键一声明就把 Fabric API 唯一能问到的那个渲染器关掉,模组生成的网格进了惰性占位 —— **不报错,也不显示**。
-  本版**不再声明该键**,`RendererApiFallback` 把它读回来、只在确实被声明时才补占位器,否则由 Indigo 注册自己的
-  `IndigoRenderer`(F3 的 `Renderer:` 一行因此显示 `IndigoRenderer`,而不再是 `OptifineRendererPlaceholder`);
-- **实时几何(FRAPI)**:Fabric 的地形渲染钩子注入在原版 `compile` 的 `BlockPos.betweenClosed` 循环上,而 OptiFine
-  的区块构建方法里那个循环**一次都不出现** —— 钩子只落在没人调用的补丁方法里,注入成功、永不执行,于是需要按位置
-  实时生成几何的模型(例如 LambdaBetterGrass 的"更好的草")`emitQuads` 一次都没被问过、几何**静默消失**。
-  新增 `FrapiTesselateBridgeFix` + `OptifineFrapiBridge`:把 OptiFine 循环里那次方块 tessellate 调用改到桥上,
-  几何由 Fabric 的渲染器产出(AO / 染色 / 光照齐),**顶点交给 OptiFine 传进来的 `BlockQuadOutput` 写** ——
-  顶点格式、层级缓冲、光照与光影属性全归 OptiFine,桥上不碰任何顶点缓冲(第一版直接写区块缓冲,会把整层数据写成垃圾,
-  表现为"一切方块透明",原因见 `docs/PORT_26.x.md` 第 5 节)。只路由 `emitQuads` 声明在游戏之外的模型,
-  原版方块一律留在 OptiFine 的路由上(否则光影下会把 OptiFine 的额外顶点属性弄丢:实测发黑/光照怪);
-- **抗锯齿**:26.x 从 `post_effect/` 读后处理链,而 1.21.x 那套修复的做法是**删掉该文件**、补写老位置的链 ——
-  在这一线正好是反的。现在按版本线分开处理;
-- **渲染路径**:移动方块与普通方块模型这两处 Fabric API 钩子仍改为惰性(由原版/OptiFine 路径绘制);方块破坏
-  裂纹那条没有动,它现在真的走 Indigo 的渲染器。
-
-### 要求与实测
-
-| 项 | 值 |
-|---|---|
-| Minecraft | 26.1.2(**只支持这一个版本**) |
-| Fabric Loader | >= 0.19.5 |
-| Java | **25**(与 1.21.x 的 Java 21 不同,26.1.2 本身要求 25) |
-| OptiFine | `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar`(目前只有 preview) |
-| Fabric API | 0.155.3+26.1.2 |
-
-实测:启动、进世界、方块/物品/生物渲染、抗锯齿、光影、多人全部正常;进世界时 Indigo 注册真正的渲染器
-(`[Indigo] Registering Indigo renderer!`),Fabric API 自己的渲染钩子从它上面绘制;**装 LambdaBetterGrass 实测:
-"更好的草"正常、连接纹理正确(光影开启)**。
-
-产物:`OptiFabric-Reforged-2.0.0+mc26.1.2.jar` — 177166 字节
-`SHA-256: FBB432C2D9C8B0E7E06F0FDA4A0C1B6A8F302D5D09ABD7CE67F13CBE04A5CF60`
-
-## 1.2.0+mc26.1.2 — 26.x 线的第一版(已发布 2026-09-12)
-
-[GitHub release](https://github.com/Kynarain/OptiFabric-Reforged/releases/tag/v1.2.0) ——
-`OptiFabric-1.2.0+mc26.1.2.jar`,163164 字节,
-`SHA-256: 672F3895AB656FACDA42C93218F885BA21487D929A92C9E05D542A4D0A20B64A`
-
-当时的状态:26.x 走通了"未混淆 + 官方名"的独立构建与运行期路径,能构建出一个可玩的 jar;但 mod id 仍是
-`optifabric`,Fabric 的渲染器由一个**惰性占位**顶着(Indigo 让位),**需要按方块位置实时生成的几何画不出来**
-—— 设置与取舍见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md) 第 2、3 节。`2.0.0` 修掉的正是后者。
 
 ## 1.0.0+mc1.21 … 1.0.0+mc1.21.11 — 1.21.x 全系列
 

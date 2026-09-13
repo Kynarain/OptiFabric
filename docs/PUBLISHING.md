@@ -2,63 +2,33 @@
 
 本文档记录"把本项目发出去"需要做的步骤。仓库里已经准备好的东西、以及**你还需要自己做的部分**都写在下面。
 
-> 本仓库有**两条独立的发布线**,jar 不能互相替代:
+> 本仓库只有**一条发布线**:**1.21.x** = `1.1.0+mc1.21` … `1.1.2+mc1.21.11`(10 个版本,一份源码;
+> 仓库根目录就是那个 Gradle 项目,下面各节都以它为例)。
 >
-> - **1.21.x 线** = `1.1.0+mc1.21` … `1.1.2+mc1.21.11`(10 个版本,一份源码一个项目 `v1.21.x/`。
->   本文下面第三节起**以它为例**);
-> - **26.x 线** = `2.0.0+mc26.1.2`(26.1 起游戏**未混淆**,是另一套构建与运行期路径,项目 `v26.x/`)。
->   它有自己的清单 [`release/MANUAL_RELEASE_26.x.md`](../release/MANUAL_RELEASE_26.x.md) 与移植记录
->   [`PORT_26.x.md`](PORT_26.x.md),差异见下面第二节末尾。
->
-> **分支:每条线各有自己的分支。**
+> **分支:**
 >
 > | 分支 | 用途 |
 > |---|---|
-> | **`1.21.x`** | **1.21.x 线的开发与发布分支**(`common/` + `v1.21.x/`)。1.21.x 的修复提交在这里,1.21.x 的 tag 也打在这里 |
-> | **`26.x`** | **26.x 线的开发与发布分支**(`common/` + `v26.x/`)。共享核心 `common/` 的集成分支 |
+> | **`1.21.x`** | **开发与发布分支**。1.21.x 的修复提交在这里,1.21.x 的 tag 也打在这里 |
 > | `main` | 历史:`1.0.0+mc1.20.6`(第一个发布版) |
-> | `mc1.21.x`、`mc1.21.11` | 历史:1.1.0 发布时的**旧布局**(仓库根目录单项目、没有 `common/`),只作保留、不再更新 |
+> | `mc1.21.x`、`mc1.21.11` | 历史:1.1.0 发布时的**旧布局**(仓库根目录单项目),只作保留、不再更新 |
 >
-> ⚠️ **`mc1.21.x` 不是 1.21.x 的开发分支** —— 名字像,内容是 1.1.0 那一刻的快照。1.1.0 之后 1.21.x 的修复
-> (1.1.1、1.1.2)当时都在 `26.x` 上做过;从今以后 1.21.x 的修复走 **`1.21.x`**。
+> ⚠️ **`mc1.21.x` 不是 1.21.x 的开发分支** —— 名字像,内容是 1.1.0 那一刻的快照;从今以后 1.21.x 的修复走 **`1.21.x`**。
 >
-> **改动落在共享的 `common/`(以及 `docs/`、`release/`)时**:这类代码两条线都要用,做法是**在一条线上做一次,
-> 再 merge / cherry-pick 到另一条**,不要两边各写一遍(那必然写出两份逐渐不一致的修法);两条线定期互相同步。
->
-> **发布标签是版本号本身**(已发的:`v1.1.0`、`v1.2.0`、`v2.0.0`),不带 `+mc` —— MC 版本留在产物名与标题里;
+> **发布标签是版本号本身**(例如 `v1.1.0`、`v1.1.2`),不带 `+mc` —— MC 版本留在产物名与标题里;
 > 1.1.0 那次的 10 个 jar 挂在同一个 `v1.1.0` 条目下,单个版本的热修(如 `v1.1.1`)另发一个条目。
-> `release/publish.ps1` **已按线取构建目标分支**(表在脚本顶部 `$modTagTargets`:1.21.x 线 → `1.21.x`,26.1.2 → `26.x`)。
-
-## 〇、如果你发的是 26.x 线(与 1.21.x 的差别)
-
-26.1 起 Minecraft **未混淆**,官方名即运行名,没有 yarn、也没有真正的 intermediary 可重映射
-(26.1.2 只发布占位 `intermediary:0.0.0`)。所以这一线:
-
-```powershell
-cd C:\Users\kynar\IdeaProjects\OptiFabric-Reforged
-git checkout 26.x
-.\release\version.ps1 -Line 26.x            # 版本号只走这个脚本(见 docs\VERSIONING.md)
-.\gradlew -p v26.x build --offline
-Copy-Item "v26.x\build\libs\OptiFabric-Reforged-2.0.0+mc26.1.2.jar" dist -Force
-.\release\version.ps1 -Line 26.x -RecordDigest   # 把尺寸与 SHA-256 写回文档
-```
+> `release/publish.ps1` 用 `$defaultTagTarget` 取 tag 的目标分支(当前为 `1.21.x`)。
 
 > **版本号规则**:本项目按 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/) 定版本,`+mc<版本>` 是编译信息。
 > 什么算不兼容修改、什么算新功能、一次改动要同步哪些文件,全部写在 [`docs/VERSIONING.md`](VERSIONING.md);
 > **不要手改版本号**(一次要动 9 个文件,漏一处就文档与产物对不上)。
-
-- **没有 `-Pmc=`**:26.x 项目的目标版本就是 `v26.x/gradle.properties` 里那一个值,一个项目一个版本;
-- **Java 25**(1.21.x 是 21),发布说明里要提醒用户;
-- 离线校验用 `test-downloads\verify-26.ps1`(不是 `verify-version.ps1`,后者是 yarn/intermediary 那一线的);
-- 正文、逐版数据、三个平台要填的字段都在 `release/MANUAL_RELEASE_26.x.md` 里;
-- 别把 26.x 的 jar 传成 1.21.x 的版本、也别反过来 —— 文件名里的 `mc` 版本是唯一的区分点。
 
 ## 一、已经准备好的东西
 
 | 项目 | 位置 | 说明 |
 |---|---|---|
 | 源码仓库 | 仓库根目录 | 已配好 `.gitignore`(不含 OptiFine、测试工件、构建产物) |
-| 构建配置 | `v1.21.x/build.gradle` / `gradle.properties` | 版本号 `1.1.2+mc1.21.11`,产物名 `OptiFabric-1.1.2+mc1.21.11.jar` |
+| 构建配置 | `build.gradle` / `gradle.properties`(仓库根目录) | 版本号 `1.1.2+mc1.21.11`,产物名 `OptiFabric-1.1.2+mc1.21.11.jar` |
 | 许可 | `LICENSE.txt` | MPL-2.0(上游 OptiFabric 的许可,移植必须保留) |
 | 使用者文档 | `README.md` | 原理、安装、已知问题、排查(已按 1.21.11 更新) |
 | 开发记录 | `docs/DEVELOPMENT.md` | 逐轮排查与可复现的离线校验工具(1.21.11 的 9 类崩溃都在里面) |
@@ -69,26 +39,26 @@ Copy-Item "v26.x\build\libs\OptiFabric-Reforged-2.0.0+mc26.1.2.jar" dist -Force
 
 ## 二、构建发布包
 
-1.21.x 全系列都从**同一个项目**(`v1.21.x/`)构建,每个版本一个 jar:
+1.21.x 全系列都从**仓库根目录同一个项目**构建,每个版本一个 jar:
 
 ```powershell
 cd C:\Users\kynar\IdeaProjects\OptiFabric-Reforged
-git checkout 1.21.x          # 1.21.x 线从自己的分支构建(见文首的分支表)
+git checkout 1.21.x          # 从发布分支构建(见文首的分支表)
 foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1.21.9","1.21.10","1.21.11")) {
-	.\gradlew -p v1.21.x build "-Pmc=$v" --offline
-	Copy-Item "v1.21.x\build\libs\OptiFabric-1.1.0+mc$v.jar" dist -Force
+	.\gradlew build "-Pmc=$v" --offline
+	Copy-Item "build\libs\OptiFabric-1.1.0+mc$v.jar" dist -Force
 }
 ```
 
 > 上面那段是 **1.1.0 当时的做法**(十个版本同一个版本号)。现在每个 jar 的版本号描述它自己那份产物的内容:
 > 只改了某一个版本的行为时,先 `.\release\version.ps1 -Line 1.21.x -Mc <MC版本> -Kind patch`,
 > 再按脚本打印的那一行构建(多一个 `"-Pmod_version_base=<该版本>"`),例如 1.21.11 就是
-> `. \gradlew -p v1.21.x build "-Pmc=1.21.11" "-Pmod_version_base=1.1.1"`;规则见
+> `.\gradlew build "-Pmc=1.21.11" "-Pmod_version_base=1.1.1"`;规则见
 > [`VERSIONING.md`](VERSIONING.md) 第五节。
 
 （`-Pmc=` 的参数在 PowerShell 里必须加引号,否则 `1.21.8` 会被拆成 `1`。首次构建某个版本需要联网下载它的 MC/yarn/intermediary;之后可以 `--offline`。）
 
-产物在 `v1.21.x\build\libs\`(顺手复制到 `dist\`,里面已有一份现成的):
+产物在 `build\libs\`(顺手复制到 `dist\`,里面已有一份现成的):
 
 - `OptiFabric-1.1.0+mc<版本>.jar` ← **上传对应版本这个**
 - `OptiFabric-1.1.0+mc<版本>-sources.jar`(可选,一般不用发)
@@ -106,7 +76,7 @@ cd C:\Users\kynar\IdeaProjects\OptiFabric-Reforged
 git add -A
 git commit -m "OptiFabric 1.1.0+mc1.21.x: OptiFine on Fabric for 1.21 through 1.21.11"
 git remote add origin https://github.com/<你的用户名>/<仓库名>.git
-git push -u origin 1.21.x        # 推当前分支(1.21.x 线);想一起带上 1.20.6 那版再 git push origin main
+git push -u origin 1.21.x        # 推当前分支(1.21.x)
 ```
 
 发 Release —— 1.1.0 那次的 10 个 jar 挂在**同一个 `v1.1.0` 条目**下(每个 jar 在正文里写明它对应的 MC 版本,
@@ -118,7 +88,7 @@ git tag v1.1.1
 git push origin v1.1.1
 ```
 
-然后在 GitHub 网页上基于该 tag 建 Release(`Target` 选 **`1.21.x`** 分支 —— 1.21.x 线从自己的分支发布,见文首分支表),
+然后在 GitHub 网页上基于该 tag 建 Release(`Target` 选 **`1.21.x`** 分支 —— 见文首分支表),
 把 `OptiFabric-1.1.2+mc1.21.11.jar`
 (以及 `-sources.jar`,可选)作为附件上传。仓库根目录的发布脚本也能做同样的事:
 
@@ -166,14 +136,12 @@ git push origin v1.1.1
 
 ## 六、后续版本怎么发
 
-1. 改**该项目**的 `gradle.properties` 里的 `mod_version_base`(例如 `1.0.1`);
-2. 在 `CHANGELOG.md` 顶部加一节(写清新的版本号,例如 `1.0.1+mc1.21.11` 或 `2.0.0+mc26.1.2`);
-3. 构建对应项目(1.21.x 还要带 `-Pmc=`):
+1. 改 `gradle.properties` 里的 `mod_version_base`(例如 `1.0.1`);
+2. 在 `CHANGELOG.md` 顶部加一节(写清新的版本号,例如 `1.0.1+mc1.21.11`);
+3. 构建(带 `-Pmc=` 指定 MC 版本):
    ```powershell
-   .\gradlew -p v1.21.x build "-Pmc=1.21.11" --offline
-   .\gradlew -p v26.x   build --offline
+   .\gradlew build "-Pmc=1.21.11" --offline
    ```
-4. 跑对应的离线校验(`verify-version.ps1 -Version <版本>` / `verify-26.ps1`);
-5. 复制到 `dist\`,同步 `release/notes/mc<版本>.md` 与对应清单里的字节数 / SHA-256
-   (两个清单:`release/MANUAL_RELEASE.md`、`release/MANUAL_RELEASE_26.x.md`);
+4. 跑离线校验(`verify-version.ps1 -Version <版本>`);
+5. 复制到 `dist\`,同步 `release/notes/mc<版本>.md` 与 `release/MANUAL_RELEASE.md` 里的字节数 / SHA-256;
 6. `.\release\publish.ps1 -DryRun` 先看一眼要发什么,再打 tag、发 Release、上传三个平台。

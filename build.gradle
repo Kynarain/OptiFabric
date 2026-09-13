@@ -5,15 +5,16 @@ plugins {
 // The 1.21.x line. Every release here is obfuscated, so each needs its own official -> intermediary mappings
 // bundled into the jar (the obfuscated names differ per version, so a wrongly built jar would remap OptiFine
 // into nonsense) - which is why one jar is always built for exactly one release. The fixers in
-// common/src/main/java/.../patcher/fixes are written against intermediary ids, which are stable across the
-// 1.21.x releases, so the same sources serve all of them.
+// src/main/java/.../patcher/fixes are written against intermediary ids, which are stable across the 1.21.x
+// releases, so the same sources serve all of them.
 //
-// The default release comes from this project's gradle.properties and -Pmc=<version> builds another one:
+// The default release comes from gradle.properties and -Pmc=<version> builds another one:
 //
-//   .\gradlew -p v1.21.x build "-Pmc=1.21.8"
+//   .\gradlew build "-Pmc=1.21.8"
 //
-// The 26.x line is a separate project next door (v26.x) because 26.1 and newer ship unobfuscated, which is a
-// different Loom flavour and a different naming of the game - see docs/PORT_26.x.md.
+// This branch is the 1.21.x line on its own: one Gradle project at the root and no second source tree.
+// (The tree used to build a second, unrelated release line as well; that line has its own branch now, so
+// nothing here refers to it.)
 def targetMc = (project.findProperty("mc") ?: project.minecraft_version).toString()
 
 // Yarn is published per release and its build number is part of the version string, so the supported releases
@@ -34,7 +35,7 @@ def yarnBuilds = [
 def targetYarn = yarnBuilds[targetMc]
 
 if (targetYarn == null) {
-    throw new GradleException("No yarn build is listed for Minecraft " + targetMc + "; add it to yarnBuilds in v1.21.x/build.gradle")
+    throw new GradleException("No yarn build is listed for Minecraft " + targetMc + "; add it to yarnBuilds in build.gradle")
 }
 
 version = "${project.mod_version_base}+mc${targetMc}"
@@ -54,15 +55,8 @@ configurations {
     intermediaryMappings
 }
 
-// Everything that is not version specific lives in common/ and is compiled into this project as well.
-def sharedSources = file('../common/src/main')
-
-sourceSets {
-    main {
-        java.srcDirs = [new File(sharedSources, 'java'), file('src/main/java')]
-        resources.srcDirs = [new File(sharedSources, 'resources'), file('src/main/resources')]
-    }
-}
+// The mod sources sit in the standard src/main of this project: this branch holds the whole 1.21.x line, so
+// there is no second source tree to pull in.
 
 dependencies {
     minecraft "com.mojang:minecraft:${targetMc}"
@@ -83,12 +77,11 @@ dependencies {
 def targetJavaVersion = 21
 def mixinCompatibilityLevel = "JAVA_" + targetJavaVersion
 
-// fabric.mod.json is shared between the two lines, but its "custom" block is not. This line declares
-// "fabric-renderer-api-v1:contains_renderer" so that Indigo steps aside: IndigoMixinConfigPlugin then returns
-// false for every one of its mixins and it never registers a renderer. That is required here, because on
-// 1.21.x Indigo *is* the terrain renderer and its ChunkBuilderBuiltChunkRebuildTaskMixin targets a call that
-// OptiFine's rewrite of that loop removes - with "defaultRequire": 1 a missing injection point is fatal.
-// The 26.x line deliberately does not declare it; see v26.x/build.gradle.
+// This line declares "fabric-renderer-api-v1:contains_renderer" so that Indigo steps aside:
+// IndigoMixinConfigPlugin then returns false for every one of its mixins and it never registers a renderer.
+// That is required here, because on 1.21.x Indigo *is* the terrain renderer and its
+// ChunkBuilderBuiltChunkRebuildTaskMixin targets a call that OptiFine's rewrite of that loop removes - with
+// "defaultRequire": 1 a missing injection point is fatal.
 def indigoComment = "OptiFine is a terrain renderer, so Indigo must step aside. Fabric's own hook for that (Sodium declares the same value): IndigoMixinConfigPlugin.shouldApplyMixin returns false for every fabric-renderer-indigo mixin, and Indigo skips registering its renderer. Without it ChunkBuilderBuiltChunkRebuildTaskMixin fails fatally, because its @Inject targets BlockPos.iterate inside ChunkBuilder.BuiltChunk.RebuildTask.render and OptiFine's rewrite of that loop removes the call."
 def customMetadata = "\n    \"_comment\": \"" + indigoComment + "\",\n    \"fabric-renderer-api-v1:contains_renderer\": true"
 
@@ -105,14 +98,13 @@ processResources {
                 "minecraft_version": targetMc,
                 "loader_version": project.loader_version,
                 "optifabric_custom": customMetadata,
-                // This line keeps the original id and name: it is what the published 1.1.0 jars are, and the
-                // 26.x project next door carries "optifabric_reforged" instead (see its build file for why).
+                // The id and the display name stay as published: this line is "optifabric" / OptiFabric.
                 "optifabric_id": "optifabric",
                 "optifabric_name": "OptiFabric",
                 "optifabric_verbs": "patches, remaps and applies"
     }
 
-    // The shared config carries a placeholder: Mixin refuses to apply a mixin class compiled for a newer Java
+    // The mixin config carries a placeholder: Mixin refuses to apply a mixin class compiled for a newer Java
     // version than its config declares, so this line has to follow the compile release of the project.
     filesMatching("optifabric.mixins.json") {
         expand "mixin_compatibility_level": mixinCompatibilityLevel
@@ -140,7 +132,7 @@ java {
 }
 
 jar {
-    from(file('../LICENSE.txt')) {
+    from(file('LICENSE.txt')) {
         rename { "${it}_${project.archives_base_name}" }
     }
 }

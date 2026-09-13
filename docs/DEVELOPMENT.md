@@ -160,8 +160,6 @@ public boolean shouldApplyMixin(...) { return indigoApplicable; }        // 整�
 
 关键点是**这个键必须由"另一个渲染器"声明**(Sodium 用的就是它),而 OptiFine 本身就是地形渲染器,所以语义上是诚实的,不是绕过检查。注意上一轮设的 `fabric-renderer-indigo:force_compatibility` **达不到这个效果** —— 它只切换 indigo 的兼容渲染路径,照样会应用在那条会崩的 mixin 上。代价是:依赖 FRAPI/indigo 的模组不再拿到 indigo 的自定义渲染,改由 OptiFine 渲染地形;需要换回去就删掉这个键,但那样 `class_846$class_851$class_4578` 一加载就会崩。
 
-**这段只适用于 1.21.x 线。** 26.1.2 上的 indigo 不再是地形渲染器(Fabric API 把地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己,indigo 只剩 1 条物品 mixin + 2 个 accessor),那个键在那条线上只会关掉 Fabric API 唯一能问到的渲染器,所以 26.x 的 jar **不声明它** —— 见 `docs/PORT_26.x.md` 第 3 节。
-
 最后,用 `-ea` 打开断言跑了一遍管线(生产环境断言默认关闭),又发现一个隐患:`ChunkRendererFix` 是上游针对 **Forge** 的修复,它断言那段调用带的是 1.16–1.18 的 `IModelData`,而 1.20.6 的 OptiFine 用的是 1.19+ 改名后的 `ModelData`,断言直接不成立:
 
 ```
@@ -736,13 +734,13 @@ OptiFine 在 1.21.x 上出过构建的版本一共 **10 个**:1.21、1.21.1、1.
 ### 构建
 
 ```powershell
-.\gradlew -p v1.21.x build "-Pmc=1.21.8"   # PowerShell 里必须给参数加引号,否则 1.21.8 会被拆成 1
-.\gradlew -p v1.21.x build                 # 不带参数 = v1.21.x/gradle.properties 里的 minecraft_version
+.\gradlew build "-Pmc=1.21.8"   # PowerShell 里必须给参数加引号,否则 1.21.8 会被拆成 1
+.\gradlew build                 # 不带参数 = gradle.properties 里的 minecraft_version
 ```
 
-- 项目布局:`common/` 放与版本无关的源码(patcher、fixer、mod、util),`v1.21.x/` 与 `v26.x/` 是**两个独立的 Gradle 项目**,各自有 `settings.gradle`、`gradle.properties`、`build.gradle`,并把 `../common/src/main` 一起编译。26.x 是未混淆的,走另一套插件与命名,见 [`PORT_26.x.md`](PORT_26.x.md)。
-- 版本 → yarn 构建号的对应表在 `v1.21.x/build.gradle` 的 `yarnBuilds`(yarn 的版本串里含版本号,必须逐个列出);加一个版本就是加一行。
-- 产物名固定为 `OptiFabric-<mod_version_base>+mc<版本>.jar`(例如 `OptiFabric-1.1.0+mc1.21.8.jar`),`mod_version_base` 在各项目的 `gradle.properties` 里;产物在 `v1.21.x/build/libs/`。
+- 项目布局:仓库根目录就是**唯一的 Gradle 项目** —— 源码在 `src/main/java/kynarain/cn/optifabric/`(patcher、fixer、mod、util),资源在 `src/main/resources/`,`build.gradle`、`settings.gradle`、`gradle.properties` 都在根目录。
+- 版本 → yarn 构建号的对应表在 `build.gradle` 的 `yarnBuilds`(yarn 的版本串里含版本号,必须逐个列出);加一个版本就是加一行。
+- 产物名固定为 `OptiFabric-<mod_version_base>+mc<版本>.jar`(例如 `OptiFabric-1.1.0+mc1.21.8.jar`),`mod_version_base` 在根目录的 `gradle.properties` 里;产物在 `build/libs/`。
 
 ### 每版离线验证(一条命令)
 
@@ -752,7 +750,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 
 依次做六件事,全部离线可重复:
 
-1. `gradlew -p v1.21.x build "-Pmc=<版本>"` —— 用该版本的 MC / yarn / intermediary 编译;
+1. `gradlew build "-Pmc=<版本>"` —— 用该版本的 MC / yarn / intermediary 编译;
 2. `test-downloads/version-setup.ps1` —— 从 loom 缓存取**混淆客户端 jar** 与 **intermediary 客户端 jar**,从 gradle 缓存取该版本的 **yarn 映射**,把该版本 **OptiFine 安装器**放进 harness 的游戏目录;
 3. 下载并解包该版本 **Fabric API** 的 43 个模块 jar(扫描器要读每个模块的 mixin 注解);
 4. `VerifyPatched --setup` —— 跑真实补丁管线,再对补丁类做 **JVM + ASM 双向校验**;
@@ -1176,7 +1174,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 
 所以 1.1.2 做两件事:
 
-1. **不再碰 OptiFine 的后处理文件**(`OptifinePostChainFixer` 整个删掉,两条线一视同仁):链该由游戏从
+1. **不再碰 OptiFine 的后处理文件**(`OptifinePostChainFixer` 整个删掉):链该由游戏从
    `post_effect/` 解析,OptiFine 自带的那份就是它要的。补写老位置文件纯属多余,删掉新位置文件是错的。
 2. **`OptifineJarFixer` 增加顶点着色器修复**:仅当"游戏那份 `core/screenquad.vsh` 用 `gl_VertexID`"
    **且**"OptiFine 那份 `.vsh` 还在读 `in vec4 Position`"时,把它改写成同一套全屏三角形写法
@@ -1384,5 +1382,5 @@ NullPointerException: Cannot read field "norm" because "multiTex" is null
 **最终成绩:十个版本里八个可用**(1.21、1.21.1、1.21.3、1.21.4、1.21.8、1.21.9、1.21.10、1.21.11);
 两个(1.21.6、1.21.7)由 **`1.1.2` 生产 jar 于 2026-09-13 在本机复测**:不开光影时**可正常启动**(标题界面正常渲染、
 无崩溃报告),**启用光影则启动阶段崩于 OptiFine 自己的 `ShadersTex.initDynamicTextureNS`** —— 因此按用户决定
-**不提供这两版的光影支持**(详见前面"仍待办的两项 A")。全部十版由 **`v1.21.x` 项目的同一份源码**构建,
-每版一个 jar(缓存格式 26),`.\gradlew -p v1.21.x build "-Pmc=<版本>"` 即可复现。
+**不提供这两版的光影支持**(详见前面"仍待办的两项 A")。全部十版由**仓库根目录同一个项目的那份源码**构建,
+每版一个 jar(缓存格式 26),`.\gradlew build "-Pmc=<版本>"` 即可复现。
