@@ -34,7 +34,7 @@
 
 ### GitHub Release(每版一个)
 
-- Tag:`v<版本>`(只写版本号,不带 `+mc`),选 Create new tag on publish,target 选 **`26.x`** 分支的当前提交;
+- Tag:`v<版本>`(只写版本号,不带 `+mc`),选 Create new tag on publish,target 选 **`1.21.x`** 分支的当前提交(1.21.x 线从自己的分支发布,见 [`docs/PUBLISHING.md`](../docs/PUBLISHING.md) 文首的分支表);
 - Release title:OptiFabric `<版本>+mc<MC版本>`;
 - Describe this release:粘贴 release/notes/mc<版本>.md 的内容(Markdown);
 - Attach binaries:上传该版的 `dist\OptiFabric-<版本>+mc<MC版本>.jar`(正文里已写好它的尺寸与 SHA-256,方便用户校验)。

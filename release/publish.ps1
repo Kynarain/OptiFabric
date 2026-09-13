@@ -43,6 +43,9 @@ $modArtifacts = @{ "26.1.2" = "OptiFabric-Reforged" }
 # The display name follows the artifact: the 26.x line renamed itself, see v26.x/build.gradle.
 $defaultModName = "OptiFabric"
 $modNames = @{ "26.1.2" = "OptiFabric Reforged" }
+# 每条线各自的开发与发布分支:1.21.x 的修复开发在 1.21.x 分支上,26.x 线在 26.x 分支上(见 docs\PUBLISHING.md)。
+$defaultTagTarget = "1.21.x"
+$modTagTargets = @{ "26.1.2" = "26.x" }
 
 if ($Version -ne "all") {
 	if ($versions -notcontains $Version) { throw "未知版本: $Version(可选:" + ($versions -join ", ") + ")" }
@@ -68,9 +71,10 @@ $jar = Join-Path $root "dist\$artifact-$modVersion+mc$mc.jar"
 	$title = "$modName $modVersion+mc$mc"
 	# Which branch the tag is made on. gh would otherwise tag the default branch (main), which is not where either
 	# release line lives - the first 26.x release was tagged through the web UI and ended up pointing at main.
-	# Both projects (v1.21.x/ and v26.x/) live on the 26.x branch now, so every tag is made there; mc1.21.x is the
-	# single-project layout the ten 1.1.0 jars were built from and is kept as history only.
-	$tagTarget = "26.x"
+	# Each line is now released from its own branch: 1.21.x from 1.21.x, the 26.x line from 26.x (see the branch
+	# section of docs\PUBLISHING.md). mc1.21.x is the single-project layout the ten 1.1.0 jars were built from and
+	# is kept as history only.
+	$tagTarget = if ($modTagTargets.ContainsKey($mc)) { $modTagTargets[$mc] } else { $defaultTagTarget }
 
 	if (-not (Test-Path $jar)) { Write-Warning "跳过 $mc :没有 $jar"; continue }
 	if (-not (Test-Path $notes)) { Write-Warning "跳过 $mc :没有 $notes"; continue }

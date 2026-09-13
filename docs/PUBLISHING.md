@@ -10,12 +10,24 @@
 >   它有自己的清单 [`release/MANUAL_RELEASE_26.x.md`](../release/MANUAL_RELEASE_26.x.md) 与移植记录
 >   [`PORT_26.x.md`](PORT_26.x.md),差异见下面第二节末尾。
 >
-> **两条线的源码现在都在 `26.x` 分支上**(根目录下 `v1.21.x/` 与 `v26.x/` 两个项目,共用 `common/`),
-> 所以发布都是从 `26.x` 分支构建;`mc1.21.x` 是 1.1.0 发布时的旧布局(仓库根目录单项目),只作历史保留。
+> **分支:每条线各有自己的分支。**
+>
+> | 分支 | 用途 |
+> |---|---|
+> | **`1.21.x`** | **1.21.x 线的开发与发布分支**(`common/` + `v1.21.x/`)。1.21.x 的修复提交在这里,1.21.x 的 tag 也打在这里 |
+> | **`26.x`** | **26.x 线的开发与发布分支**(`common/` + `v26.x/`)。共享核心 `common/` 的集成分支 |
+> | `main` | 历史:`1.0.0+mc1.20.6`(第一个发布版) |
+> | `mc1.21.x`、`mc1.21.11` | 历史:1.1.0 发布时的**旧布局**(仓库根目录单项目、没有 `common/`),只作保留、不再更新 |
+>
+> ⚠️ **`mc1.21.x` 不是 1.21.x 的开发分支** —— 名字像,内容是 1.1.0 那一刻的快照。1.1.0 之后 1.21.x 的修复
+> (1.1.1、1.1.2)当时都在 `26.x` 上做过;从今以后 1.21.x 的修复走 **`1.21.x`**。
+>
+> **改动落在共享的 `common/`(以及 `docs/`、`release/`)时**:这类代码两条线都要用,做法是**在一条线上做一次,
+> 再 merge / cherry-pick 到另一条**,不要两边各写一遍(那必然写出两份逐渐不一致的修法);两条线定期互相同步。
+>
 > **发布标签是版本号本身**(已发的:`v1.1.0`、`v1.2.0`、`v2.0.0`),不带 `+mc` —— MC 版本留在产物名与标题里;
 > 1.1.0 那次的 10 个 jar 挂在同一个 `v1.1.0` 条目下,单个版本的热修(如 `v1.1.1`)另发一个条目。
->
-> 历史:`main` 分支 = `1.1.0+mc1.20.6`(第一个发布版)。
+> `release/publish.ps1` **已按线取构建目标分支**(表在脚本顶部 `$modTagTargets`:1.21.x 线 → `1.21.x`,26.1.2 → `26.x`)。
 
 ## 〇、如果你发的是 26.x 线(与 1.21.x 的差别)
 
@@ -61,7 +73,7 @@ Copy-Item "v26.x\build\libs\OptiFabric-Reforged-2.0.0+mc26.1.2.jar" dist -Force
 
 ```powershell
 cd C:\Users\kynar\IdeaProjects\OptiFabric-Reforged
-git checkout 26.x
+git checkout 1.21.x          # 1.21.x 线从自己的分支构建(见文首的分支表)
 foreach ($v in @("1.21","1.21.1","1.21.3","1.21.4","1.21.6","1.21.7","1.21.8","1.21.9","1.21.10","1.21.11")) {
 	.\gradlew -p v1.21.x build "-Pmc=$v" --offline
 	Copy-Item "v1.21.x\build\libs\OptiFabric-1.1.0+mc$v.jar" dist -Force
@@ -94,7 +106,7 @@ cd C:\Users\kynar\IdeaProjects\OptiFabric-Reforged
 git add -A
 git commit -m "OptiFabric 1.1.0+mc1.21.x: OptiFine on Fabric for 1.21 through 1.21.11"
 git remote add origin https://github.com/<你的用户名>/<仓库名>.git
-git push -u origin 26.x          # 推当前分支;想一起带上 1.20.6 那版再 git push origin main
+git push -u origin 1.21.x        # 推当前分支(1.21.x 线);想一起带上 1.20.6 那版再 git push origin main
 ```
 
 发 Release —— 1.1.0 那次的 10 个 jar 挂在**同一个 `v1.1.0` 条目**下(每个 jar 在正文里写明它对应的 MC 版本,
@@ -106,7 +118,8 @@ git tag v1.1.1
 git push origin v1.1.1
 ```
 
-然后在 GitHub 网页上基于该 tag 建 Release(`Target` 选 `26.x` 分支),把 `OptiFabric-1.1.2+mc1.21.11.jar`
+然后在 GitHub 网页上基于该 tag 建 Release(`Target` 选 **`1.21.x`** 分支 —— 1.21.x 线从自己的分支发布,见文首分支表),
+把 `OptiFabric-1.1.2+mc1.21.11.jar`
 (以及 `-sources.jar`,可选)作为附件上传。仓库根目录的发布脚本也能做同样的事:
 
 ```powershell
