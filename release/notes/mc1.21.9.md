@@ -1,8 +1,25 @@
-# OptiFabric 1.1.0+mc1.21.9
+# OptiFabric 1.1.2+mc1.21.9
 
 **Minecraft 1.21.9** / Fabric Loader 0.19.5 / Java 21+ / 需求 OptiFine `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar`
 
 状态:**已实测正常(含抗锯齿)**
+
+## 1.1.2 修了什么
+
+**抗锯齿之前是坏的(或干脆没生效),这一版把它修好了。**
+
+- **病根**:管线会删掉 OptiFine 自带的 `assets/minecraft/post_effect/fxaa_of_{2,4}x.json`(以为这条链该走
+  1.21.6 之前的老位置),而事实上链是由**游戏自己的后处理链注册表**按 `minecraft:fxaa_of_2x` 从 `post_effect/`
+  解析的(OptiFine 把 `ShaderManager` 改成在那儿注册)。文件被删了,于是每次资源重载都刷一条
+  `Resource not found: minecraft:post_effect/fxaa_of_2x.json`,一旦动抗锯齿(或切光影包 —— 两者都会重载光影)
+  就 `Failed to load post chain: minecraft:fxaa_of_2x`,界面上就是"重载资源失败"。
+- **现在**:不再碰 OptiFine 的后处理文件,链由游戏按原样解析。
+- **顶点着色器(本版本特有)**:游戏从 1.21.9 起改用 `gl_VertexID` 生成全屏三角形、**不再提供 `Position`
+  顶点属性**,而 OptiFine 那两个预览构建的 `fxaa_of_*.vsh` 还在读 `Position` → 顶点塌成一点 →
+  当初"一开抗锯齿就整屏黑"就是这么来的。管线会把这两个 `.vsh` 改写成同一套全屏三角形写法
+  (`SamplerInfo`/`FxaaConfig` 两个 uniform 块与 FXAA 的 `posPos` 计算**原样保留**,片段阶段还在读它们)。
+- 判据都是文件内容(游戏那份 `core/screenquad.vsh` 是否用 `gl_VertexID`、OptiFine 那份 `.vsh` 是否还在读
+  `Position`),所以不需要按版本列表维护:**本 jar** 属于哪一档已由上面的命令行验证过。
 
 ## 这个版本是什么
 
@@ -32,6 +49,6 @@
 
 ## 校验
 
-`OptiFabric-1.1.0+mc1.21.9.jar` — 847691 字节
+`OptiFabric-1.1.2+mc1.21.9.jar` — 856054 字节
 
-`SHA-256: 0CE2ADC1F73A0B1F0D02D8C88A53D0B24023EA0301F93348908C75C3579C7BAD`
+`SHA-256: 66711E7D8D0EAC83F73EE96012A4C3ACAFF94960B49E9BECBF74FEED19022276`

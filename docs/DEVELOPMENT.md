@@ -1024,7 +1024,11 @@ NullPointerException: Cannot invoke "com.mojang.blaze3d.textures.GpuTexture.getG
 
 要区分是"光影包/驱动一侧"还是"补丁一侧",只需要两个对照:关掉光影(还闪不闪)、换成 `ComplementaryReimagined_r5.9.1.zip`(还闪不闪)。这条还没做,所以本节不给结论。
 
-## 抗锯齿黑屏(1.21.9 / 1.21.10)—— 已修好
+## 抗锯齿:那一次"修好"其实是把抗锯齿关掉了(1.21.9 / 1.21.10,后来全线重做)
+
+> **这一节保留原样,作为当时的推理记录 —— 结论是错的**,纠正见下面「抗锯齿:链在哪一侧(1.1.2)」。
+> 简而言之:`OptifinePostChainFixer` 删掉游戏那份 `post_effect/fxaa_of_*.json` 之后,链**加载失败**,
+> 抗锯齿不再被应用 —— 不黑屏了,所以当时判成"恢复正常",实际上抗锯齿是**静默失效**。
 
 现象:1.21.9 / 1.21.10 关掉抗锯齿一切正常,一开抗锯齿就整屏黑。真机上已验证恢复正常。
 
@@ -1040,7 +1044,7 @@ NullPointerException: Cannot invoke "com.mojang.blaze3d.textures.GpuTexture.getG
 
 所以修好"解析失败"之后依旧黑屏 —— 因为病根不是解析,而是**这条管线根本不该由游戏来跑**。
 
-`OptifinePostChainFixer`(`mod/OptifinePostChainFixer.java`)现在做两件事:
+`OptifinePostChainFixer`(`mod/OptifinePostChainFixer.java`)当时做两件事(该类已在 1.1.2 里删除):
 
 1. 按 OptiFine 自己的 schema **补写** `assets/minecraft/shaders/post/fxaa_of_{2,4}x.json`
    (结构照抄 1.21.6 那份 719/443 字节的原件:2x 带 SpanMax 8.0 / SubPixelShift 0.25 / ReduceMul 0.125,
@@ -1054,6 +1058,8 @@ NullPointerException: Cannot invoke "com.mojang.blaze3d.textures.GpuTexture.getG
 > 统计口径:那两条 `Resource not found: minecraft:shaders/post/fxaa_of_*` 警告现在应当消失;
 > 若哪天又出现"开了抗锯齿没效果",就是 OptiFine 没触发自己的链,下一步是把游戏管线的 uniform
 > 按链的形式补齐(ProjMat/OutSize/... 塞进 pass 的 `uniforms`),而不是再删文件。
+>
+> 后一句当时只当成"以后再说"的备选,结果它才是正解 —— 只不过要补的不是 uniform,而是**顶点着色器**。
 
 ### 1.21.11 反过来:游戏那份不能删(1.1.1)
 
@@ -1127,6 +1133,90 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-versio
 > 顺带记两条与 1.21.11 有关、**不属于本模组**的观察:手里拿着的方块在开光影时偶尔黑一下(在只装 OptiFine、
 > 不装本模组的 Forge 客户端上同样复现),以及光影包自身对 OptiFine 不认识的程序名的报错。前者建议先关动态光源
 > (`ofDynamicLights:0`)或换包再复现一次,再往 OptiFine 的 issue 里报。
+
+## 抗锯齿:链在哪一侧(1.1.2,全线重做)
+
+1.1.1 只把 1.21.11 一处开关拨对了。问题是"这一处"到底有多大 —— 于是把**每一个 1.21.x 版本都真机量了一遍**
+(每个版本用生产 jar、抗锯齿 2x、Complementary 光影、进世界,跑 75–140 秒后读 `logs/latest.log`):
+
+| MC | `Resource not found: minecraft:post_effect/fxaa_of_*` | 说明 |
+|---|---|---|
+| 1.21 / 1.21.1 | — | OptiFine 那两版只带老位置文件,修复**没碰过它**,干净 |
+| 1.21.3 | **2 条** | |
+| 1.21.4 | **2 条** | |
+| 1.21.6 | 未判定 | 该版 OptiFine 构建在这台机器上启动阶段卡死(见"仍待办"里的 A 项),探针读不到标记 |
+| 1.21.7 | **2 条** | |
+| 1.21.8 | **2 条** | 用户 09-12 的会话里另有 2 条 `Failed to load post chain: minecraft:fxaa_of_2x/_4x` |
+| 1.21.9 | **2 条** | |
+| 1.21.10 | **2 条** | 用户 09-12 的会话里另有 2 条 `Failed to load post chain` |
+| 1.21.11 | 0(1.1.1 已修) | 用户真机确认抗锯齿与光影都正常 |
+
+也就是说:**九成的版本都带着同一个缺陷,只是当时只有 1.21.11 被真机撞到过。** 代码层面它对得上:
+
+* 补丁类 `class_10151`(OptiFine 重编译过的 `ShaderManager`)里注册 FXAA 链的那个方法 `method_62942`,
+  在 1.21.8 / 1.21.9 / 1.21.10 / 1.21.11 上**逐条指令、逐条常量完全一致**,字符串配方就是
+  `post_effect/\u0001.json` 与 `shaders/post/\u0001\u0001`;取不到就 `Config.getResourceSafe` 返回空、
+  打印 `Resource not found: <id>`。这套代码**从 1.21.3 起就有**(1.21 / 1.21.1 完全没有:那两版的链是按老路径
+  直接加载的)。
+* 而我们的修复**从 1.21.3 起一直在删那个文件**(1.21.8 起 OptiFine 更是只带这一份)。删了它 →
+  注册表里没有这条链 → 玩家一动抗锯齿(会重载光影)就 `Failed to load post chain` + "重载资源失败"提示。
+
+### 为什么各版本的修法不一样
+
+链的位置是所有版本一致的(都在 `post_effect/`),但**顶点着色器**分三档 —— 这一档才是关键:
+
+| 组 | OptiFine 自带的 `post/fxaa_of_*.vsh` | 游戏那边的管线 | 结论 |
+|---|---|---|---|
+| 1.21.3 / 1.21.4 | `#version 150` + 松散 `uniform mat4 ProjMat / vec2 OutSize` + `in vec4 Position` | `post/screenquad.vsh` 同样是松散 uniform + `Position` | **本来就匹配**,只是链被我们删了 → 保留即可 |
+| 1.21.6 / 1.21.7 / 1.21.8 | `#version 150` + `Projection`/`SamplerInfo`(/`FxaaConfig`)块 + `in vec4 Position` | `post/screenquad.vsh` = `#moj_import <minecraft:projection.glsl>`(就是 `Projection` 块)+ `SamplerInfo` 块 + `Position` | 同上,**本来就匹配** |
+| 1.21.9 / 1.21.10 | 还是 1.21.8 那种(带 `Position` 的) | 1.21.9 起改成 **`core/screenquad.vsh`:`#version 330` + `gl_VertexID` 生成全屏三角形,不再有任何顶点属性** | `Position` 永远不被绑定 → 顶点塌成一点 → **整屏黑**(就是当初那一幕);**必须重写 .vsh** |
+| 1.21.11 | `#version 330`,注释写着 `// Copy of core/screenquad.vsh` | 同上 | sp614x 自己已经修好 → **原样保留** |
+
+所以 1.1.2 做两件事:
+
+1. **不再碰 OptiFine 的后处理文件**(`OptifinePostChainFixer` 整个删掉,两条线一视同仁):链该由游戏从
+   `post_effect/` 解析,OptiFine 自带的那份就是它要的。补写老位置文件纯属多余,删掉新位置文件是错的。
+2. **`OptifineJarFixer` 增加顶点着色器修复**:仅当"游戏那份 `core/screenquad.vsh` 用 `gl_VertexID`"
+   **且**"OptiFine 那份 `.vsh` 还在读 `in vec4 Position`"时,把它改写成同一套全屏三角形写法
+   (`#version 330` + `gl_VertexID`,`Projection` 块与 `Position` 输入删掉,`SamplerInfo`/`FxaaConfig` 块与
+   `posPos` 那几行**原样保留**,因为片段阶段还在读它们)。判据都是文件内容,所以:
+
+   * 1.21.11 那份(`gl_VertexID` 已在)→ **跳过**,不动 sp614x 的文件;
+   * 1.21.3–1.21.8(游戏管线还有顶点属性)→ **跳过**;
+   * 只有 1.21.9 / 1.21.10 的预览构建会被改写,并且是**改写用户自己 jar 里的那份**,不分发任何 OptiFine 文件。
+
+缓存格式 25 -> **26**。
+
+### 验证
+
+离线(每个受影响版本各一条命令,`-ModVersion` 指向该版本自己的号):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-version.ps1 -Version 1.21.10 -ModVersion 1.1.2
+```
+
+| MC | 补丁类(JVM) | OptiFine 类(JVM) | ASM | @At | 其余扫描器 |
+|---|---|---|---|---|---|
+| 1.21.3 | 440 / 440 | 816 / 816 | 0 | 2(已停用 indigo) | 全 0 |
+| 1.21.4 | 474 / 474 | 812 / 812 | 0 | 2 | 全 0 |
+| 1.21.6 | 487 / 487 | 820 / 820 | 0 | 4 | 全 0 |
+| 1.21.7 | 500 / 500 | 823 / 823 | 0 | 4 | 全 0 |
+| 1.21.8 | 516 / 516 | 831 / 831 | 0 | 4 | 全 0 |
+| 1.21.9 | 519 / 519 | 832 / 832 | 0 | 4 | 全 0 |
+| 1.21.10 | 553 / 553 | 836 / 836 | 0 | 4 | 全 0 |
+| 1.21.11 | 570 / 570 | 874 / 874 | 0 | 4 | 全 0 |
+
+管线产物逐版本核对(`Optifine-mapped.jar` 里的条目):
+
+| MC | `post_effect/fxaa_of_2x.json` | 老位置链 json | `.vsh` |
+|---|---|---|---|
+| 1.21.3 / 1.21.6 / 1.21.7 | **在** | 在(OptiFine 自带,没动) | 原样(`in vec4 Position`) |
+| 1.21.8 | **在** | — | 原样 |
+| 1.21.9 / 1.21.10 | **在** | — | **已重写**(`gl_VertexID`,注释标了 `Rewritten by OptiFabric`) |
+| 1.21.11 | **在** | — | 原样(sp614x 那份) |
+
+真机:每个版本用修好的 jar 重跑探针,`Resource not found: minecraft:post_effect/fxaa_of_*` 必须为 **0 条**
+(`test-downloads\probe-1.21-aa.ps1`,可加 `-UseDist` 直接量发布出去的产物)。
 
 ## 仍待办的两项(实现细节已备齐,可直接开工)
 

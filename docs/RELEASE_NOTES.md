@@ -1,4 +1,4 @@
-# GitHub Release notes — tag `v1.1.1`(`OptiFabric-1.1.1+mc1.21.11.jar`)
+# GitHub Release notes — tag `v1.1.1`(`OptiFabric-1.1.2+mc1.21.11.jar`)
 
 > 复制下面 `---` 之间的内容到 GitHub Release 的说明框里(标题用第一行)。英文在前,末尾附中文摘要。
 > 标签是**版本号本身**(`v1.1.1`,不带 `+mc`),与已发的 `v1.1.0` / `v1.2.0` / `v2.0.0` 一致;这一行要手改,
@@ -6,17 +6,21 @@
 
 ---
 
-## OptiFabric 1.1.1+mc1.21.11 — OptiFine on Fabric 1.21.11
+## OptiFabric 1.1.2+mc1.21.11 — OptiFine on Fabric 1.21.11
 
 Run **OptiFine** and **Fabric** in the same 1.21.11 client. Drop OptiFabric and your own OptiFine jar into `mods/`; at startup OptiFabric runs OptiFine's installer, remaps its patches into Fabric's namespace, repairs the structural conflicts with Fabric API, and hands the result to Fabric Loader's class transformer.
 
 **OptiFine is not bundled or redistributed** — bring your own `OptiFine_1.21.11_HD_U_J9.jar` (or another 1.21.11 build).
 
-### New in 1.1.1
+### New in 1.1.2 — anti-aliasing, on every release from 1.21.3 up
 
-Switching to a shader pack no longer fails the resource reload (`Resource not found: minecraft:post_effect/fxaa_of_2x.json`, sometimes with `Could not find post chain with id: minecraft:fxaa_of_2x`). It was our own anti-aliasing repair: OptiFine builds since 1.21.8 stopped shipping the old `shaders/post/fxaa_of_*.json` location, so the pipeline wrote that file back and **deleted** the game's `post_effect/fxaa_of_2x.json`. On 1.21.6–1.21.10 OptiFine really does read the old location (measured), but on 1.21.11 the post chain is resolved by **the game's own loader**, which looks for `minecraft:fxaa_of_2x` under `post_effect/` — and that file was gone. 1.1.1 keeps OptiFine's own file exactly as shipped on 1.21.11, and every other release keeps the previous behaviour. The jar is built from the same source tree as the 26.x line, so that work is compiled in as well — it is gated on the runtime namespace and on what a release actually has, and on 1.21.11 (intermediary) the pipeline behaves as before, which the offline verification below re-checks in full.
+**1.1.2 covers eight jars** — 1.21.3, 1.21.4, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10 and 1.21.11 (1.21 and 1.21.1 stay at 1.1.0: OptiFine only ships the old chain location for those, which the repair never touched). On 1.21.11 this jar behaves exactly like 1.1.1, which already had this fix.
 
-This jar is versioned on its own: the other nine Minecraft releases of this line stay at 1.1.0, because their content did not change (`v1.1.0` stays as published).
+Anti-aliasing was broken on all of them. The pipeline deleted OptiFine's own `post_effect/fxaa_of_{2,4}x.json`, while that chain id (`minecraft:fxaa_of_2x`) is resolved by the **game's post-chain registry** from `post_effect/` — OptiFine patches `ShaderManager` to register it there. So every resource reload logged `Resource not found: minecraft:post_effect/fxaa_of_2x.json`, and touching anti-aliasing (or picking a shader pack — both reload the shaders) ended in `Failed to load post chain: minecraft:fxaa_of_2x` and a "failed to reload resources" prompt. 1.1.2 leaves OptiFine's files alone. On 1.21.9 and 1.21.10 there was a second, older bug behind the black screen: from 1.21.9 the game draws post-effect passes as an attribute-less fullscreen triangle (`gl_VertexID`), while OptiFine's `fxaa_of_*.vsh` still read the `Position` vertex attribute — the pipeline rewrites those two files (1.21.11's own build already ships the fixed shape, and 1.21.3–1.21.8's pipeline still has the attribute, so both are skipped).
+
+Measured, not assumed: all eight releases were run with the shipped jar, anti-aliasing at 2x and a shader pack loaded, and the log line `Resource not found: minecraft:post_effect/fxaa_of_*` is **0** on every one of them. The offline verification below was re-run for each of the eight.
+
+This is versioned per artifact: 1.21.3 – 1.21.11 are 1.1.2, 1.21 and 1.21.1 keep their published 1.1.0 jars, and `v1.1.0` / `v1.1.1` stay as published.
 
 ### Requirements
 
@@ -32,7 +36,7 @@ This jar is versioned on its own: the other nine Minecraft releases of this line
 ### Install
 
 1. Install a 1.21.11 Fabric client (Loader 0.19.5+).
-2. Put `OptiFabric-1.1.1+mc1.21.11.jar` **and** your OptiFine 1.21.11 jar into that version's `mods/` folder. Do **not** run OptiFine's installer — dropping the file in is enough.
+2. Put `OptiFabric-1.1.2+mc1.21.11.jar` **and** your OptiFine 1.21.11 jar into that version's `mods/` folder. Do **not** run OptiFine's installer — dropping the file in is enough.
 3. Start the game with the **Fabric** profile. The first launch spends a few seconds patching and remapping (cached afterwards under `<game dir>/.optifine/<version>/`).
 
 ### What it took for 1.21.11
@@ -65,7 +69,7 @@ OptiFine's 1.21.11 build ships its class patches as xdelta diffs, and its recomp
 
 | File | SHA-256 |
 |---|---|
-| `OptiFabric-1.1.1+mc1.21.11.jar` (876446 bytes) | `9E78C98FC0FC568C453ACA880FE167545192021D16C4A2DA0E4127AC5F3A9143` |
+| `OptiFabric-1.1.2+mc1.21.11.jar` (873615 bytes) | `B62AB6AEBD441E67C75F1FD239DFFF3286B437EA8B6B95AC5597AE7AC4FEFEF0` |
 
 The same `v1.21.x` project also builds the other Minecraft releases OptiFine ships a 1.21.x build for — 1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.6, 1.21.7, 1.21.8, 1.21.9 and 1.21.10 — with `.\gradlew -p v1.21.x build "-Pmc=<version>"`, and each of them passes the same offline verification (see [`docs/DEVELOPMENT.md`](DEVELOPMENT.md)).
 

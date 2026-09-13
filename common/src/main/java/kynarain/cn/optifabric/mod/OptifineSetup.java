@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -75,19 +74,6 @@ import kynarain.cn.optifabric.util.ZipUtils.ZipVisitor;
  * Both are cached in {@code .optifine/<version>/} inside the game directory.
  */
 public class OptifineSetup {
-	/**
-	 * Releases that resolve OptiFine's anti-aliasing chain through the game's own post-chain loader, which reads
-	 * {@code assets/minecraft/post_effect/fxaa_of_*.json}. On those the new-style file has to be left alone.
-	 *
-	 * <p>1.21.11 is here because a live session showed it: switching a shader pack reloaded the resources and
-	 * ended with {@code Could not find post chain with id: minecraft:fxaa_of_2x} right after
-	 * {@code Resource not found: minecraft:post_effect/fxaa_of_2x.json}, while the old-style file the repair
-	 * writes was never read. The earlier releases (1.21.6 - 1.21.10) were measured the other way round when the
-	 * repair was written, so they keep it. A release that has not been measured belongs in neither branch by
-	 * default: test it, search the log for "Could not find post chain", and add it here if it fails.
-	 */
-	private static final Set<String> POST_EFFECT_RELEASES = Set.of("1.21.11");
-
 	public static OptifineRuntime getRuntime() throws IOException {
 		File workingDir = new File(FabricLoader.getInstance().getGameDirectory(), ".optifine");
 		if (!workingDir.exists() && !workingDir.mkdirs()) throw new IOException("Failed to create " + workingDir);
@@ -262,37 +248,33 @@ public class OptifineSetup {
 		ClassCache generated = generateClassCache(jarFinaliser, optifinePatches, modHash, extract);
 
 		//OptiFine's own jar is not always right for the release it runs on (a post effect its build writes in a
-		//shape that release cannot parse, and a preview build that cancels the shaderpack load outright); those
-		//entries are repaired in the jar that is about to go on the class path.
+		//shape that release cannot parse, a preview build that cancels the shaderpack load outright, and an FXAA
+		//vertex shader written for the pipeline those releases no longer have); those entries are repaired in the
+		//jar that is about to go on the class path.
 		OptifineJarFixer.fix(remappedJar, getMinecraftJar());
 
-		//The post chain repair is for the obfuscated line only. It exists because those releases read OptiFine's
-		//anti-aliasing chain from the pre-1.21.6 location (assets/minecraft/shaders/post/), which OptiFine's build
-		//stopped filling in, so the fixer wrote that file and removed the new-style one so the two chain runners
-		//would not fight. A 26.x launch showed the assumption is backwards there: the game reads post_effect/ now,
-		//so removing it is what breaks the chain -
+		//OptiFine's own post-chain files are left exactly as they ship, on both lines. This used to be a repair
+		//instead: builds since 1.21.8 no longer carry the pre-1.21.6 shaders/post/fxaa_of_*.json, so the pipeline
+		//wrote that file and deleted OptiFine's post_effect/fxaa_of_*.json, on the theory that the two chain
+		//runners would otherwise fight. Measured on 1.21.11 that is backwards - the chain id is resolved from
+		//post_effect/ by the game's own loader (OptiFine patches ShaderManager to register it there), so deleting
+		//it produces, on every resource reload,
 		//
-		//  ShaderManager$CompilationException: Could not find post chain with id: minecraft:fxaa_of_2x
-		//    at ShaderManager.getPostChain -> GameRenderer.render
+		//  [OptiFabric] Resource not found: minecraft:post_effect/fxaa_of_2x.json
 		//
-		// - and the old-style file it wrote is never read. On the unobfuscated line OptiFine's own new-style post
-		//effect is left exactly as it ships.
-		if (OptifineMappings.OFFICIAL.equals(namespace)) {
-			System.out.println("[OptiFabric] Leaving OptiFine's post_effect/ files alone: this release reads the"
-					+ " post chain from there, not from the pre-1.21.6 shaders/post/ location");
-		} else if (POST_EFFECT_RELEASES.contains(OptifineVersion.minecraftVersion)) {
-			//1.21.11 flipped sides within the obfuscated line: the same kind of launch as above showed its loader
-			//resolving minecraft:fxaa_of_2x to post_effect/, so the repair has to stay off there too - otherwise
-			//switching a shader pack reloads the resources and fails with
-			//"Resource not found: minecraft:post_effect/fxaa_of_2x.json" and then "Could not find post chain".
-			//Measured, not guessed: add a release here only after running it with OptiFine's files left alone and
-			//searching the log for "Could not find post chain".
-			System.out.println("[OptiFabric] Leaving OptiFine's post_effect/ files alone on "
-					+ OptifineVersion.minecraftVersion + ": this release resolves the anti-aliasing chain there");
-			OptifinePostChainFixer.fix(remappedJar, true);
-		} else {
-			OptifinePostChainFixer.fix(remappedJar);
-		}
+		// and then, as soon as anti-aliasing is switched on or a shaderpack is picked (both reload the shaders
+		// and ask for the chain):
+		//
+		//  Failed to load post chain: minecraft:fxaa_of_2x
+		//    class_10151$class_10152: Could not find post chain with id: minecraft:fxaa_of_2x
+		//
+		// The same pair of lines was then reproduced from the shipped jars on 1.21.3, 1.21.4, 1.21.7, 1.21.8,
+		// 1.21.9 and 1.21.10 - the patched registration method is instruction-for-instruction identical from
+		//1.21.8 to 1.21.11 and the request itself goes back to 1.21.3, so the repair was wrong for the whole
+		//line. What the releases actually need instead is the shader repair in OptifineJarFixer. See
+		//docs/DEVELOPMENT.md, "抗锯齿:链在哪一侧".
+		System.out.println("[OptiFabric] Leaving OptiFine's post_effect/ files alone on "
+				+ OptifineVersion.minecraftVersion + ": this release resolves the anti-aliasing chain there");
 
 		Files.writeString(cacheStamp.toPath(), String.valueOf(CACHE_FORMAT), StandardCharsets.UTF_8);
 
@@ -324,9 +306,12 @@ public class OptifineSetup {
 	 * 25: the anti-aliasing chain repair is skipped on the releases that resolve the chain through the game's
 	 *     post-chain loader (1.21.11), so their OptiFine jar keeps its own post_effect/ file instead of having it
 	 *     replaced by the old-style one.
+	 * 26: that repair is gone for the whole obfuscated line (the chain is resolved from post_effect/ on every
+	 *     release since 1.21.3, so deleting OptiFine's copy was the bug), and the FXAA vertex shader of the
+	 *     releases whose post pipeline is attribute-less (1.21.9 / 1.21.10) is rewritten to match it.
 	 * Every bump is required, not cosmetic: artifacts produced by an older pipeline must not be reused.
 	 */
-	private static final int CACHE_FORMAT = 25;
+	private static final int CACHE_FORMAT = 26;
 
 	/** Reads a class with its stack map frames expanded, so they survive the round trip (see the de-volderfy step). */
 	private static ClassNode readClassWithFrames(ZipFile zip, ZipEntry entry) throws IOException {

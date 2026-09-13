@@ -80,10 +80,14 @@ $documentFiles = @(
 	"release/MANUAL_RELEASE_26.x.md",
 	"release/notes/mc26.1.2.md",
 	"release/notes/mc1.21.x.md",
-	"release/notes/mc1.21.11.md",
 	"docs/RELEASE_NOTES.md",
 	"dist/README.txt"
 )
+# Every per-release note file belongs here too: each one carries its own "<version>+mc<mc>" strings, and a bump
+# that misses them leaves the release page for that Minecraft version describing an older jar. Globbed rather than
+# listed, so adding a release note cannot forget this.
+$documentFiles += @(Get-ChildItem (Join-Path $root "release/notes") -Filter "mc*.md" | ForEach-Object { "release/notes/" + $_.Name })
+$documentFiles = @($documentFiles | Select-Object -Unique)
 # docs/VERSIONING.md is deliberately absent: its version numbers are examples of the rules, not statements about
 # the current release, so a bump must not rewrite them.
 

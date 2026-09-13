@@ -1,8 +1,24 @@
-# OptiFabric 1.1.0+mc1.21.3
+# OptiFabric 1.1.2+mc1.21.3
 
 **Minecraft 1.21.3** / Fabric Loader 0.19.5 / Java 21+ / 需求 OptiFine `OptiFine_1.21.3_HD_U_J2.jar`
 
-状态:**已实测正常**
+状态:**已实测正常(含抗锯齿)**
+
+## 1.1.2 修了什么
+
+**抗锯齿之前是坏的(或干脆没生效),这一版把它修好了。**
+
+- **病根**:管线会删掉 OptiFine 自带的 `assets/minecraft/post_effect/fxaa_of_{2,4}x.json`(以为这条链该走
+  1.21.6 之前的老位置),而事实上链是由**游戏自己的后处理链注册表**按 `minecraft:fxaa_of_2x` 从 `post_effect/`
+  解析的(OptiFine 把 `ShaderManager` 改成在那儿注册)。文件被删了,于是每次资源重载都刷一条
+  `Resource not found: minecraft:post_effect/fxaa_of_2x.json`,一旦动抗锯齿(或切光影包 —— 两者都会重载光影)
+  就 `Failed to load post chain: minecraft:fxaa_of_2x`,界面上就是"重载资源失败"。
+- **现在**:不再碰 OptiFine 的后处理文件,链由游戏按原样解析。
+- **顶点着色器**:本版本游戏的后处理管线仍然是"给顶点属性"的那一套(`post/screenquad.vsh` 用
+  `in vec4 Position` + `Projection` 块),OptiFine 自带的 `fxaa_of_*.vsh` 接口与它一致(**原样保留**),
+  所以这一版只要不再删链就正常了。
+- 判据都是文件内容(游戏那份 `core/screenquad.vsh` 是否用 `gl_VertexID`、OptiFine 那份 `.vsh` 是否还在读
+  `Position`),所以不需要按版本列表维护:**本 jar** 属于哪一档已由上面的命令行验证过。
 
 ## 这个版本是什么
 
@@ -32,6 +48,6 @@
 
 ## 校验
 
-`OptiFabric-1.1.0+mc1.21.3.jar` — 771984 字节
+`OptiFabric-1.1.2+mc1.21.3.jar` — 780347 字节
 
-`SHA-256: 64A40A9FF482C1E23B3E7A6AA8B3651E5368130AA52B2ED9EA0AAB2781C46006`
+`SHA-256: 81B1BA061411CC5CBE42994BB00186AA61900900805BCA6314E4BEEBD69929DE`

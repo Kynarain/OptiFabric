@@ -34,14 +34,14 @@ One jar per release, for every 1.21.x version OptiFine ships a build for — eac
 |---|---|---|
 | 1.21 | `OptiFabric-1.1.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar` (preview only) |
 | 1.21.1 | `OptiFabric-1.1.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` |
-| 1.21.3 | `OptiFabric-1.1.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
-| 1.21.4 | `OptiFabric-1.1.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
-| 1.21.6 | `OptiFabric-1.1.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
-| 1.21.7 | `OptiFabric-1.1.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
-| 1.21.8 | `OptiFabric-1.1.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
-| 1.21.9 | `OptiFabric-1.1.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
-| 1.21.10 | `OptiFabric-1.1.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
-| 1.21.11 | `OptiFabric-1.1.1+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
+| 1.21.3 | `OptiFabric-1.1.2+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
+| 1.21.4 | `OptiFabric-1.1.2+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
+| 1.21.6 | `OptiFabric-1.1.2+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
+| 1.21.7 | `OptiFabric-1.1.2+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
+| 1.21.8 | `OptiFabric-1.1.2+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
+| 1.21.9 | `OptiFabric-1.1.2+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
+| 1.21.10 | `OptiFabric-1.1.2+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
+| 1.21.11 | `OptiFabric-1.1.2+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
 | **26.1.2** | `OptiFabric-Reforged-2.0.0+mc26.1.2.jar` | `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar` (**Java 25**) |
 
 (OptiFine never shipped a build for 1.21.2 or 1.21.5, so there is no jar for those.) The 1.21.x releases and 26.1.2 are **separate lines** — different build setup, different runtime path, and 26.1.2 needs **Java 25** — so their jars are not interchangeable. All of them pass the same offline verification: every patched class and every OptiFine class loaded and checked with the JVM verifier plus an ASM data-flow verifier, and five scanners on top. Live-verified on 1.21.11 and on 26.1.2.
@@ -103,7 +103,7 @@ Nine of them exist **only on 26.1.2**, where the game is unobfuscated and the re
 - OptiFine also hollows out `ModelManager`'s bake lambda, `ScreenEffectRenderer.getViewBlockingState` and `CuboidItemModelWrapper.update` → their vanilla bodies are restored (`update` too needs its vanilla-absent overload dropped);
 - the chunk object is redirected to OptiFine's own `ChunkOF` → an inert marker is inserted **under the official name** so injections that depend on `LevelChunk` have a target again;
 - the Fabric renderer API moved into `api.client.renderer.v1` on 26.1, so the placeholder renderer was never registered (the lookup failed and returned quietly) and the first `Renderer.get()` crashed the game. The placeholder also no longer throws: Fabric API's own rendering hooks call it in the middle of ordinary frames, and it answers with inert objects of the right shape instead;
-- the anti-aliasing repair is the other way round there: 26.x reads the post chain from `post_effect/`, so *removing* that file — which the 1.21.x repair does — is what broke AA;
+- the anti-aliasing chain is read from `post_effect/` here, so the *removal* of that file — which the 1.21.x line's repair did — is what broke AA. That repair is gone as of **1.1.2**, on both lines: OptiFine's own post-chain files are left exactly as they ship (the game resolves `minecraft:fxaa_of_2x` from `post_effect/` on every release from 1.21.3 up, and 1.21.9 / 1.21.10 additionally need their FXAA vertex shader rewritten for the attribute-less post pipeline those releases use);
 - and the quietest one, which never crashed: the `fabric-renderer-api-v1:contains_renderer` key inherited from the 1.21.x line was switching off exactly the rendering plug-in Fabric API keeps asking for. Indigo is not a terrain renderer on 26.1.2 any more (Fabric API moved the terrain and submit-node integration into `fabric-renderer-api-v1` itself, leaving Indigo one item mixin and two accessors), so the key had nothing left to keep away: mods' meshes went into the inert placeholder — invisible, and silent about it. This line no longer declares the key and Indigo registers its own `IndigoRenderer`; the fallback class reads the key back and only steps in where it is declared;
 - and the one that makes FRAPI mods actually render: Fabric's terrain hook injects into the vanilla chunk-build loop's `BlockPos.betweenClosed` iteration, and OptiFine's own compile overload has no such loop at all, so that hook ran nowhere and a model's own geometry — better grass, anything that has to look at the world around a block — was silently absent. The block tesselation call inside OptiFine's method now goes to our bridge: the quads are produced by Fabric's renderer (ambient occlusion, tint and light included) and handed to the `BlockQuadOutput` OptiFine passes in, so OptiFine still writes every vertex, with its vertex format, layers, lighting and shader attributes. Writing them into the section buffers instead — what Fabric's own hook does on a Fabric client — corrupts them here (a second `BufferBuilder` over the same `ByteBufferBuilder`), which shows up in game as see-through blocks.
 
@@ -177,14 +177,14 @@ A port of [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric) by Mod
 |---|---|---|
 | 1.21 | `OptiFabric-1.1.0+mc1.21.jar` | `preview_OptiFine_1.21_HD_U_J1_pre9.jar`(只有 preview) |
 | 1.21.1 | `OptiFabric-1.1.0+mc1.21.1.jar` | `OptiFine_1.21.1_HD_U_J1.jar` |
-| 1.21.3 | `OptiFabric-1.1.0+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
-| 1.21.4 | `OptiFabric-1.1.0+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
-| 1.21.6 | `OptiFabric-1.1.0+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
-| 1.21.7 | `OptiFabric-1.1.0+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
-| 1.21.8 | `OptiFabric-1.1.0+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
-| 1.21.9 | `OptiFabric-1.1.0+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
-| 1.21.10 | `OptiFabric-1.1.0+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
-| 1.21.11 | `OptiFabric-1.1.1+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
+| 1.21.3 | `OptiFabric-1.1.2+mc1.21.3.jar` | `OptiFine_1.21.3_HD_U_J2.jar` |
+| 1.21.4 | `OptiFabric-1.1.2+mc1.21.4.jar` | `OptiFine_1.21.4_HD_U_J3.jar` |
+| 1.21.6 | `OptiFabric-1.1.2+mc1.21.6.jar` | `preview_OptiFine_1.21.6_HD_U_J6_pre3.jar` |
+| 1.21.7 | `OptiFabric-1.1.2+mc1.21.7.jar` | `preview_OptiFine_1.21.7_HD_U_J6_pre7.jar` |
+| 1.21.8 | `OptiFabric-1.1.2+mc1.21.8.jar` | `preview_OptiFine_1.21.8_HD_U_J6_pre16.jar` |
+| 1.21.9 | `OptiFabric-1.1.2+mc1.21.9.jar` | `preview_OptiFine_1.21.9_HD_U_J7_pre2.jar` |
+| 1.21.10 | `OptiFabric-1.1.2+mc1.21.10.jar` | `preview_OptiFine_1.21.10_HD_U_J7_pre11.jar` |
+| 1.21.11 | `OptiFabric-1.1.2+mc1.21.11.jar` | `OptiFine_1.21.11_HD_U_J9.jar` |
 | **26.1.2** | `OptiFabric-Reforged-2.0.0+mc26.1.2.jar` | `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar`(**要 Java 25**) |
 
 (OptiFine 没出过 1.21.2 / 1.21.5 的构建,所以这两版没有对应 jar;26.1.2 不属于 1.21 序列,单独成行、单独一条发布线。)11 个版本都通过了同一套离线校验(每个补丁类与每个 OptiFine 类都在与游戏一致的单一加载器里用 JVM 验证器 + ASM 数据流验证器双向检查,再加 5 个扫描器);真机验收已完成 **1.21.11 与 26.1.2**。其余 1.21.x 版本装机实测过,发现的两处 `VerifyError`(补丁管线给未被 fixer 改动的类也重算了栈帧)已定位并修复,其余现象仍在排查,见 `docs/DEVELOPMENT.md` 文末。
@@ -246,7 +246,7 @@ Fabric API 可以一起加载(本模组专门针对它做过适配;每个版本�
 - OptiFine 还掏空了 `ModelManager` 的烘焙 lambda、`ScreenEffectRenderer.getViewBlockingState`、`CuboidItemModelWrapper.update` → 一律补回原版方法体(`update` 同样要顺带丢掉原版已删的重载);
 - 区块对象被换成 OptiFine 自己的 `ChunkOF` → 按**官方名**插入惰性标记,让依赖 `LevelChunk` 的注入点重新存在;
 - Fabric 的渲染器 API 这一版搬到了 `api.client.renderer.v1` → 新旧两个包名依次回退;占位实现也改成**生成惰性桩**(链式调用返回 `this`、getter 返回惰性对象),不再一个方法一个方法地补,杜绝"渲染到一半抛异常";
-- **抗锯齿的修法在那边正好相反**:26.x 是从 `post_effect/` 读后处理链的,而 1.21.x 的修法恰恰是**删掉**那个文件 —— 照搬过去就会把抗锯齿弄坏;
+- **抗锯齿**:这条链两边都从 `post_effect/` 解析,所以 1.21.x 那条"**删掉**那个文件"的修法本身就是错的 —— **1.1.2 已把它从两条线上一起删掉**:OptiFine 自带的 post_effect 文件一律原样保留(1.21.3 起每个版本的 `minecraft:fxaa_of_2x` 都从那儿解析),1.21.9 / 1.21.10 另外还要把它们的 FXAA 顶点着色器改写成那两版的无顶点属性管线写法;
 - **最安静的一条(它从不崩)**:从 1.21.x 继承过来的 `fabric-renderer-api-v1:contains_renderer` 让位键,在这一线关掉的正是 Fabric API 一直要用的那个渲染器 —— 26.1.2 的 indigo 已经不是地形渲染器(地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己,它只剩一条物品 mixin 和两个 accessor),键没有东西可"让"了,于是模组生成的网格进了惰性占位:**看不见,而且不报错**。现在这一线不再声明该键,由 Indigo 注册自己的 `IndigoRenderer`;占位类把这个键读回来,只在它确实被声明时兜底;
 - **让 FRAPI 模组真的能画出来的那一条**:Fabric 的地形钩子注入在原版区块构建循环的 `BlockPos.betweenClosed` 上,而 OptiFine 自己的 `compile` 里**根本没有那个循环**,于是钩子无处执行,模型**实时生成**的几何(更好的草,以及任何需要看周围方块的几何)**静默消失**。现在 OptiFine 方法里那次方块 tessellate 调用指向我们的桥:几何由 Fabric 的渲染器产出(含 AO、染色与光照),再交给 OptiFine 传进来的 `BlockQuadOutput` —— **顶点仍由 OptiFine 写**(顶点格式、层级、光照、光影属性都是它的)。反过来直接写区块缓冲(Fabric 自己的钩子在纯 Fabric 上就是这么做的)在这里会把数据写坏:同一个 `ByteBufferBuilder` 上出现第二个 BufferBuilder,真机表现为**方块透明**。
 

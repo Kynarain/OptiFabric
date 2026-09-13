@@ -4,7 +4,7 @@
 
 > 本仓库有**两条独立的发布线**,jar 不能互相替代:
 >
-> - **1.21.x 线** = `1.1.0+mc1.21` … `1.1.1+mc1.21.11`(10 个版本,一份源码一个项目 `v1.21.x/`。
+> - **1.21.x 线** = `1.1.0+mc1.21` … `1.1.2+mc1.21.11`(10 个版本,一份源码一个项目 `v1.21.x/`。
 >   本文下面第三节起**以它为例**);
 > - **26.x 线** = `2.0.0+mc26.1.2`(26.1 起游戏**未混淆**,是另一套构建与运行期路径,项目 `v26.x/`)。
 >   它有自己的清单 [`release/MANUAL_RELEASE_26.x.md`](../release/MANUAL_RELEASE_26.x.md) 与移植记录
@@ -46,7 +46,7 @@ Copy-Item "v26.x\build\libs\OptiFabric-Reforged-2.0.0+mc26.1.2.jar" dist -Force
 | 项目 | 位置 | 说明 |
 |---|---|---|
 | 源码仓库 | 仓库根目录 | 已配好 `.gitignore`(不含 OptiFine、测试工件、构建产物) |
-| 构建配置 | `v1.21.x/build.gradle` / `gradle.properties` | 版本号 `1.1.1+mc1.21.11`,产物名 `OptiFabric-1.1.1+mc1.21.11.jar` |
+| 构建配置 | `v1.21.x/build.gradle` / `gradle.properties` | 版本号 `1.1.2+mc1.21.11`,产物名 `OptiFabric-1.1.2+mc1.21.11.jar` |
 | 许可 | `LICENSE.txt` | MPL-2.0(上游 OptiFabric 的许可,移植必须保留) |
 | 使用者文档 | `README.md` | 原理、安装、已知问题、排查(已按 1.21.11 更新) |
 | 开发记录 | `docs/DEVELOPMENT.md` | 逐轮排查与可复现的离线校验工具(1.21.11 的 9 类崩溃都在里面) |
@@ -106,7 +106,7 @@ git tag v1.1.1
 git push origin v1.1.1
 ```
 
-然后在 GitHub 网页上基于该 tag 建 Release(`Target` 选 `26.x` 分支),把 `OptiFabric-1.1.1+mc1.21.11.jar`
+然后在 GitHub 网页上基于该 tag 建 Release(`Target` 选 `26.x` 分支),把 `OptiFabric-1.1.2+mc1.21.11.jar`
 (以及 `-sources.jar`,可选)作为附件上传。仓库根目录的发布脚本也能做同样的事:
 
 ```powershell
@@ -133,7 +133,7 @@ git push origin v1.1.1
    - 模组加载器:**Fabric**
    - 许可:**MPL-2.0**(与上游一致,必须一致)
    - 分类建议:Optimization / Miscellaneous
-2. **上传文件**:10 个 jar **各传一个文件**,版本名用同一个格式 `1.1.0+mc<版本>`,并在文件设置里把**对应的那一个游戏版本**勾上(例如 `OptiFabric-1.1.0+mc1.21.8.jar` 只勾 1.21.8)。changelog 用 `docs/RELEASE_NOTES_1.21.x.md` 里对应那一节。
+2. **上传文件**:10 个 jar **各传一个文件**,版本名用同一个格式 `1.1.0+mc<版本>`,并在文件设置里把**对应的那一个游戏版本**勾上(例如 `OptiFabric-1.1.2+mc1.21.8.jar` 只勾 1.21.8)。changelog 用 `docs/RELEASE_NOTES_1.21.x.md` 里对应那一节。
    - 也可以先只发几个版本(1.21.1 / 1.21.4 / 1.21.8 这类用的人多),其余随时补传。
 3. **项目描述**:`docs/DESCRIPTION.md` 里给了成套文案 —— "简介"栏粘贴**简要描述**(英文在前、中文在后,CF 要求英文排最前),项目正文粘贴**详细描述**(有中文和英文两版,CF 支持 Markdown;里面已经带了"支持的版本"表)。
    GitHub 仓库的 About 也可以直接用那句简要描述。

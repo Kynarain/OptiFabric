@@ -22,6 +22,20 @@
  *    Either way OptiFine's shader initialization fails and the shaderpack the user selected is never loaded at
  *    all ("[Shaders] No shaderpack loaded."), which is where "shaders do nothing on 1.21.9" comes from.
  *
+ * 1b. assets/minecraft/shaders/post/fxaa_of_{2x,4x}.vsh - the vertex stage of that same FXAA pass. From 1.21.9
+ *    on the game draws its post-effect passes as an *attribute-less* fullscreen triangle (core/screenquad.vsh
+ *    generates the corners from gl_VertexID), while OptiFine's preview builds for 1.21.9 and 1.21.10 still read
+ *    the Position vertex attribute the 1.21.6 - 1.21.8 pipeline used to supply:
+ *
+ *      in vec4 Position;
+ *      vec4 outPos = ProjMat * vec4(Position.xy * OutSize, 0.0, 1.0);
+ *
+ *    Nothing binds that attribute any more, so the quad collapses and the whole screen goes black the moment
+ *    the user turns antialiasing on (the "开抗锯齿整屏黑" of 1.21.9 / 1.21.10). The 1.21.11 build fixes this in
+ *    its own file - it ships a copy of core/screenquad.vsh with the FXAA extras appended - so the same rewrite
+ *    is produced here for the builds that do not have it yet. Nothing of OptiFine's is copied or redistributed:
+ *    the file is written from the game's own convention plus the FXAA extras the user's own copy already has.
+ *
  * 2. net/optifine/shaders/Shaders.class - the 1.21.6 and 1.21.7 preview builds (J6_pre3, J6_pre7) cancel the
  *    load unconditionally, right before it happens:
  *
@@ -64,17 +78,36 @@ import kynarain.cn.optifabric.util.ZipUtils;
 
 public class OptifineJarFixer {
 	private static final String POST_EFFECT = "assets/minecraft/post_effect/";
+	private static final String POST_SHADER = "assets/minecraft/shaders/post/";
+	private static final String GAME_SCREENQUAD = "assets/minecraft/shaders/core/screenquad.vsh";
 	private static final String SCREENQUAD = "minecraft:core/screenquad";
 
 	private static final Pattern PROGRAM_PASS = Pattern.compile("\"program\"\\s*:\\s*\"([^\"]+)\"");
 	private static final Pattern VERTEX_SHADER = Pattern.compile("\"vertex_shader\"\\s*:\\s*\"([^\"]+)\"");
+
+	/** The parts of the pre-1.21.9 FXAA vertex shader that the attribute-less pipeline cannot fill in. */
+	private static final Pattern POSITION_INPUT = Pattern.compile("(?m)^\\s*in\\s+vec4\\s+Position\\s*;\\s*\\r?\\n");
+	private static final Pattern PROJECTION_BLOCK = Pattern.compile(
+			"layout\\s*\\(\\s*std140\\s*\\)\\s*uniform\\s+Projection\\s*\\{[^}]*\\}\\s*;\\s*\\r?\\n");
+	private static final Pattern POSITION_QUAD = Pattern.compile(
+			"vec4\\s+outPos\\s*=\\s*ProjMat\\s*\\*\\s*vec4\\(Position\\.xy\\s*\\*\\s*OutSize,\\s*0\\.0,\\s*1\\.0\\)\\s*;"
+					+ "\\s*\\r?\\n\\s*gl_Position\\s*=\\s*vec4\\(outPos\\.xy,\\s*0\\.2,\\s*1\\.0\\)\\s*;");
+	private static final Pattern POSITION_TEXCOORD = Pattern.compile("texCoord\\s*=\\s*Position\\.xy\\s*;");
+
+	/** The replacement for the two lines above: the fullscreen triangle core/screenquad.vsh draws. */
+	private static final String SCREENQUAD_QUAD =
+			"vec2 uv = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);\n    gl_Position = vec4(uv * vec2(2, 2) + vec2(-1, -1), 0, 1);";
+
+	private static final String REWRITE_NOTE = "// Rewritten by OptiFabric: this release draws post-effect passes as an attribute-less\n"
+			+ "// fullscreen triangle (core/screenquad.vsh uses gl_VertexID), so the Position input of\n"
+			+ "// OptiFine's shader is never filled in and the pass would draw nothing but black.\n";
 
 	/** A pass that copies one target into another through the game's own post/blit program. */
 	private static final Pattern BLIT_PASS = Pattern.compile(
 			"\\{\\s*\"vertex_shader\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"fragment_shader\"\\s*:\\s*\"minecraft:post/blit\""
 					+ "\\s*,\\s*\"inputs\"\\s*:\\s*(\\[[^\\[\\]]*\\])\\s*,\\s*\"output\"\\s*:\\s*\"([^\"]+)\"\\s*\\}");
 
-	/** Rewrites the two kinds of entry described above, in place. */
+	/** Rewrites the entries described above, in place. */
 	public static void fix(File jar, Path minecraftJar) throws IOException {		//Only the game jar is held open here: the jar being rewritten must stay untouched, or Windows refuses to
 		//replace it half way through.
 		try (ZipFile minecraft = openQuietly(minecraftJar)) {
@@ -83,6 +116,11 @@ public class OptifineJarFixer {
 
 				if (name.startsWith(POST_EFFECT) && name.endsWith(".json")) {
 					byte[] fixed = fixPostEffect(zip, minecraft, entry);
+					return fixed != null ? new ByteArrayInputStream(fixed) : zip.getInputStream(entry);
+				}
+
+				if (name.startsWith(POST_SHADER) && name.endsWith(".vsh")) {
+					byte[] fixed = fixPostVertexShader(zip, minecraft, entry);
 					return fixed != null ? new ByteArrayInputStream(fixed) : zip.getInputStream(entry);
 				}
 
@@ -99,6 +137,52 @@ public class OptifineJarFixer {
 				return zip.getInputStream(entry);
 			});
 		}
+	}
+
+	/**
+	 * Turns an FXAA vertex shader that reads the {@code Position} attribute into the attribute-less fullscreen
+	 * triangle the release's post pipeline actually draws, keeping everything else of the file (the uniform
+	 * blocks and the FXAA offsets the fragment stage reads) exactly as OptiFine shipped it.
+	 *
+	 * <p>Returns {@code null} - i.e. leaves the entry alone - unless every piece of the old shape is there, so a
+	 * build that already has the new shape (1.21.11 ships one) or one whose pipeline still has vertex attributes
+	 * (1.21.3 - 1.21.8) is untouched.
+	 */
+	private static byte[] fixPostVertexShader(ZipFile optifine, ZipFile minecraft, ZipEntry entry) throws IOException {
+		if (minecraft == null || minecraft.getEntry(GAME_SCREENQUAD) == null) return null;
+
+		String screenQuad;
+
+		try (InputStream in = minecraft.getInputStream(minecraft.getEntry(GAME_SCREENQUAD))) {
+			screenQuad = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+		}
+
+		//the game only generates the quad from gl_VertexID when it stopped handing out the attribute
+		if (!screenQuad.contains("gl_VertexID")) return null;
+
+		String text;
+
+		try (InputStream in = optifine.getInputStream(entry)) {
+			text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+		}
+
+		if (text.contains("gl_VertexID")) return null; //already the shape this release needs
+		if (!POSITION_INPUT.matcher(text).find() || !POSITION_QUAD.matcher(text).find() || !POSITION_TEXCOORD.matcher(text).find()) {
+			return null; //not the shape this repair knows how to rewrite
+		}
+
+		String fixed = text;
+		fixed = fixed.replaceFirst("(?m)^#version\\s+150\\s*$", Matcher.quoteReplacement("#version 330\n\n" + REWRITE_NOTE.trim()));
+		fixed = POSITION_INPUT.matcher(fixed).replaceFirst("");
+		fixed = PROJECTION_BLOCK.matcher(fixed).replaceFirst("");
+		fixed = POSITION_QUAD.matcher(fixed).replaceFirst(Matcher.quoteReplacement(SCREENQUAD_QUAD));
+		fixed = POSITION_TEXCOORD.matcher(fixed).replaceFirst("texCoord = uv;");
+
+		System.out.println("[OptiFabric] Rewrote " + entry.getName() + ": this release draws post-effect passes from"
+				+ " gl_VertexID (core/screenquad.vsh), so OptiFine's Position attribute is never bound and the pass"
+				+ " would draw black as soon as antialiasing is on");
+
+		return fixed.getBytes(StandardCharsets.UTF_8);
 	}
 
 	/** The game's own post effects, and OptiFine's, in the shape the release's parser expects. */
