@@ -1,5 +1,9 @@
 # 更新日志
 
+> 本文件按时间倒序,收录本仓库**两条线**的全部已发布版本:本分支的 **26.x**(`2.0.0+mc26.1.2`、`1.2.0+mc26.1.2`)
+> 与 **1.21.x**(`1.1.0` – `1.1.2`,十个 MC 版本)。1.21.x 那条线在自己的分支上,它的条目按当时的样子保留,属于历史记录。
+> 26.x 只对应 26.1.2 一个产物,所以这一线没有"逐 MC 版本的版本号"。
+
 ## 1.1.2+mc1.21.3 … 1.1.2+mc1.21.11 — 抗锯齿全线修复,并纠正 1.1.1 里的错误结论
 
 > **这一版覆盖 8 个产物**:1.21.3 / 1.21.4 / 1.21.6 / 1.21.7 / 1.21.8 / 1.21.9 / 1.21.10 / 1.21.11(都叫 1.1.2)。
@@ -44,7 +48,7 @@
 
 ### 本版做了什么
 
-1. **不再碰 OptiFine 的后处理文件**:`OptifinePostChainFixer` 整个删除,两条线一视同仁。链本来就该由游戏按
+1. **不再碰 OptiFine 的后处理文件**:`OptifinePostChainFixer` 整个删除。链本来就该由游戏按
    `minecraft:fxaa_of_2x` 从 `post_effect/` 解析(OptiFine 把 `ShaderManager` 改成在那儿注册),OptiFine 自带的
    那份就是它要的:补写老位置文件多余,删掉新位置文件是错的。这一条同时消掉"每次资源重载刷警告"与
    "一动抗锯齿就弹重载资源失败"。
@@ -135,10 +139,10 @@ OptiFine 的类里也没有路径字面量),依据写在 `OptifineSetup.POST_EFF
 官方名就是运行名,既没有 yarn 也没有真正的 intermediary 可重映射(26.1.2 只发布占位 `intermediary:0.0.0`)。
 因此 26.x 用 Loom 的**非重映射** flavour(`net.fabricmc.fabric-loom`)、不写 `mappings`、运行期命名空间是
 `official` 而不是 `intermediary`;1.21.x 那套按 `class_XXXX` 注册的 fixer 判据在这一线指向的类**根本不存在**,
-所以另建了一张"官方名"注册表。
+所以这条线只有一张"官方名"注册表(`registerOfficialNameFixes`),intermediary 那一张在 1.21.x 自己的分支上。
 
 ```powershell
-.\gradlew -p v26.x build        →  OptiFabric-Reforged-2.0.0+mc26.1.2.jar
+.\gradlew build                  →  OptiFabric-Reforged-2.0.0+mc26.1.2.jar
 ```
 
 ### 本版修复
@@ -163,7 +167,7 @@ OptiFine 的类里也没有路径字面量),依据写在 `OptifineSetup.POST_EFF
   表现为"一切方块透明",原因见 `docs/PORT_26.x.md` 第 5 节)。只路由 `emitQuads` 声明在游戏之外的模型,
   原版方块一律留在 OptiFine 的路由上(否则光影下会把 OptiFine 的额外顶点属性弄丢:实测发黑/光照怪);
 - **抗锯齿**:26.x 从 `post_effect/` 读后处理链,而 1.21.x 那套修复的做法是**删掉该文件**、补写老位置的链 ——
-  在这一线正好是反的。现在按版本线分开处理;
+  在这一线正好是反的。当时按版本线分开处理;
 - **渲染路径**:移动方块与普通方块模型这两处 Fabric API 钩子仍改为惰性(由原版/OptiFine 路径绘制);方块破坏
   裂纹那条没有动,它现在真的走 Indigo 的渲染器。
 

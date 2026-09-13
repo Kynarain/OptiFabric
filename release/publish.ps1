@@ -1,13 +1,13 @@
 ﻿# NOTE: keep this file UTF-8 WITH BOM. Windows PowerShell reads .ps1 as ANSI when there is no BOM, and the
 # Chinese text below then mis-parses (a trailing quote gets eaten and the whole file fails to load).
 <#
-    把 dist/ 里十版 jar 逐个发到三个平台。逐版一个发布条目,版本号就是 1.0.0+mc<版本>。
+    把 dist/ 里那个 jar 发到三个平台。逐版一个发布条目,版本号就是 <版本>+mc<MC版本>(当前是 2.0.0+mc26.1.2)。
 
     用法:
       # 先看要执行什么(不联网、不改远端)
       .\release\publish.ps1 -DryRun
       # 只发某一个版本
-      .\release\publish.ps1 -Version 1.21.8
+      .\release\publish.ps1 -Version 26.1.2
       # 真发(需要下面的凭据)
       .\release\publish.ps1
 
@@ -29,23 +29,24 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-# 1.21.x 与 26.x 是两条独立发布线,jar 与标签各发各的(见 release\MANUAL_RELEASE*.md)。
-# 版本基数按线分(defaultModVersion 是 1.21.x 里没有例外值的那些版本用的;26.x 只有一个版本,写在映射里)。
-$versions = @("1.21", "1.21.1", "1.21.3", "1.21.4", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11", "26.1.2")
-$defaultModVersion = "1.1.0"
-# 逐 MC 版本的例外值:某个版本单独升过版就写在这里(1.21.11 的 1.1.1 = 只修它一个版本的抗锯齿后处理链)。
-# 这张表由 release\version.ps1 -Mc 维护,别手改(见 docs\VERSIONING.md 第五节)。
-$modVersions = @{ "26.1.2" = "2.0.0"; "1.21.11" = "1.1.2"; "1.21.3" = "1.1.2"; "1.21.4" = "1.1.2"; "1.21.6" = "1.1.2"; "1.21.7" = "1.1.2"; "1.21.8" = "1.1.2"; "1.21.9" = "1.1.2"; "1.21.10" = "1.1.2" }
-# 26.x 那条线的产物名也是它自己的:它的 mod id 是 optifabric_reforged(见 v26.x/build.gradle),
-# 所以 jar 名与 1.21.x 不同,发布脚本必须按线取文件名。
-$defaultArtifact = "OptiFabric"
-$modArtifacts = @{ "26.1.2" = "OptiFabric-Reforged" }
-# The display name follows the artifact: the 26.x line renamed itself, see v26.x/build.gradle.
-$defaultModName = "OptiFabric"
-$modNames = @{ "26.1.2" = "OptiFabric Reforged" }
-# 每条线各自的开发与发布分支:1.21.x 的修复开发在 1.21.x 分支上,26.x 线在 26.x 分支上(见 docs\PUBLISHING.md)。
-$defaultTagTarget = "1.21.x"
-$modTagTargets = @{ "26.1.2" = "26.x" }
+# 本仓库只有 26.x 一条发布线(见 release\MANUAL_RELEASE.md)。
+# 版本基数:$defaultModVersion 就是这一线唯一的那个产物(26.x 只对应 26.1.2 一个 MC 版本)。
+$versions = @("26.1.2")
+$defaultModVersion = "2.0.0"
+# 逐 MC 版本的例外值:某个版本单独升过版就写在这里。这条线只有一个 MC 版本,所以表是空的 ——
+# 整条线一起升版就行(单版本线的 -Mc 会被 release\version.ps1 拒绝,见 docs\VERSIONING.md 第五节)。
+$modVersions = @{}
+# 产物名与显示名也是这一线自己的:mod id 是 optifabric_reforged(见根目录 build.gradle),
+# 所以 jar 名与显示名与另一条线(1.21.x,在自己的分支上)不同。下面几张逐版本覆盖表现在都是空的 ——
+# 只有某个 MC 版本要用别的产物名 / 显示名 / tag 分支时才往里加一条。
+$defaultArtifact = "OptiFabric-Reforged"
+$modArtifacts = @{}
+# The display name follows the artifact: this line renamed itself, see the root build.gradle.
+$defaultModName = "OptiFabric Reforged"
+$modNames = @{}
+# 本仓库的开发与发布分支:26.x 的修复开发与 tag 都在 26.x 分支上(见 docs\PUBLISHING.md)。
+$defaultTagTarget = "26.x"
+$modTagTargets = @{}
 
 if ($Version -ne "all") {
 	if ($versions -notcontains $Version) { throw "未知版本: $Version(可选:" + ($versions -join ", ") + ")" }
@@ -55,8 +56,8 @@ if ($Version -ne "all") {
 $tmp = Join-Path $root "release\tmp"
 New-Item -ItemType Directory -Force $tmp | Out-Null
 
-#1.21.6 / 1.21.7 的 OptiFine 构建自身有缺陷,默认不推荐发布(要发就加 -Version 单独发)
-$unsupported = @("1.21.6", "1.21.7")
+# 构建自身有缺陷、默认不推荐发布的 MC 版本;26.x 这一线没有这样的版本,所以是空表(要临时跳过某版就加进来)
+$unsupported = @()
 
 foreach ($mc in $versions) {
 	$modVersion = if ($modVersions.ContainsKey($mc)) { $modVersions[$mc] } else { $defaultModVersion }
@@ -65,15 +66,14 @@ foreach ($mc in $versions) {
 	$modName = if ($modNames.ContainsKey($mc)) { $modNames[$mc] } else { $defaultModName }
 $jar = Join-Path $root "dist\$artifact-$modVersion+mc$mc.jar"
 	$notes = Join-Path $root "release\notes\mc$mc.md"
-	# Tag shape follows the releases this repo already has (v1.1.0, v1.2.0): the version number alone. The MC
+	# Tag shape follows the releases this repo already has (v1.2.0, v2.0.0): the version number alone. The MC
 	# version stays in the artifact name and in the release title, not in the tag.
 	$tag = "v$modVersion"
 	$title = "$modName $modVersion+mc$mc"
-	# Which branch the tag is made on. gh would otherwise tag the default branch (main), which is not where either
+	# Which branch the tag is made on. gh would otherwise tag the default branch (main), which is not where this
 	# release line lives - the first 26.x release was tagged through the web UI and ended up pointing at main.
-	# Each line is now released from its own branch: 1.21.x from 1.21.x, the 26.x line from 26.x (see the branch
-	# section of docs\PUBLISHING.md). mc1.21.x is the single-project layout the ten 1.1.0 jars were built from and
-	# is kept as history only.
+	# This line is released from 26.x (see the branch section of docs\PUBLISHING.md); mc1.21.x is the old
+	# single-project layout and is kept as history only.
 	$tagTarget = if ($modTagTargets.ContainsKey($mc)) { $modTagTargets[$mc] } else { $defaultTagTarget }
 
 	if (-not (Test-Path $jar)) { Write-Warning "跳过 $mc :没有 $jar"; continue }

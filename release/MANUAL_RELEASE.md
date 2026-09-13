@@ -1,71 +1,76 @@
-# 手动发布清单(1.21.x,逐版一个发布条目)
+# 手动发布清单(26.x,逐版一个发布条目)
 
-> 本文件只覆盖 **1.21.x 线**。26.1 起 Minecraft 未混淆,构建与运行期路径都不同,那一线有自己的清单:
-> [`MANUAL_RELEASE_26.x.md`](MANUAL_RELEASE_26.x.md)。两条线的 jar 不能互相替代。
+> 本文件覆盖 **26.x** —— 仓库里唯一的一条发布线,目前只有 **26.1.2** 一个产物。另一条线(1.21.x,混淆名 +
+> yarn/intermediary,一份源码出十个 MC 版本)在自己的分支上,两条线的 jar 不能互相替代。
 
 版本号统一写成 `<版本>+mc<MC版本>`(jar 名与发布标题都用这一串);**GitHub 的标签是版本号本身,不带 `+mc`**
-(与已发的 `v1.1.0` / `v1.2.0` / `v2.0.0` 一致)。正文直接用 release/notes/mc<版本>.md(已是 Markdown,含安装步骤、已知限制、该 jar 的尺寸与 SHA-256)。
+(与已发的 `v1.2.0` / `v2.0.0` 一致)。正文直接用 release/notes/mc<版本>.md(已是 Markdown,含安装步骤、已知限制、该 jar 的尺寸与 SHA-256)。
 
-> **一个版本号可以只覆盖一个 MC 版本**:1.1.0 那次把 10 个 jar 放在同一个 `v1.1.0` 条目里;
-> 只改了某一个版本的行为时就单独给那个产物升版、单独发一个条目(1.1.1 就是只修 1.21.11 的抗锯齿后处理链),
-> 其余版本继续停在原来的版本号。规则与命令见 [`docs/VERSIONING.md`](../docs/VERSIONING.md)。
+> **这一线只有一个 MC 版本**,所以升版就是整条线一起升:`.\release\version.ps1 -Line 26.x -Kind <major|minor|patch>`。
+> 逐 MC 版本的 `-Mc` 是给"一份源码、每个 MC 版本一个 jar"那条线用的,在单版本线上会被直接拒绝 ——
+> 规则与命令见 [`docs/VERSIONING.md`](../docs/VERSIONING.md)。
 
-> 1.21.6 / 1.21.7 的说明要写准确,别写成笼统的"启动即崩":**不开光影时它们能正常启动**(2026-09-13 本机复现,标题界面正常渲染);
-> **一旦启用光影(选了光影包),启动阶段就会崩在 OptiFine 自己的代码里** —— `NullPointerException: Cannot read field "norm"
-> because "multiTex" is null` at `net.optifine.shaders.ShadersTex.initDynamicTextureNS`。所以正文应写成"本移植不支持这两版的光影",
-> 而不是"这两版起不来"。Official 列表里这两版已是最新构建。
+> 发布说明里有两个必须写准的点:**Java 25 是 26.1.2 自身的硬要求**(与 1.21.x 的 Java 21 不同,写在最前面);
+> **只支持 26.1.2** —— 26.1 的其他小版本与 26.2+ 需要各自重新移植,别让用户拿这个 jar 去顶。
 
 ## 逐版数据
 
 | 版本 | 版本号 / 标签 | jar | 字节 | SHA-256 | 正文 |
 |---|---|---|---|---|---|
-| 1.21 | 1.1.0+mc1.21 / v1.1.0 | dist\OptiFabric-1.1.0+mc1.21.jar | 740125 | E6DE36890931E4F14D90FCC1798FE76D04849BE648CADB94B3B99D4837FB3DC6 | release/notes/mc1.21.md |
-| 1.21.1 | 1.1.0+mc1.21.1 / v1.1.0 | dist\OptiFabric-1.1.0+mc1.21.1.jar | 740201 | E57C101210F04B2D07DE50705F5E48541533DF9086CA6218256C4C5799B3CD07 | release/notes/mc1.21.1.md |
-| 1.21.3 | 1.1.2+mc1.21.3 / v1.1.2 | dist\OptiFabric-1.1.2+mc1.21.3.jar | 780347 | 81B1BA061411CC5CBE42994BB00186AA61900900805BCA6314E4BEEBD69929DE | release/notes/mc1.21.3.md |
-| 1.21.4 | 1.1.2+mc1.21.4 / v1.1.2 | dist\OptiFabric-1.1.2+mc1.21.4.jar | 788131 | FFD23C03B7B0A8C9E29B2965AA79546CFEF5D4B7F621EF33D002574134CEC24A | release/notes/mc1.21.4.md |
-| 1.21.6 | 1.1.2+mc1.21.6 / v1.1.2 | dist\OptiFabric-1.1.2+mc1.21.6.jar | 827900 | 25BD99D66201094E564D29BD1F6BBE15D77AB92D95D46E0391080FDADCE10F83 | release/notes/mc1.21.6.md |
-| 1.21.7 | 1.1.2+mc1.21.7 / v1.1.2 | dist\OptiFabric-1.1.2+mc1.21.7.jar | 827950 | DD121F6DBCCAC80160801BB7C336FCE0498F6352840E10F3B2D7E85D336D4FCD | release/notes/mc1.21.7.md |
-| 1.21.8 | 1.1.2+mc1.21.8 / v1.1.2 | dist\OptiFabric-1.1.2+mc1.21.8.jar | 828022 | 9CDD9C6C0F387E8997F98809CF19BECAD22BB08C228621ED5517C20DF247C1BE | release/notes/mc1.21.8.md |
-| 1.21.9 | 1.1.2+mc1.21.9 / v1.1.2 | dist\OptiFabric-1.1.2+mc1.21.9.jar | 856054 | 66711E7D8D0EAC83F73EE96012A4C3ACAFF94960B49E9BECBF74FEED19022276 | release/notes/mc1.21.9.md |
-| 1.21.10 | 1.1.2+mc1.21.10 / v1.1.2 | dist\OptiFabric-1.1.2+mc1.21.10.jar | 856071 | 3483758E668E5C28FDC5D34BAD32C061E26C5161237C5828FBCAABDB4E9D994E | release/notes/mc1.21.10.md |
-| 1.21.11 | 1.1.2+mc1.21.11 / v1.1.2 | dist\OptiFabric-1.1.2+mc1.21.11.jar | 873615 | B62AB6AEBD441E67C75F1FD239DFFF3286B437EA8B6B95AC5597AE7AC4FEFEF0 | release/notes/mc1.21.11.md |
+| 26.1.2 | 2.0.0+mc26.1.2 / v2.0.0 | dist\OptiFabric-Reforged-2.0.0+mc26.1.2.jar | 177166 | FBB432C2D9C8B0E7E06F0FDA4A0C1B6A8F302D5D09ABD7CE67F13CBE04A5CF60 | release/notes/mc26.1.2.md |
 
-## 三个平台各自要填什么
+## 三处平台各自要填什么
 
-### GitHub Release(每版一个)
+### GitHub Release
 
-- Tag:`v<版本>`(只写版本号,不带 `+mc`),选 Create new tag on publish,target 选 **`1.21.x`** 分支的当前提交(1.21.x 线从自己的分支发布,见 [`docs/PUBLISHING.md`](../docs/PUBLISHING.md) 文首的分支表);
-- Release title:OptiFabric `<版本>+mc<MC版本>`;
-- Describe this release:粘贴 release/notes/mc<版本>.md 的内容(Markdown);
-- Attach binaries:上传该版的 `dist\OptiFabric-<版本>+mc<MC版本>.jar`(正文里已写好它的尺寸与 SHA-256,方便用户校验)。
+- **Tag**:`v2.0.0`(本仓库的 tag 只写版本号,已发布的 `v1.2.0` 就是这样;MC 版本留在产物名与标题里),
+  target 选 **`26.x` 分支的当前提交**;
+- **Release title**:OptiFabric Reforged 2.0.0+mc26.1.2;
+- **Describe this release**:粘贴 `release/notes/mc26.1.2.md`(Markdown);
+- **Attach binaries**:上传 `dist\OptiFabric-Reforged-2.0.0+mc26.1.2.jar`(正文里已写好尺寸与 SHA-256,方便用户校验)。
 
-### Modrinth(每版一个 version)
+### Modrinth
 
 | 字段 | 填什么 |
 |---|---|
-| Name | OptiFabric `<版本>+mc<MC版本>` |
-| Version number | `<版本>+mc<MC版本>` |
+| Name | OptiFabric Reforged 2.0.0+mc26.1.2 |
+| Version number | 2.0.0+mc26.1.2 |
 | Release channel | Release |
-| Game versions | 只勾该版对应的那一个(如 1.21.8) |
+| Game versions | 只勾 **26.1.2** |
 | Loaders | Fabric |
-| Environment | 客户端 Required、服务端 Unsupported(OptiFabric 加载的 OptiFine 只在客户端存在) |
-| Dependencies | 建议把 Fabric API 标为 required;OptiFine 无法在 Modrinth 上架,正文里已写明需用户自备对应版本的 OptiFine |
-| Changelog | 粘贴 release/notes/mc<版本>.md 的内容 |
+| Environment | 客户端 Required、服务端 Unsupported(OptiFine 只在客户端存在) |
+| Dependencies | Fabric API 可标 required;OptiFine 无法上架,正文已写明需用户自备 |
+| Changelog | 粘贴 `release/notes/mc26.1.2.md` |
 | Files | 上传该版 jar |
 
-### CurseForge(每版一个 file)
+### CurseForge
 
 | 字段 | 填什么 |
 |---|---|
-| Display name | OptiFabric `<版本>+mc<MC版本>` |
+| Display name | OptiFabric Reforged 2.0.0+mc26.1.2 |
 | Release type | Release |
-| Game version | Minecraft <版本> 加 Fabric(只勾该版) |
-| Changelog | 粘贴 release/notes/mc<版本>.md 的内容,格式选 Markdown |
+| Game version | Minecraft **26.1.2** 加 Fabric(只勾该版) |
+| Changelog | 粘贴 `release/notes/mc26.1.2.md`,格式选 Markdown |
 | File | 上传该版 jar |
+
+> 若项目页面的**支持版本范围**里还没有 26.1.2,先在项目设置里加上,再传文件。
 
 ## 发布前自查
 
-- 每版正文里写的 OptiFine 构建名,必须与用户实际要装的 jar 名一致(正文已写明);
-- 三处都要挂上 jar 本体,不要只贴正文;
-- 1.21.9 / 1.21.10 的正文里那条「光影包请用 Complementary 等主流包」别删(Photon 在 1.21.6 起的 OptiFine 上不工作);
-- 先在 GitHub 发一版看排版,再批量做其余版本。
+- [ ] **版本号已按 SemVer 改好**:`.\release\version.ps1 -Line 26.x -Kind <major|minor|patch>`(规则见
+      [`docs/VERSIONING.md`](../docs/VERSIONING.md);不要手改 —— 一次要动 9 个文件);
+- [ ] `.\gradlew build --offline` 通过(这一线没有 `-Pmc`,目标版本来自根目录 `gradle.properties`),
+      且产物名是 `OptiFabric-Reforged-2.0.0+mc26.1.2.jar`;
+- [ ] `.\release\version.ps1 -Line 26.x -RecordDigest` 跑过,正文里的尺寸与 SHA-256 与 `dist\` 里的 jar 一致;
+- [ ] jar 里**没有** OptiFine 的类或资源、没有 `mappings/mappings.tiny`(26.x 本就不该有映射表);
+- [ ] `LICENSE.txt_OptiFabric-Reforged` 在(`jar` 任务按 `archives_base_name` 给 `LICENSE.txt` 改名),
+      `fabric.mod.json` 的 `license` 仍是 `MPL-2.0`;
+- [ ] `fabric.mod.json` 的 `id` 是 `optifabric_reforged`、`minecraft` 是 `26.1.2`、`fabricloader` 是 `>=0.19.5`;
+- [ ] 离线校验跑过:`powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-26.ps1`,
+      口径为 `Prepared … (0 skipped, 0 failed)`、`verified OK`、`ASM verifier problems: 0`、扫描器全 0;
+- [ ] 真机在**干净实例**上实测一次(只要 Fabric API + OptiFabric + OptiFine):能进主界面、能进存档;
+      提示:`<游戏目录>/.optifine/` 是缓存,删掉可强制重建,适合测"首次安装";
+- [ ] 正文里写的 OptiFine 构建名与用户实际要装的 jar 名一致;
+- [ ] 三处都挂上了 jar 本体,不要只贴正文;
+- [ ] 发布说明里提醒用户需要 **Java 25**(26.1.2 的硬要求,与 1.21.x 的 Java 21 不同);
+- [ ] 先在 GitHub 发一版看排版,再补 Modrinth / CurseForge。

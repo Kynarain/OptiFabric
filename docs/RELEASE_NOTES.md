@@ -1,95 +1,94 @@
-# GitHub Release notes — tag `v1.1.2`(`OptiFabric-1.1.2+mc1.21.11.jar`)
+# GitHub Release notes — tag `v2.0.0`(`OptiFabric-Reforged-2.0.0+mc26.1.2.jar`)
 
 > 复制下面 `---` 之间的内容到 GitHub Release 的说明框里(标题用第一行)。英文在前,末尾附中文摘要。
-> 标签是**版本号本身**(`v1.1.2`,不带 `+mc`),与已发的 `v1.1.0` / `v1.2.0` / `v2.0.0` 一致;这一行要手改,
+> 标签是**版本号本身**(`v2.0.0`,不带 `+mc`),与已发的 `v1.2.0` 一致;这一行要手改,
 > 其余版本号由 `release\version.ps1` 统一改写。
 
 ---
 
-## OptiFabric 1.1.2+mc1.21.11 — OptiFine on Fabric 1.21.11
+## OptiFabric Reforged 2.0.0+mc26.1.2 — OptiFine on Fabric 26.1.2
 
-Run **OptiFine** and **Fabric** in the same 1.21.11 client. Drop OptiFabric and your own OptiFine jar into `mods/`; at startup OptiFabric runs OptiFine's installer, remaps its patches into Fabric's namespace, repairs the structural conflicts with Fabric API, and hands the result to Fabric Loader's class transformer.
+Run **OptiFine** and **Fabric** in the same 26.1.2 client. Drop OptiFabric and your own OptiFine jar into `mods/`; at startup OptiFabric runs OptiFine's installer, repairs its patches against the structural conflicts with Fabric API, and hands the result to Fabric Loader's class transformer. There is no remapping step: 26.1 and newer ship **unobfuscated**, so the official names are the runtime names.
 
-**OptiFine is not bundled or redistributed** — bring your own `OptiFine_1.21.11_HD_U_J9.jar` (or another 1.21.11 build).
+**Minecraft 26.1.2 requires Java 25** — that is the game's own requirement, and this jar is built and tested on it.
 
-### New in 1.1.2 — anti-aliasing, on every release from 1.21.3 up
+**OptiFine is not bundled or redistributed** — bring your own `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar` (OptiFine has only preview builds for 26.1.2).
 
-**1.1.2 covers eight jars** — 1.21.3, 1.21.4, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10 and 1.21.11 (1.21 and 1.21.1 stay at 1.1.0: OptiFine only ships the old chain location for those, which the repair never touched). On 1.21.11 this jar behaves exactly like 1.1.1, which already had this fix.
+### New in 2.0.0 — the mod renamed itself, and FRAPI geometry renders again
 
-Anti-aliasing was broken on all of them. The pipeline deleted OptiFine's own `post_effect/fxaa_of_{2,4}x.json`, while that chain id (`minecraft:fxaa_of_2x`) is resolved by the **game's post-chain registry** from `post_effect/` — OptiFine patches `ShaderManager` to register it there. So every resource reload logged `Resource not found: minecraft:post_effect/fxaa_of_2x.json`, and touching anti-aliasing (or picking a shader pack — both reload the shaders) ended in `Failed to load post chain: minecraft:fxaa_of_2x` and a "failed to reload resources" prompt. 1.1.2 leaves OptiFine's files alone. On 1.21.9 and 1.21.10 there was a second, older bug behind the black screen: from 1.21.9 the game draws post-effect passes as an attribute-less fullscreen triangle (`gl_VertexID`), while OptiFine's `fxaa_of_*.vsh` still read the `Position` vertex attribute — the pipeline rewrites those two files (1.21.11's own build already ships the fixed shape, and 1.21.3–1.21.8's pipeline still has the attribute, so both are skipped).
+**The mod id changed: `optifabric` → `optifabric_reforged`**, and the jar is now `OptiFabric-Reforged-…`. That is why this is a major version (SemVer §8: anything that `depends` or `breaks` the old id is affected). Delete the old `OptiFabric-1.2.0+mc26.1.2.jar` before installing this one.
 
-Measured, not assumed: all eight releases were run with the shipped jar, anti-aliasing at 2x and a shader pack loaded, and the log line `Resource not found: minecraft:post_effect/fxaa_of_*` is **0** on every one of them. The offline verification below was re-run for each of the eight.
+The id is not cosmetic: mods that declare `"breaks": {"optifabric": "*"}` (LambdaBetterGrass does) refuse the 1.21.x line, and Fabric Loader matches on the **id**, not the display name — the only way to be a different mod to them is to be a different mod id. Measured: the unmodified upstream `lambdabettergrass-2.7.2+26.1.1.jar` now starts alongside this mod, better grass and connected textures included.
 
-This is versioned per artifact: 1.21.3 – 1.21.11 are 1.1.2, 1.21 and 1.21.1 keep their published 1.1.0 jars, and `v1.1.0` / `v1.1.1` stay as published.
+**Geometry that a mod generates per block position is rendered again.** Fabric's terrain hook injects into the vanilla chunk-build loop, and OptiFine's own compile method has no such loop — the hook ran nowhere, so a model's `emitQuads` was never asked for anything and its geometry was silently absent (better grass, and anything that has to look at the world around a block). The block tesselation call inside OptiFine's method now goes to a bridge: the quads are produced by Fabric's renderer (ambient occlusion, tint and light included) and handed to the `BlockQuadOutput` OptiFine passes in, so OptiFine still writes every vertex — its vertex format, layers, lighting and shader attributes. Only models whose `emitQuads` is declared outside the game are routed; vanilla blocks stay on OptiFine's path.
+
+**The Fabric renderer API is a real renderer again.** 26.1 moved it into `api.client.renderer.v1`, and the lookup that failed quietly left the placeholder unregistered, so the first `Renderer.get()` took the game down; the placeholder also no longer throws — Fabric API's own hooks call it in the middle of ordinary frames, and it answers with inert objects of the right shape. More fundamentally, the `fabric-renderer-api-v1:contains_renderer` key inherited from the 1.21.x line had nothing left to keep away on 26.1.2 (Indigo is not a terrain renderer there any more — Fabric API moved the terrain and submit-node integration into `fabric-renderer-api-v1` itself, leaving Indigo one item mixin and two accessors), so declaring the key switched off the very plug-in Fabric API keeps asking for. This line no longer declares it and Indigo registers its own `IndigoRenderer`.
+
+### What it took for 26.1.2
+
+26.1.2 is not "the same patches at a different version number": being unobfuscated brings its own conflicts, and the render pipeline moved on again. Every one of them was found through a real crash and traced down to the bytecode (the whole record is in [`docs/PORT_26.x.md`](PORT_26.x.md)):
+
+- **Injection points** — OptiFine's recompiler hollows a vanilla method into a thin wrapper and moves the body into an overload of its own, while Fabric API names its target **without a descriptor**: two methods of one name left in the class means MixinExtras cannot build the local-variable context and the whole class fails to transform. Resolved one by one for `LevelRenderer` (`extractBlockOutline`), `ScreenEffectRenderer`, `ModelManager` and `CuboidItemModelWrapper` (the vanilla body comes back, and the overload vanilla no longer has goes away with it), and for `SectionCompiler` the public overload that is still called from outside is **renamed and its call site redirected** instead of removed.
+- **The chunk object** — OptiFine creates its own `ChunkOF` instead of a `LevelChunk`, so Fabric's `@At(value = "NEW", …)` point is gone and opening a world ended in a network protocol error; an inert marker puts it back.
+- **Anti-aliasing** — the chain id is resolved from `post_effect/` on this release, so OptiFine's own post-chain files are left exactly as they ship. (The 1.21.x line's old repair did the opposite — it deleted them — which is what broke AA there; that repair is gone as of 1.1.2 on both lines.)
+- **Two Fabric API submit hooks are intentionally inert**, and redirected the same way as on the 1.21.x line: the moving-block and block-model submits are drawn by the vanilla/OptiFine path. The block-breaking overlay path is untouched and does go through Fabric's renderer.
 
 ### Requirements
 
 | | |
 |---|---|
-| Minecraft | 1.21.11 |
+| Minecraft | 26.1.2 (**this jar supports no other release**) |
 | Fabric Loader | 0.19.5 or newer |
-| Java | 21+ (tested on Java 25) |
+| Java | **25** (required by 26.1.2 itself) |
 | Side | client |
-| OptiFine | your own 1.21.11 build (tested: HD_U J9, build `20260205-175838`) |
-| Fabric API | optional — supported, tested with 0.141.6+1.21.11 |
+| OptiFine | your own 26.1.2 build (tested: `preview_OptiFine_26.1.2_HD_U_K1_pre2`) |
+| Fabric API | optional — supported, tested with 0.155.3+26.1.2 |
 
 ### Install
 
-1. Install a 1.21.11 Fabric client (Loader 0.19.5+).
-2. Put `OptiFabric-1.1.2+mc1.21.11.jar` **and** your OptiFine 1.21.11 jar into that version's `mods/` folder. Do **not** run OptiFine's installer — dropping the file in is enough.
-3. Start the game with the **Fabric** profile. The first launch spends a few seconds patching and remapping (cached afterwards under `<game dir>/.optifine/<version>/`).
-
-### What it took for 1.21.11
-
-OptiFine's 1.21.11 build ships its class patches as xdelta diffs, and its recompiled classes no longer line up with what Fabric API injects into. Every conflict below was found through a real crash and traced down to the bytecode; the fixers are in `patcher/fixes` and the whole story is in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md):
-
-- **Remapping needs the game on the classpath** — member mappings are recorded per declaring class, so overrides in subclasses silently kept OptiFine's names (35 unmapped methods in `class_1308` alone → 281 broken abstract contracts, 254 lost virtual overrides).
-- Injection targets OptiFine's recompiler erased (inlined helpers, renamed lambdas with a different signature) — the vanilla method bodies are restored so Fabric's injections have a target again.
-- A Fabric hook that reads a render context OptiFine's pass structure never fills in — the hook is moved onto code that is never called, so the game stops crashing and the block outline is still drawn.
-- The same for the **moving-blocks** renderer hook, whose caller lives in *another* class — those call sites are redirected too, otherwise the hook fires from the injected copy (this one crashed multiplayer after ~30 seconds).
-- Fabric's renderer registry being empty while `contains_renderer` keeps Indigo away — an inert placeholder renderer is registered, which also stops the **F3 debug screen** from crashing.
-- Item models failing to bake (every item texture missing), chunk rendering NPEs from OptiFine's region constructor, obfuscated fields with mismatching descriptors, same-typed synthetic `this$0`/`val$…` fields, and `ChunkOF` object creation replacing Fabric's injection point.
-- Stack map frames were being recomputed for **every** patched class (the global override fixer always reports a change, so the patcher could not tell), and the merge degraded a local to `java/lang/Object` in classes as unrelated to Fabric as `ShoulderParrotFeatureRenderer` and `EntityRenderDispatcher` — the game rejects those with `VerifyError: Bad type on operand stack in putfield`. Classes no fixer modifies now keep OptiFine's own frames, and recomputation only happens where a fixer really changed the class.
+1. Install a 26.1.2 Fabric client (Loader 0.19.5+, **Java 25**).
+2. Put `OptiFabric-Reforged-2.0.0+mc26.1.2.jar` **and** your OptiFine 26.1.2 jar into that version's `mods/` folder. Do **not** run OptiFine's installer — dropping the file in is enough.
+3. Start the game with the **Fabric** profile. The first launch spends a few seconds patching (cached afterwards under `<game dir>/.optifine/<version>/`).
 
 ### Verified
 
-- Offline, every class is loaded and linked in a single loader (the same way the game does it) and checked with the JVM verifier plus an ASM data-flow verifier: **570/570 patched game classes** and **874/874 OptiFine classes**, 0 failures, 0 verifier problems.
-- Mixin member references, `@At` injection points, `@Shadow` members and uninitialised-field scans: clean (the only 4 `@At` misses belong to the **disabled** Indigo).
-- In game: startup, title screen, singleplayer, **multiplayer server**, block/chunk/item rendering, **shaders** (`ComplementaryReimagined` loaded), F3 debug screen — 0 `[ERROR]` lines and no crash report in the final session.
+- Offline, every class is loaded and linked in a single loader (the same way the game does it) and checked with the JVM verifier plus an ASM data-flow verifier: **567/567 patched game classes** and **879/879 OptiFine classes**, 0 failures, 0 verifier problems. (Two OptiFine classes implement NeoForge's SPI and are never loaded on Fabric; they are excluded.)
+- Mixin member references, `@At` injection points, abstract contracts, virtual overrides, member references and invokedynamic handles: **all zero** — cleaner than 1.21.11.
+- In game: startup, title screen, singleplayer, chunk rebuilds, block/item/entity rendering, **anti-aliasing**, **shaders**, multiplayer — no crash report. Indigo registers its own renderer (`[Indigo] Registering Indigo renderer!`) and Fabric API's hooks draw through it. With LambdaBetterGrass installed, its better grass renders and its connected textures are correct, shaders on.
 
 ### Known limits (deliberate)
 
 - **Conflicts with Sodium** (declared); `no_fog`, `thallium`, `xradiation`, `ryoamiclights` are declared incompatible.
-- **Mods that rely on FRAPI/Indigo** do not get Indigo's custom rendering — OptiFine renders the terrain. Fabric's renderer API exists but is backed by a placeholder (F3 shows `OptifineRendererPlaceholder`), and it explains itself if something really tries to draw through it.
-- Two Fabric API hooks are intentionally inert: the `BEFORE_BLOCK_OUTLINE` event does not fire (the outline is still drawn), and the Fabric renderer's moving-block hook is bypassed (moving blocks are drawn by the vanilla path).
+- **Only 26.1.2 is supported.** The other 26.1 patch versions and 26.2+ need their own port — there is no OptiFine build for them, and no jar of this line will run on them.
+- **Java 25 is required.** Starting 26.1.2 on Java 21 fails before the game window appears.
+- **Mods that rely on FRAPI/Indigo** get Indigo's real renderer here, and a mod's own runtime geometry is rendered; only the moving-block and block-model submit hooks are intentionally inert.
 - OptiFine cannot see resources inside Fabric mods (`Unknown resource pack type: ...ModNioResourcePack`) — a limitation on OptiFine's side.
-- Shader packs log warnings such as `Unknown macro value: IRIS_VERSION` or `ParseException: Model variable not found: …`; those come from the shader pack.
+- Shader packs log warnings such as `Unknown macro value: IRIS_VERSION` or `ParseException: Model variable not found: …`; those come from the shader pack, not from this mod.
 
 ### Files
 
 | File | SHA-256 |
 |---|---|
-| `OptiFabric-1.1.2+mc1.21.11.jar` (873615 bytes) | `B62AB6AEBD441E67C75F1FD239DFFF3286B437EA8B6B95AC5597AE7AC4FEFEF0` |
+| `OptiFabric-Reforged-2.0.0+mc26.1.2.jar` (177166 bytes) | `FBB432C2D9C8B0E7E06F0FDA4A0C1B6A8F302D5D09ABD7CE67F13CBE04A5CF60` |
 
-The same `v1.21.x` project also builds the other Minecraft releases OptiFine ships a 1.21.x build for — 1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.6, 1.21.7, 1.21.8, 1.21.9 and 1.21.10 — with `.\gradlew -p v1.21.x build "-Pmc=<version>"`, and each of them passes the same offline verification (see [`docs/DEVELOPMENT.md`](DEVELOPMENT.md)).
+This line builds **exactly one** Minecraft release: `.\gradlew build` → `OptiFabric-Reforged-<version>+mc26.1.2.jar` (the target comes from `gradle.properties`; there is no version switch in the build). The other line — 1.21.x, obfuscated, ten releases — lives on its own branch and its jars are not interchangeable with this one.
 
-Full changelog: [`CHANGELOG.md`](CHANGELOG.md) · Usage, troubleshooting and known issues: [`README.md`](README.md) · Verification tooling: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+Full changelog: [`CHANGELOG.md`](CHANGELOG.md) · Usage, troubleshooting and known issues: [`README.md`](README.md) · Porting record: [`docs/PORT_26.x.md`](docs/PORT_26.x.md) · Verification tooling: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 
 ### Credits and license
 
-A port of [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric) by Modmuss50 and Chocohead, licensed under **MPL-2.0**. OptiFine itself is neither included nor redistributed; get it from the official site (in China the `bmclapi2.bangbang93.com/optifine/1.21.11/HD_U/J9` mirror works — 302 to the official maven distribution).
+A port of [Chocohead/OptiFabric](https://github.com/Chocohead/OptiFabric) by Modmuss50 and Chocohead, licensed under **MPL-2.0**. OptiFine itself is neither included nor redistributed; get it from the official site (in China the `bmclapi2.bangbang93.com/optifine/26.1.2/HD_U_K1/pre2` mirror works — note the four-segment path, the patch number carries the `K1` prefix).
 
 ---
 
 ## 中文摘要
 
-把 OptiFine 接进 Minecraft **1.21.11** 的 Fabric。把本 jar 与自备的 `OptiFine_1.21.11_HD_U_J9.jar` 一起放进 `mods/`,用 Fabric 版本启动即可(**不需要**先运行 OptiFine 安装器);首次启动多花几秒做补丁+重映射,之后走缓存。
+把 OptiFine 接进 Minecraft **26.1.2** 的 Fabric —— 26.1 起游戏**未混淆**,官方名就是运行名,所以这一线没有 yarn、也没有可重映射的 intermediary(26.1.2 只发布占位 `intermediary:0.0.0`),jar 里不含映射表。把本 jar 与自备的 `preview_OptiFine_26.1.2_HD_U_K1_pre2.jar` 一起放进 `mods/`,用 Fabric 版本启动即可(**不需要**先运行 OptiFine 安装器);首次启动多花几秒做补丁,之后走缓存。
 
-- **1.1.2 修复**:抗锯齿在 **1.21.3 起的所有版本**上都是坏的(每次资源重载刷
-  `Resource not found: minecraft:post_effect/fxaa_of_2x.json`,一动抗锯齿或切光影包就 `Failed to load post chain`),
-  见上面英文段的 "New in 1.1.2";1.1.2 覆盖**八个产物**(1.21.3 – 1.21.11),1.21 与 1.21.1 仍停在 1.1.0
-- 需要:Fabric Loader ≥ 0.19.5、Java 21+、客户端;Fabric API 可选(实测 0.141.6+1.21.11)
-- 离线校验:被补丁的 **570** 个游戏类与 OptiFine 自身的 **874** 个类全部通过 JVM + ASM 双向校验
-- 真机已验证:启动、主界面、单人、**多人服务器**、方块/区块/物品渲染、**光影**、F3 调试屏,`[ERROR]` 0 条
-- 已知限制:与 Sodium 冲突;依赖 FRAPI/indigo 的模组不再有 indigo 渲染;`BEFORE_BLOCK_OUTLINE` 事件与移动方块的 FRAPI 钩子被有意停用(渲染本身正常)
+- **2.0.0 改了两件大事**:①mod id 从 `optifabric` 改成 **`optifabric_reforged`**(产物名也变成 `OptiFabric-Reforged-…`),所以是主版本号 —— 升级前请**删掉旧的 `OptiFabric-1.2.0+mc26.1.2.jar`**;②依赖 Fabric 渲染器 API 的模组**实时生成的几何现在真的会被画出来**(更好的草这类),顶点仍由 OptiFine 写
+- 同时修掉:注入点被 OptiFine 的重编译掏空(`LevelRenderer` / `SectionCompiler` / `CuboidItemModelWrapper` / `ScreenEffectRenderer` / `ModelManager`)、区块对象被换成 `ChunkOF`、Fabric 渲染器 API 搬家后占位器注册不上、抗锯齿后处理链
+- 需要:Fabric Loader ≥ 0.19.5、**Java 25**(26.1.2 本身的硬要求,与 1.21.x 的 Java 21 不同)、客户端;Fabric API 可选(实测 0.155.3+26.1.2)
+- 离线校验:被补丁的 **567** 个游戏类与 OptiFine 自身的 **879** 个类全部通过 JVM + ASM 双向校验,5 个扫描器**全 0**
+- 真机已验证:启动、主界面、单人世界、区块重建、方块/物品/生物渲染、**抗锯齿**、**光影**、**多人**;Indigo 注册真正的渲染器,装 LambdaBetterGrass 实测"更好的草"正常、连接纹理正确
+- 已知限制:**只支持 26.1.2**(其余 26.1 小版本与 26.2+ 需要各自重新移植);与 Sodium 冲突;26.1.2 的 OptiFine 目前只有 preview 构建
 - **不包含、也不分发 OptiFine 本体**

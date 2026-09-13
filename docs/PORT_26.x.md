@@ -6,7 +6,7 @@
 
 | 查询 | 结果 |
 |---|---|
-| `meta.fabricmc.net/v2/versions/yarn/1.21.11` | 正常,返回 `1.21.11+build.1` ~ `build.6`(与本仓库 `build.gradle` 的 `yarnBuilds` 一致) |
+| `meta.fabricmc.net/v2/versions/yarn/1.21.11` | 正常,返回 `1.21.11+build.1` ~ `build.6`(与 1.21.x 那一线 `build.gradle` 的 `yarnBuilds` 表一致;那张表在同名的另一条分支上,这条 26.x 分支的根 `build.gradle` 里没有 yarn,也没有 `-Pmc`) |
 | `meta.fabricmc.net/v2/versions/yarn/26.1.2` | **空数组** —— 没有 yarn 构建 |
 | `meta.fabricmc.net/v2/versions/intermediary/26.1.2` | 只有 `net.fabricmc:intermediary:**0.0.0**` —— Fabric 对"无需 intermediary 重映射"的占位 |
 
@@ -17,15 +17,24 @@
 
 ## 这件事改变了什么(不是加一行版本号)
 
+这一节是**开工前**写下的判断,当时仓库还是"根目录一个 Gradle 项目 + 一张 `yarnBuilds` 表"的样子。
+逐条现在都有结果了,所以下面顺手标了结局,细账在后文各节。
+
 1. **`patcher/fixes/*` 整套会失效**:全部按 `class_XXXX`(intermediary)注册,未混淆版本没有这些名字。
    需逐个改写为官方名注册;每个 fixer 的判据字符串(方法名、字段名、描述符)也要跟着换成官方名。
-   示例:`registerFix("class_5944", new DelegatingConstructorFix())` -> 用 `net.minecraft.world.level.block.entity.BlockEntity` 之类的官方名。
+   示例:那条线上写短 id —— `registerFix("class_5944", …)`;这条分支上换成官方全路径 ——
+   `registerFix("net/minecraft/client/renderer/chunk/SectionCompiler", …)` ——
+   也就是现在的 `registerOfficialNameFixes()` 那张表(intermediary 那张表留在 1.21.x 分支上)。
 2. **官方名 -> intermediary 重映射阶段变成恒等操作**:可以直接跳过(少一步、少一类错误点)。
-   `OptifineSetup.getRuntime()` 里的 `Patcher.process(...)` 需要按"未混淆"分支处理。
-3. **构建侧换映射**:`build.gradle` 的 `yarnBuilds` 表对 26.x 不适用,改用官方映射(Loom 的 official mappings 路径),
-   并把 `gradle.properties` 的 `minecraft_version` 指到 26.1.2。
-4. **`RemappingUtils` 需要改造**:它现在做 intermediary <-> yarn 的名字/成员映射(`getClassName` 还会无条件加 `net.minecraft.`);
+   `OptifineSetup.getRuntime()` 里的 `Patcher.process(...)` 需要按"未混淆"分支处理(已做,见下文「运行期管线分叉」)。
+3. **构建侧换映射**:当时 `build.gradle` 的 `yarnBuilds` 表对 26.x 不适用,最初的想法是"改用官方映射
+   (Loom 的 official mappings 路径)",并把 `gradle.properties` 的 `minecraft_version` 指到 26.1.2。
+   结果不是这样:这条线换的是 Loom 的**非重映射 flavour**(`net.fabricmc.fabric-loom`,见根 `build.gradle`),
+   `mappings` 依赖整个不存在;目标版本只来自根 `gradle.properties` 的
+   `minecraft_version=26.1.2`,这条线上也没有 `-Pmc`(下文「实测更正」一节)。
+4. **`RemappingUtils` 需要改造**:它当时做 intermediary <-> yarn 的名字/成员映射(`getClassName` 还会无条件加 `net.minecraft.`);
    未混淆版本下这些映射应当是恒等,且该前缀行为要按名字形态判断(见 `docs/DEVELOPMENT.md` 里 A 那次失败的记录)。
+   前缀那条已经按这个改了,见下文「顺带修掉的一个真 bug」。
 5. **校验脚本的假设同样要改**:`test-downloads/verify-version.ps1` 与 `VerifyPatched` 的断言里有按 `class_XXXX` 统计的列,
    未混淆版本应按官方名统计;`Prepared N patched classes (0 skipped, 0 failed)` 这类口径保持不变。
 6. **OptiFine 侧形态待确认**:它的 patcher 原本面向混淆 jar,拿到 26.x 构建后要先看它自己的类和补丁形态。
@@ -38,7 +47,7 @@
 ## 开工顺序
 
 1. 读官方客户端 jar,确认"未混淆"并据此在管线里分叉(重映射步骤跳过);
-2. 加 26.1.2 的构建入口(官方映射 + `minecraft_version`),先只求"能编译、能跑通离线管线";
+2. 加 26.1.2 的构建入口(当时写的是"官方映射 + `minecraft_version`",下文实测更正为"Loom 的非重映射 flavour + `minecraft_version`"),先只求"能编译、能跑通离线管线";
 3. 跑基线校验,收集"哪些 fixer 没命中"的清单 —— 这就是本轮移植的待办表;
 4. 按官方名重写 fixer(本轮主要工作量),逐项验证,纪律与 1.21.x 相同:
    `Prepared … (0 skipped, 0 failed)`、`verified OK`、`ASM verifier problems: 0`、扫描器三列 0、不得出现 `Failed to prepare` / `define failed`;
@@ -46,8 +55,9 @@
 
 ## 分支
 
-`26.x` 从 `mc1.21.x` 建立。1.21.x 的成果不受影响:八个版本可用、发布材料在 `release/`,
-`mc1.21.x` 分支保持不动。
+`26.x` 从 `mc1.21.x` 建立。1.21.x 的成果不受影响:八个版本可用、发布材料在 `release/`;
+它后来拿到自己的一条分支(`1.21.x`),这条 `26.x` 分支上只剩 26.x 这一条线。
+
 ## 已确认的事实(实测,可直接作为动手起点)
 
 ### 1. 26.1.2 确实是未混淆的(读真实 jar 得到)
@@ -75,11 +85,14 @@ SHA-256   F8EB9026E4DA2444E18D5601D3DEDE2BD19CF514D02095FFCDB0E101687C2172
 镜像列表用 `https://bmclapi2.bangbang93.com/optifine/versionList` 查(497 条,含 mcversion/type/patch/filename)。
 
 它**同时带了新式与旧式的 FXAA 资源**(`post_effect/fxaa_of_2x.json` 与 `shaders/post/fxaa_of_2x.{vsh,fsh}`),
-也就是说 `OptifinePostChainFixer` 的前提条件成立 —— 1.21.9/1.21.10 那个抗锯齿黑屏的修法应可平移,不必重踩。
+当时据此判断"1.21.9/1.21.10 那个抗锯齿黑屏的修法可以平移,不必重踩"。这条链后来走得更彻底:那支补写老式链、
+删掉新式 effect 的修复被整个去掉了,两条线都原样保留 OptiFine 自带的 `post_effect/`
+(见下文「抗锯齿的 post chain 被我们弄坏了」)。
 
-### 3. 构建侧第一处要改的地方(当前会直接抛错)
+### 3. 构建侧第一处要改的地方(当时会直接抛错)
 
-`build.gradle` 现在这样:
+当时**根目录那一个项目**的 `build.gradle` 是这样(那张 `yarnBuilds` 表如今在 1.21.x 分支上,这条分支的根
+`build.gradle` 里已经没有它):
 
 ```groovy
 def yarnBuilds = [ "1.21" : "1.21+build.9", ..., "1.21.11" : "1.21.11+build.6" ]
@@ -87,21 +100,23 @@ def targetYarn = yarnBuilds[targetMc]
 if (targetYarn == null) throw new GradleException("No yarn build is listed for Minecraft " + targetMc + ...)
 ```
 
-26.1.2 没有 yarn(实测元数据为空),所以 `-Pmc=26.1.2` 会**立刻抛这个异常**。要做的分叉:
+26.1.2 没有 yarn(实测元数据为空),所以当时 `-Pmc=26.1.2` 会**立刻抛这个异常**。要做的分叉(现在都已落地):
 
-1. 26.x 分支改用**官方映射**(下文实测更正:不是"Loom 的 official mappings 路径",而是换一个**插件**),
-   不走 yarn;
+1. 26.x 换一套映射路径(Loom 的 official mappings) —— 下文实测更正:不是"用官方 mappings",而是换一个
+   **插件**(`net.fabricmc.fabric-loom`),连 `mappings` 依赖都不存在,自然也不走 yarn;
 2. **跳过"把 intermediary mappings 打进 jar"**那一步(未混淆下不重映射,`Patcher.process(...)` 的 official->intermediary 阶段成为恒等);
-3. `gradle.properties` 的 `minecraft_version` 指到 `26.1.2`;
+3. 根 `gradle.properties` 的 `minecraft_version=26.1.2` 就是这条线的目标版本(这里没有 `-Pmc`);
 4. 之后再谈 `patcher/fixes/*` 按官方名重写(本轮主要工作量,逐个 fixer 的注册名与判据字符串都要换)。
 
-## 已完成:两个项目分离(实测通过)
+## 当时的布局:两个项目分离(实测通过;后来按线分成了两条分支)
 
 两条线不能共用一份源码 —— 同一份 mixin 不可能既是 yarn 名又是官方名 —— 所以按用户决定把
-**1.21.x 与 26.x 拆成两个完全独立的 Gradle 项目**,各自有自己的 `gradle.properties`:
+**1.21.x 与 26.x 拆成两个完全独立的 Gradle 项目**,各自有自己的 `gradle.properties`。
+**这是当时的树,现在不是这样了**:两条线各拿一条分支,这条 `26.x` 分支上就是 26.x 一个项目,
+而且它就在**仓库根目录**;1.21.x 那个项目连同它的 `gradle.properties` 在同名的 `1.21.x` 分支上。
 
 ```
-OptiFabric/
+OptiFabric/                   <- 当时(两个项目时期)的样子
   common/src/main/            共享源码:patcher、fixer、mod、util 与资源(与版本无关,两边一起编译)
   v1.21.x/                    1.21.x 项目:fabric-loom + yarn + intermediary,Java 21
     settings.gradle  gradle.properties(minecraft_version=1.21.11)  build.gradle
@@ -109,28 +124,50 @@ OptiFabric/
   v26.x/                      26.x 项目:net.fabricmc.fabric-loom,无 mappings,Java 25
     settings.gradle  gradle.properties(minecraft_version=26.1.2)   build.gradle
     src/main/java/.../mixin/  官方名的两个 mixin
-  gradlew(.bat)  gradle/      共用的 wrapper(根目录不再是 Gradle 项目)
+  gradlew(.bat)  gradle/      共用的 wrapper(当时根目录不再是 Gradle 项目)
 ```
 
-构建(两条线互不干扰):
+这一线现在(也就是本文件描述的这个树):
+
+```
+OptiFabric/                   <- 仓库根目录就是唯一的 Gradle 项目,`26.x` 分支上只有 26.x 一条线
+  settings.gradle  gradle.properties(minecraft_version=26.1.2)  build.gradle
+  src/main/java/kynarain/cn/optifabric/         patcher、fixer、mod、util
+  src/main/java/kynarain/cn/optifabric/mixin/  官方名的两个 mixin(CrashReportMixin / MixinTitleScreen)
+  src/main/resources/                          fabric.mod.json、optifabric.mixins.json 与资源
+  gradlew(.bat)  gradle/                       wrapper(就在根目录,没有子目录可选)
+```
+
+构建(现在这条线只有一种敲法,根目录就是项目):
+
+```
+.\gradlew build                                           # 目标 26.1.2,没有 -p,也没有 -Pmc
+```
+
+当时两个项目各自的构建命令(靠 `-p` 选目录,两条线互不干扰,以下都实测成功):
 
 ```
 .\gradlew.bat -p v1.21.x build "-Pmc=1.21.11" --offline   # -> BUILD SUCCESSFUL(含 remapJar/remapSourcesJar)
 .\gradlew.bat -p v26.x build                              # -> BUILD SUCCESSFUL
 ```
 
-**当时 1.21.x 未被触动**:做 2.0.0 那一版时,`v1.21.x/build/libs/OptiFabric-1.1.0+mc1.21.11.jar` 与已发布的
+**当时 1.21.x 未被触动**:做 2.0.0 那一版时,那个 1.21.x 项目(当时在 `v1.21.x/`,现在在自己那条分支上,项目也在
+它那条分支的根目录)的 `build/libs/OptiFabric-1.1.0+mc1.21.11.jar` 与已发布的
 `dist/OptiFabric-1.1.0+mc1.21.11.jar` **逐字节相同**(SHA-256 `B3148876…BE71D7`,865253 字节)——
 26.x 的改动一行都没落进 1.21.x。(那一线的 1.21.11 jar 后来先单独升到 1.1.1,再与 1.21.3 – 1.21.10 一起升到
 1.1.2,见 [`DEVELOPMENT.md`](DEVELOPMENT.md) 里后处理链那一节;只有 1.21 与 1.21.1 仍停在 1.1.0。)
-`v1.21.x` 仍保留 `yarnBuilds` 表与 `-Pmc=` 覆盖,所以十个 1.21.x 版本照旧从这一个项目构建。
+`yarnBuilds` 表与 `-Pmc=` 覆盖没丢,它们跟着 1.21.x 那条线,所以十个 1.21.x 版本照旧从那一个项目构建。
 
-**26.x 现在也能出 jar 了**:`v26.x/build/libs/OptiFabric-1.1.0+mc26.1.2.jar`,156769 字节。
-`v26.x` 没有 `-Pmc`:它的目标版本就是 `v26.x/gradle.properties` 里那一个值。
+**26.x 当时也能出 jar 了**:那个产物是 `v26.x/build/libs/OptiFabric-1.1.0+mc26.1.2.jar`,156769 字节
+(当时还叫 `OptiFabric`、版本基数 1.1.0)。现在这条线构建出来的产物是
+`build/libs/OptiFabric-Reforged-2.0.0+mc26.1.2.jar` —— 名字来自根 `gradle.properties` 的
+`archives_base_name=OptiFabric-Reforged` 与 `mod_version_base=2.0.0`。
+这条线没有 `-Pmc`:它的目标版本就是根 `gradle.properties` 里 `minecraft_version` 那一个值。
 
 > 本机 shell 会把**未加引号**的 `-Pmc=1.21.11` 拆成 `-Pmc=1` + `.21.11`(实测 `cmd /c echo -Pmc=1.21.11`
 > 输出 `-Pmc=1 .21.11`),Gradle 于是收到 `mc=1` 并抛出"没有 yarn 构建"。加引号写成 `"-Pmc=1.21.11"` 即可。
-> 这是执行环境的参数解析问题,不是仓库问题。
+> 这是执行环境的参数解析问题,不是仓库问题。这条提醒只对 1.21.x 那条线(它有 `-Pmc=`)有意义,
+> 26.x 这条线根本不读这个属性。
 
 ### 实测更正:Fabric 官方 26.1.2 移植文档给出的真实做法
 
@@ -148,24 +185,27 @@ OptiFabric/
 intermediary 元数据也印证了这点:`maven.fabricmc.net/net/fabricmc/intermediary/26.1.2/` 是 **404**,
 26.1.2 只发布占位 `net.fabricmc:intermediary:0.0.0`。
 
-### 26.1.2 产物实测(不是推断)
+### 26.1.2 产物实测(不是推断;当时那个 jar 在 `v26.x\build\libs\` 下,现在这条线上产物落在根目录的 `build\libs\`)
 
 ```
 v26.x\build\libs\OptiFabric-1.1.0+mc26.1.2.jar        156769 字节
   fabric.mod.json        minecraft "26.1.2", fabricloader ">=0.19.5"
-  mappings/mappings.tiny  不存在          <- intermediary 打包在 v26.x 里根本不注册
+  mappings/mappings.tiny  不存在          <- intermediary 打包在这条线上根本不注册
   Optifabric.class        主版本 69       <- Java 25
   optifabric.mixins.json  compatibilityLevel "JAVA_25"
 ```
 
 `compatibilityLevel` 必须跟着编译版本走:Mixin 拒绝套用"比 config 声明的 Java 版本更新"的 mixin 类。
-共享的 `optifabric.mixins.json` 里放的是 `${mixin_compatibility_level}` 占位符,由各项目的
-`processResources` 展开 —— 实测 `v1.21.x` 得到 `JAVA_21`、`v26.x` 得到 `JAVA_25`。
+`src/main/resources/optifabric.mixins.json` 里放的是 `${mixin_compatibility_level}` 占位符,由根 `build.gradle`
+的 `processResources` 展开 —— 这条分支上 `targetJavaVersion = 25`,展开出来就是 `JAVA_25`
+(当时是各项目各自展开,实测 `v26.x` 得 `JAVA_25`、`v1.21.x` 得 `JAVA_21`)。
 
 ### 两个 mixin 的官方名对照(逐个 `javap` 读 26.1.2 真实 jar 得到)
 
-按用户决定,**1.21.x 那两个 mixin 保持 yarn 名不动**(优先保障 1.21.x,且已验证产物逐字节相同);
-26.x 的对应实现写在 `v26.x/src/main/java/.../mixin/`。下表就是 `v26.x` 里那份用的对照:
+按用户决定,**1.21.x 那两个 mixin 保持 yarn 名不动**(优先保障 1.21.x,且已验证产物逐字节相同),
+它们在那条分支的同一个包里。这条分支上放的是 26.x 的官方名实现,就在
+`src/main/java/kynarain/cn/optifabric/mixin/`(`CrashReportMixin.java` 与 `MixinTitleScreen.java`)。
+下表就是这一线那份用的对照:
 
 `mixin/CrashReportMixin.java`:
 
@@ -231,7 +271,7 @@ return gameProvider.getRuntimeNamespace(ns);
 2. 原计划写的"official -> intermediary 重映射成为恒等,可以留着不管"也不对:**不能留**。
    jar 是为两个世界之一构建的,26.x 的产物**根本不带 mappings**,重映射器没有东西可读。
 
-### 实际改动(`common/`,运行期判断,不分目录)
+### 实际改动(运行期判断,不分线:都在 `src/main/java/kynarain/cn/optifabric/` 里)
 
 | 位置 | 改动 |
 |---|---|
@@ -276,9 +316,11 @@ powershell -File test-downloads\verify-version.ps1 -Version 1.21.11 -SkipBuild
 这是已知基线,不是这次改动引入的。
 
 > 跑校验时踩到一处**搬家留下的坑**,已修:`test-downloads/harness-cp.txt` 里把 mod 的编译产物
-> 硬编码成了 `<根>\build\classes\java\main` 与 `<根>\build\resources\main`。根目录不再是 Gradle 项目后
-> 这两条已失效,`VerifyPatched` 直接 `NoClassDefFoundError: OptifineSetup`。现已指向
-> `v1.21.x\build\classes\java\main` / `v1.21.x\build\resources\main`。
+> 硬编码成了 `<根>\build\classes\java\main` 与 `<根>\build\resources\main`。当初把两个项目分出去之后,
+> 根目录不再是 Gradle 项目,这两条已失效,`VerifyPatched` 直接 `NoClassDefFoundError: OptifineSetup`,
+> 于是改成了 `v1.21.x\build\classes\java\main` / `v1.21.x\build\resources\main`(两个项目时期的路径)。
+> 现在的布局正好相反:两条线各自在自己的分支上把项目放在**仓库根目录**,所以编译产物又回到
+> `<根>\build\classes\java\main` / `<根>\build\resources\main`,harness 的 classpath 要按这个来认。
 > 另外首次跑之前要清掉 `test-downloads\mc<版本>\game\.optifine` 缓存,否则管线走的是缓存、**不会**执行改过的代码。
 
 ## 26.x 离线校验通道(已完成,一条命令)
@@ -308,15 +350,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File test-downloads\verify-26.ps1
    这不是 mod 的问题(Fabric Loader 在真实启动里会剥掉签名),是 harness 口径问题;
    脚本会自动去签名(`META-INF/*.SF|RSA|DSA` + 重写 `MANIFEST.MF`),产出的状态与 Loom 为 1.21.x 产出的那份一致。
 
-### fixer 的命名空间分叉
+### fixer 注册表:这条线上只有官方名那一张
 
-`RemappingUtils.hasOfficialNames()`(运行时问 `getCurrentRuntimeNamespace()` 是不是 `official`)
-现在是两条 fixer 注册表的总开关:
+`OptifineFixer` 在这条分支上只登记一张表:`registerOfficialNameFixes()`(官方名键,**刻意很短**,
+由基线驱动而不是照着翻译)。运行期"按命名空间挑表"的那个 `if (RemappingUtils.hasOfficialNames())` 分叉
+不在这条线上 —— `registerIntermediaryNameFixes()` 那一整块(`class_XXXX`(intermediary)键)跟着 1.21.x 那条线,
+在它自己的分支上(`RemappingUtils` 里的 `hasOfficialNames()` 判断本身还留着,但源码里已经没有调用点,
+它不再决定用哪张表;1.21.x 分支同样直接调它自己那张表)。
 
-- `registerIntermediaryNameFixes()` —— **原有那一整块,一字未改**(`class_XXXX` 键),1.21.x 走它;
-- `registerOfficialNameFixes()` —— 26.x 走它,**刻意很短**,由基线驱动而不是照着翻译。
-
-为什么不照翻译:把整张 intermediary 表在 26.x 上留成死表跑基线,得到的已经是
+为什么不照翻译:当时(两张表并存的阶段)把整张 intermediary 表在 26.x 上留成死表跑基线,得到的已经是
 `Prepared 566 (0 skipped, 0 failed)` + RefmapScan `MISSING 0` + RuntimeContractScan `0/0/0`
 + LambdaScan `DANGLING 0`。也就是说 1.21.x 那些条目所修的冲突**在 26.1.2 上大多根本不存在**,
 把名字照搬过去等于给不存在的字节码形状注册修补。只有扫描器真正报出来的才登记。
@@ -334,6 +376,11 @@ powershell -File test-downloads\verify-26.ps1
   OptiFine 自己的类: 881 个,879 全过,FAILED 0,not applicable(NeoForge)2,ASM 0
   AtTargetScan PROBLEMS 0 / RefmapScan MISSING 0 / RuntimeContractScan 0-0-0 / LambdaScan DANGLING 0
 ```
+
+（那两行 `Wrote assets/minecraft/shaders/post/fxaa_of_2x.json / _4x.json` 与
+`Dropped assets/minecraft/post_effect/fxaa_of_2x.json / _4x.json` 是当时那版 post-chain 修复打的;
+那支修复后来被整个去掉了,今天跑这条线只会看到
+`[OptiFabric] Leaving OptiFine's post_effect/ files alone on 26.1.2…`。）
 
 对照 1.21.11(`Prepared 570`、`AtTargetScan PROBLEMS 4`),26.x **全绿且问题更少**。
 
@@ -367,7 +414,9 @@ javap -c <补丁>  ... lambda$loadBlockModels$2 ...  Pair.of 出现次数 0
 
 - `OptifineJarFixer` **正确地没动**:那份新式 json 用的是 `"vertex_shader"`/`"fragment_shader"` 键、
   blit pass 的顶点级是 `minecraft:core/screenquad`,形状本来就是这个版本能读的(它修的是 1.21.6/1.21.7/1.21.9 那几种坏形状);
-- `OptifinePostChainFixer` **按设计生效**:补写老式链、并把新式 effect 拿掉,让抗锯齿只走 OptiFine 自己那条链。
+- 当时还有一支"补写老式链、把新式 effect 拿掉"的修复按设计生效;它后来被判定为**反的**并整个去掉了,
+  这个类也不在了(见下文「抗锯齿的 post chain 被我们弄坏了」):现在这条线的 `OptifineSetup` 原样保留
+  OptiFine 自带的 `post_effect/`,不补写、也不删除。
 
 ### harness 口径 bug(已修)
 
@@ -419,7 +468,8 @@ mixin 变换失败: 0     Minecraft has crashed: 0     管线失败: 0
 
 ### 修掉的四类冲突
 
-`registerOfficialNameFixes()` 现在有 6 条注册,对应实测出来的冲突:
+`registerOfficialNameFixes()` 在那一轮是 6 条注册,对应实测出来的冲突(下表;这条表后来还在长 ——
+第 5 节又加了 FRAPI 的桥,`BlockFeatureRenderer` 那两条则走 `registerExtraClass`):
 
 | 类 | 修法 | 1.21.x 对应条目 |
 |---|---|---|
@@ -499,7 +549,8 @@ net.minecraft.net/minecraft/client/renderer/chunk/SectionCompiler
 离线全绿 + 启动成功之后,剩下的是**玩法层面**的确认(我这边只能到"起来了"):
 
 1. **进世界**:区块重建走的是 `SectionCompiler.optifine$compile` 那条被重定向的路,标题界面碰不到它;
-2. **光影**:shaderpack 能加载(抗锯齿走 `OptifinePostChainFixer` 补写的那条老式链);
+2. **光影**:shaderpack 能加载(抗锯齿走 OptiFine 自带的那条 `post_effect/` 链 —— 当时这里写的是"走补写的老式链",
+   那支补写后来被去掉了);
 3. **物品模型 / 生物 / 方块渲染**:`CuboidItemModelWrapper.update` 与 `LevelRenderer.extractBlockOutline`
    都用原版方法体盖掉了 OptiFine 的实现,OptiFine 自己那条渲染路径是否还完整需要看画面;
 4. **多人**;5. 崩溃报告里 `OptiFabric` 那节。
@@ -566,7 +617,8 @@ UnsupportedOperationException: ...（OptifineRendererPlaceholder 那段话）
 mod 生成的网格**静默消失**(不报错、不显示),F3 那行 `Renderer: OptifineRendererPlaceholder` 就是它。
 
 **改法**:26.x 的 `fabric.mod.json` 不再声明该键(两条线的 metadata 因此在构建期分叉:`custom` 块由
-`expand` 注入,见 `v26.x/build.gradle` 与 `v1.21.x/build.gradle`);`RendererApiFallback` 把这个键**读回来**,
+`expand` 注入 —— 26.x 这份在**根** `build.gradle` 的 `customMetadata` 里,1.21.x 那份在它自己分支的
+`build.gradle` 里);`RendererApiFallback` 把这个键**读回来**,
 只有它被声明时才注册占位器,否则让 Indigo 自己注册 `IndigoRenderer.INSTANCE`(26.x 的 `Renderer` 一共只有
 3 个抽象方法,Indigo 自己的实现就是完整答案)。1.21.x 的 jar 照旧声明,那一线的行为一字未变。
 
@@ -606,10 +658,13 @@ ShaderManager$CompilationException: Could not find post chain with id: minecraft
   at ShaderManager.getPostChain -> GameRenderer.render
 ```
 
-`OptifinePostChainFixer` 的整个前提在 26.x 上是**反的**:它为 1.21.x 写(那些版本从
-`assets/minecraft/shaders/post/` 读链),所以它**补写老式文件、并把新式的 `post_effect/*.json` 删掉**。
-而 26.1.2 读的正是 `post_effect/` —— 删掉它才是链加载失败的原因,补写的老式文件根本没人读。
-现在这一支只在混淆线(intermediary)执行,未混淆线原样保留 OptiFine 自带的 `post_effect/`。
+当时那支 post-chain 修复(补写老式文件、删掉新式 `post_effect/*.json`)的整个前提在 26.x 上是**反的**:
+它为 1.21.x 写(那些版本从 `assets/minecraft/shaders/post/` 读链),所以它**补写老式文件、
+并把新式的 `post_effect/*.json` 删掉**。而 26.1.2 读的正是 `post_effect/` —— 删掉它才是链加载失败的原因,
+补写的老式文件根本没人读。结论比"给这条线开个分支"更彻底:那支修复后来从管线里整个去掉了,
+**两条线都**原样保留 OptiFine 自带的 `post_effect/`(在混淆线上删掉它同样是 bug),`OptifinePostChainFixer`
+这个类和那条删文件的路径都不在了,`OptifineSetup` 现在只打印
+`[OptiFabric] Leaving OptiFine's post_effect/ files alone on <版本>: this release resolves the anti-aliasing chain there`。
 
 ### 5. 实时生成的几何:把 Fabric 的 FRAPI 钩子搬进 OptiFine 的循环(本轮)
 
@@ -678,9 +733,10 @@ ASM 0、OptiFine 879/0、五个扫描器全 0。
 `fabric.mod.json` 里 `"breaks": {"optifabric": "*"}`(LambdaBetterGrass 就有)是**加载器层面**的硬拦,发生在任何代码
 运行之前,而且它匹配的是 **mod id**、不是显示名 —— 于是有两条路:让上游去掉它,或者这一线不做 `optifabric`。
 
-选了后者:26.x 用 **`optifabric_reforged` / "OptiFabric Reforged"**(`v26.x/gradle.properties` 的
-`archives_base_name`、`build.gradle` 里注入 metadata 的 `optifabric_id`/`optifabric_name`,产物名
-`OptiFabric-Reforged-2.0.0+mc26.1.2.jar`);1.21.x 仍是 `optifabric`,已发布的 1.1.0 与 `dist/` 里那十个 jar 一个字节都不动。
+选了后者:26.x 用 **`optifabric_reforged` / "OptiFabric Reforged"**(根 `gradle.properties` 的
+`archives_base_name=OptiFabric-Reforged`、根 `build.gradle` 里注入 metadata 的
+`optifabric_id`/`optifabric_name`,产物名 `OptiFabric-Reforged-2.0.0+mc26.1.2.jar`);1.21.x 仍是 `optifabric`
+(那条分支上),已发布的 1.1.0 与 `dist/` 里那十个 jar 一个字节都不动。
 
 效果与代价:
 
@@ -719,17 +775,23 @@ mixin 变换失败 0 | crash 0 | 未捕获异常 0 | post chain 失败 0 | 干�
 6. 崩溃报告里 `OptiFabric` 那节。
 
 至此 26.x 这一轮的移植闭环。1.21.x 未受影响:八个版本照旧可用(见 [`DEVELOPMENT.md`](DEVELOPMENT.md) 的最终成绩),
-`v1.21.x` 项目的离线校验在改动前后数字完全一致。
+1.21.x 那个项目(现在在自己那条分支上)的离线校验在改动前后数字完全一致。
 
-发布材料(`release/` 那一套、`docs/PUBLISHING.md` 的流程)这一轮**没有**为 26.x 准备;
-要把 26.1.2 正式发出去,还需要按 1.21.x 的先例补:版本备注、`dist/` 里的 jar、`release/publish.ps1` 的版本列表。
+发布材料(`release/` 那一套、`docs/PUBLISHING.md` 的流程)当时**还没有**为 26.x 准备;后来补齐了:
+`release/notes/mc26.1.2.md`、`release/MANUAL_RELEASE.md`(26.x 的清单)以及 `release/publish.ps1` 里的 26.1.2 那条。
 
-## 之前顺带改掉的路径引用
+## 布局换过一次,路径引用也跟着换过(历史)
 
-分离之后,原来指向"根目录就是唯一项目"的地方都已更新:`test-downloads/verify-version.ps1`(构建命令与产物路径)、
-`test-downloads/version-setup.ps1`(提示语)、`test-downloads/CheckFixerIds.ps1`(源码目录 → `common/`)、
+当时把两个项目分出去之后,原来指向"根目录就是唯一项目"的地方都改过一轮:
+`test-downloads/verify-version.ps1`(构建命令与产物路径)、`test-downloads/version-setup.ps1`(提示语)、
+`test-downloads/CheckFixerIds.ps1`(源码目录 → 当时那份共享源码 `common/`)、
 `test-downloads/harness-cp.txt`(mod 编译产物 → `v1.21.x/build/...`)、
 `docs/PUBLISHING.md`、`docs/DEVELOPMENT.md`、`docs/RELEASE_NOTES*.md` 的构建命令。
+那一批路径是"两个项目"那个布局的产物;布局后来按线分成两条分支,项目回到各自分支的**仓库根目录**,
+所以针对这一线的命令与路径判断要按根目录来认,而不是按那批 `-p` 路径。
 
-**注意**:根目录不再有 `build.gradle` / `settings.gradle` / `gradle.properties`,所以裸敲 `.\gradlew build`
-会失败 —— 必须带 `-p v1.21.x` 或 `-p v26.x`。IntelliJ 里也需要把这两个文件夹重新作为两个 Gradle 项目导入。
+**注意(这是当前状态,与上面那段历史相反)**:根目录**有** `build.gradle` / `settings.gradle` /
+`gradle.properties` —— 它就是这条分支上唯一的 Gradle 项目,所以裸敲 `.\gradlew build` 直接就能构建 26.1.2 的 jar;
+这里既没有 `-p` 也没有 `-Pmc`。`-p` 是"两个项目"时期的用法(两条线各自的根目录现在就是自己的项目,都不再需要它),
+`-Pmc=` 只有 1.21.x 那条线有(它靠这个属性在十个版本里选一个)。IntelliJ 里把仓库根目录作为**一个**
+Gradle 项目导入即可。
