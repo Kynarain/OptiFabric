@@ -117,7 +117,7 @@ mods/OptiFine_1.21.11_HD_U_J9.jar
 
 | 文件 | 内容 |
 |---|---|
-| `cache-format.txt` | 缓存格式版本(当前 `25`);数字与代码里不一致就整份重建 |
+| `cache-format.txt` | 缓存格式版本(当前 `26`);数字与代码里不一致就整份重建 |
 | `Optifine-mapped.jar` | 重映射后的 OptiFine(不含 MC 类),这就是加进 classpath 的 jar |
 | `Optifine.classes.gz` | 打过补丁的 MC 类缓存(ClassCache),用于下次启动直接复用 |
 
@@ -133,7 +133,10 @@ mods/OptiFine_1.21.11_HD_U_J9.jar
    gradlew -p v1.21.x build "-Pmc=1.21.11"     # 1.21.x:换成你要的版本;不带 -Pmc 则构建默认版本
    gradlew -p v26.x   build                    # 26.x:目标版本写在 v26.x/gradle.properties 里,没有 -Pmc
    ```
-3. **安装**:把**对应版本**的 jar(`v1.21.x/build/libs/OptiFabric-1.1.0+mc<版本>.jar` 或 `v26.x/build/libs/OptiFabric-Reforged-2.0.0+mc26.1.2.jar`)和 OptiFine 的 jar 一起放进 **该 Fabric 版本自己的 `mods` 目录**。**不要**同时放两份 OptiFine(会报 `DUPLICATED`),也不要放错版本的 OptiFabric jar,更不要拿 1.21.x 的 jar 去跑 26.1.2(或反过来)。
+   **1.21.3 – 1.21.11 这八个版本号是 `1.1.2`,而 `gradle.properties` 的基数是 `1.1.0`**(1.21 与 1.21.1 用),
+   所以重建这八个里的任意一个要加上它自己的号:
+   `gradlew -p v1.21.x build "-Pmc=1.21.8" "-Pmod_version_base=1.1.2"`(脚本打印的正是这一行)。
+3. **安装**:把**对应版本**的 jar(`v1.21.x/build/libs/OptiFabric-<版本>+mc<MC版本>.jar`,例如 `OptiFabric-1.1.2+mc1.21.8.jar`;26.x 是 `v26.x/build/libs/OptiFabric-Reforged-2.0.0+mc26.1.2.jar`)和 OptiFine 的 jar 一起放进 **该 Fabric 版本自己的 `mods` 目录**。**不要**同时放两份 OptiFine(会报 `DUPLICATED`),也不要放错版本的 OptiFabric jar,更不要拿 1.21.x 的 jar 去跑 26.1.2(或反过来)。
    - PCL2/HMCL 若开启了**版本隔离**,游戏目录是 `versions/<版本名>/`,mods 目录也在那里;`.optifine/` 缓存同样会建在版本目录下。没开隔离才是 `.minecraft/mods`。
    - 用 **Fabric 版本**启动,不要用启动器装的 `1.21.x-OptiFine_xxx` 版本(那个是启动器自己在启动时注入 OptiFine,会和本模组重复)。
 4. **启动**:首次启动会多花几秒(实测 5–7 秒)做补丁+重映射(控制台里会看到 `[OptiFabric]` 前缀的输出),之后走缓存(1–2 秒)。成功的标志:标题界面出现 OptiFine 版本号,视频设置里出现 OptiFine 选项。
@@ -169,6 +172,8 @@ kynarain/cn/optifabric/mod/OptifabricRuntime.java     总调度:找 jar → 打�
 kynarain/cn/optifabric/mod/GameTransformerHook.java   把补丁类注入 Loader 的游戏 transformer(按字段类型反射定位)
 kynarain/cn/optifabric/mod/OptifineMappings.java      取代上游硬编码 contextual mapping 的规则推导
 kynarain/cn/optifabric/mod/OptifineRuntime.java       准备结果(remapped jar + ClassCache)
+kynarain/cn/optifabric/mod/OptifineJarFixer.java      修 OptiFine 自己那份 jar:后处理 json 的格式、1.21.6/1.21.7 被写死的 shaderpack 加载、
+                                                      以及(1.1.2 起)1.21.9 / 1.21.10 那份还在读 Position 顶点属性的 FXAA 顶点着色器
 kynarain/cn/optifabric/mod/OptifabricSetup.java       仅保留 optifineRuntimeJar(供崩溃报告用)
 kynarain/cn/optifabric/mod/RendererApiFallback.java   给 Fabric 的渲染器 API 注册一个惰性占位渲染器(见第 4 节)
 kynarain/cn/optifabric/mod/RendererApiStubGenerator.java  在运行时用 ASM 生成上面那个类(不解析任何游戏类型)
@@ -227,7 +232,7 @@ kynarain/cn/optifabric/patcher/fixes/MissingOverrideFix.java          全局:补
 | 1 | 启动崩:`Mixin transformation of net.minecraft.client.renderer.LevelRenderer failed` | OptiFine 重编译时把原版方法**削成薄壳**、真正的实现搬进它自己加的一个重载(`extractBlockOutline(Camera, LevelRenderState)` 转发给 `(…, boolean)`;`CuboidItemModelWrapper.update(7 参)` 转发给 `update(9 参)`;`SectionCompiler.compile` 同理)。恢复原版方法体后类里出现**两个同名方法**,而 Fabric API 写的是**不带描述符**的 `method = "extractBlockOutline"` —— MixinExtras 建不出局部变量上下文(`LVTGeneratorError: Could not locate method metadata …`;另一种表现是 `Scanned 0 target(s)`) | 逐处消歧:没人调的多余重载直接删,还有人调的改名(`optifabric$compile`)并用 `CallSiteRedirectFix` 把调用者一起改过去。同名还有 `ModelManager`、`ScreenEffectRenderer` |
 | 2 | 进世界即崩:`Attempted to retrieve active rendering plug-in before one was registered` | 26.1 把 Fabric 渲染器 API 挪进了 `api.client.renderer.v1`(注册表 `impl.client.renderer.RendererManager`),按旧包名查找失败使占位渲染器**从未注册**;而查不到正是"没装 Fabric API"的正常分支,于是**静默返回** | `RendererApiFallback` 按新→旧顺序尝试两个位置(1.21.x 仍走旧名字) |
 | 3 | 同上位置、注册成功之后:崩在**我们自己的占位**上(`OptifineRendererPlaceholder.quadEmitter`) | 1.21.x 时代只有 F3 调试行会调用它,所以"抛异常"是诚实的;但 26.1.2 上 `BlockFeatureRenderer` **不是 OptiFine 的补丁类**,那些调用是 **Fabric API 自己的代码**注入进原版方法后跑在普通绘制路径上 —— 逐个堵是打地鼠 | 占位改为返回**形状正确的惰性对象**(递归生成接口实现,fluent 接口直接把 `this` 还回去),Fabric API 想画的 quad 哪儿也不去,世界由 OptiFine 画 |
-| 4 | 抗锯齿失效:`Could not find post chain with id: minecraft:fxaa_of_2x` | 1.21.x 那套修复的做法是**删掉** `post_effect/*.json`、补写 `shaders/post/` 老位置的链;而 26.x 读的正是 `post_effect/`,删掉它才是失败原因,补写的老式文件根本没人读 —— 前提在这一线**正好反了** | 该修复只在混淆线执行,未混淆线原样保留 OptiFine 自带的 `post_effect/` |
+| 4 | 抗锯齿失效:`Could not find post chain with id: minecraft:fxaa_of_2x` | 1.21.x 那条修复的做法是**删掉** `post_effect/*.json`、补写 `shaders/post/` 老位置的链;而链在这一线正是从 `post_effect/` 解析的,删掉它才是失败原因,补写的老式文件根本没人读 —— 前提**两边都是反的**(1.1.2 起已把那条修复从两条线上一起删掉) | 未混淆线从一开始就原样保留 OptiFine 自带的 `post_effect/`;1.21.x 线在 1.1.2 改成同样做法,并额外修掉 1.21.9 / 1.21.10 的顶点着色器不匹配 |
 | 5 | 依赖 Fabric 渲染器 API 的模组几何**静默消失**(不崩、不报错,只是不画) | 从 1.21.x 继承来的 `contains_renderer` 让位键在这一线是**多余的**:26.1 把地形与提交节点的整合搬进了 `fabric-renderer-api-v1` 自己,indigo 只剩 3 条 mixin(1 条物品 mixin + 2 个 accessor),**不再是地形渲染器**。键一声明,唯一能回答 `Renderer.get()` 的渲染器就被关掉,拿到的是惰性占位 | 26.x 的 `fabric.mod.json` 不再声明该键;`RendererApiFallback` 把它读回来,只有声明时才注册占位器,否则由 Indigo 注册 `IndigoRenderer`。1.21.x 照旧声明,行为不变(见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md) 第 3 节) |
 | 6 | 模组的**自定义几何静默消失**不崩、不报错,只是不画。LBG 的"更好的草"就是这一类:几何要按方块位置看邻居实时生成 | Fabric 的地形 FRAPI 钩子(`SectionCompilerMixin`)注入在**原版** `compile` 的 `BlockPos.betweenClosed` 循环上,而 OptiFine 的 `optifabric$compile` 里那个循环**一次都不出现** —— 钩子只落在没人调用的补丁方法里,注入成功且永不执行 | 新增 `FrapiTesselateBridgeFix` + `OptifineFrapiBridge`:把 OptiFine 循环里那次方块 tessellate 调用改到桥上;几何由 Fabric 产出(AO/染色/光照齐),**顶点交给 OptiFine 自己的 `BlockQuadOutput` 写**,所以格式/层级/光影全归 OptiFine。只路由 `emitQuads` 声明在游戏之外的模型(见 [`docs/PORT_26.x.md`](docs/PORT_26.x.md) 第 5 节) |
 
@@ -241,7 +246,21 @@ kynarain/cn/optifabric/patcher/fixes/MissingOverrideFix.java          全局:补
 
 移植版是在真实游戏里逐轮排查出来的:每一处 Fabric API 与 OptiFine 的结构冲突,都先在**离线复现的补丁管线**上定位到具体字节码,再用 JVM 验证器与 ASM 数据流验证器双向确认,最后才交给真机验证。
 
-**1.21.11**(项目 `v1.21.x/`,校验脚本 `test-downloads\verify-version.ps1`):
+**1.21.3 – 1.21.11 全系列**(项目 `v1.21.x/`,校验脚本 `test-downloads\verify-version.ps1 -Version <版本> -ModVersion <该版本号>`)。
+1.1.2 这一轮八个产物逐个重跑,一条命令一个版本:
+
+| MC | 补丁类(JVM+ASM) | OptiFine 类(JVM+ASM) | ASM 问题 | 其余扫描器 | 真机(抗锯齿 2x + 光影,读日志) |
+|---|---|---|---|---|---|
+| 1.21.3 | 440 / 440 | 816 / 816 | 0 | 全 0 | 那两条报错 0 条 |
+| 1.21.4 | 474 / 474 | 812 / 812 | 0 | 全 0 | 0 条 |
+| 1.21.6 | 487 / 487 | 820 / 820 | 0 | 全 0 | 该版 OptiFine 构建本机启动即卡,量不到 |
+| 1.21.7 | 500 / 500 | 823 / 823 | 0 | 全 0 | 0 条 |
+| 1.21.8 | 516 / 516 | 831 / 831 | 0 | 全 0 | 0 条,用户目测抗锯齿正常 |
+| 1.21.9 | 519 / 519 | 832 / 832 | 0 | 全 0 | 0 条 |
+| 1.21.10 | 553 / 553 | 836 / 836 | 0 | 全 0 | 0 条,画面确认不是黑屏 |
+| 1.21.11 | 570 / 570 | 874 / 874 | 0 | 全 0 | 0 条,用户目测抗锯齿正常 |
+
+**1.21.11 的细节**(首次移植那一轮,上表最后一行就是它):
 
 | 项目 | 结果 |
 |---|---|
