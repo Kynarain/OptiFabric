@@ -1263,6 +1263,39 @@ NullPointerException: Cannot read field "norm" because "multiTex" is null
   at net.minecraft.class_1043.method_71142 / method_71141
 ```
 
+**字节码层面已核实(2026-09-13,直接反汇编两版流水线的缓存产物)**:
+
+| 构建 | `class_1043.<init>` 里的相关指令 |
+|---|---|
+| 1.21.6 `pre3`(**崩**) | `67: invokestatic ShadersTex.initDynamicTextureNS(class_1043)` —— 它**前面没有任何关联步骤** |
+| 1.21.11 `J9`(正常) | `67: invokevirtual GpuTexture.setParentTexture(class_1044)` → `77: invokestatic ShadersTex.initDynamicTextureNS` |
+
+两个构建的 `initDynamicTextureNS` 开头完全一致:
+
+```
+0: aload_0
+1: invokevirtual net/minecraft/class_1043.getMultiTexID:()Lnet/optifine/shaders/MultiTexID;   // 存进 local 1
+...
+1.21.6:  31: aload_1
+         32: getfield  MultiTexID.norm:I          <-- local 1 为 null -> 就是崩在这一条
+1.21.11: 21: aload_1
+         25: invokestatic net/optifine/shaders/ShadersTex.initTextureNS:(Lnet/optifine/shaders/MultiTexID;II)V
+```
+
+而 `GpuTexture` 那套关联 API **不是游戏自带的**:1.21.6 与 1.21.11 的 vanilla jar 里都**没有**
+`parentTexture` / `setParentTexture` / `getParentTexture`,它是 **OptiFine 自己的补丁加的** —— J9 的补丁产物里
+这三个成员都在,`pre3` 的补丁产物里一个都没有。所以完整链条是:
+
+1. 1.21.6 / 1.21.7 的构建给 `class_1043.<init>` 插进了 `initDynamicTextureNS`(这一步它们做了);
+2. 却没有插"先把纹理登记进 `ShadersTex.multiTexMap`"的那一步 —— 因为它要调的 `GpuTexture.setParentTexture`
+   在它自己的补丁里都不存在(1.21.8 起的构建才补上);
+3. `initDynamicTextureNS` 又**直接解引用** `getMultiTexID()` 的返回值(1.21.11 才改成空安全的 `initTextureNS` 委派),
+   于是 `multiTex` 为 null → `NullPointerException: Cannot read field "norm" because "multiTex" is null`;
+4. `initDynamicTextureNS` 只在**光影启用**时被调用,这就是"不开光影没事、一开就崩"、且与光影包内容无关的原因。
+
+证据来源(可复现):`<游戏目录>/.optifine/<OptiFine 版本>/Optifine.classes.gz`(补丁类缓存)与同一目录下的
+`Optifine-mapped.jar`,用 `javap -p -c` 即可核对上表。
+
 1.21.8 的 OptiFine 在创建纹理之后先做 `this.field_56974.setParentTexture(this)`,而 1.21.6 / 1.21.7 的构建
 **既没有这个方法、也没做这个关联**,于是它自己要用的 multi-tex 登记表是空的。可照抄的部分已从 1.21.8
 反编译出来(全部只有 2~3 条指令):

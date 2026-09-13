@@ -60,6 +60,14 @@
 > 崩溃点在 `TextureManager.<init>` 创建第一批纹理时的 `class_1043.<init>`(OptiFine 给这个类的构造函数插了
 > `ShadersTex.initDynamicTextureNS`),**早于任何与具体光影包相关的逻辑** —— 所以触发条件就是"**光影被启用**",
 > 与包的写法无关。崩溃报告里 `OptiFabric error: <None>`:光影包与装配都没问题,**崩的是这两版 OptiFine 预览构建自身**。
+>
+> **根因已定位到字节码**(反汇编两版流水线的缓存产物,详见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) 待办 A):
+> 这两版的 OptiFine 给 `class_1043.<init>` 插进了 `initDynamicTextureNS`,却**没插它依赖的那一步关联** ——
+> `67: invokestatic initDynamicTextureNS` 直接调用,而 1.21.11 的 `J9` 是
+> `67: invokevirtual GpuTexture.setParentTexture` → `77: invokestatic initDynamicTextureNS`。
+> 那个 `setParentTexture` / `parentTexture` API **不在游戏里**(两个版本的 vanilla jar 都没有),是 OptiFine 自己
+> 补丁加的,1.21.8 起的构建才补上;而 1.21.6/1.21.7 的 `initDynamicTextureNS` 又**直接解引用** `getMultiTexID()`
+> 的结果(1.21.11 已改成空安全的 `initTextureNS` 委派),于是 `multiTex` 为 null、读 `.norm` 即崩。
 > **换旧构建也没用**:这两版可用的 OptiFine 构建**全部 7 个**逐个测过 —— 1.21.6 的 `pre1` / `pre2` / `pre3`、
 > 1.21.7 的 `pre4` / `pre5` / `pre6` / `pre7`,启用光影时**全都崩在同一个栈**,所以"降级到更早的 preview"不是规避办法。
 >
